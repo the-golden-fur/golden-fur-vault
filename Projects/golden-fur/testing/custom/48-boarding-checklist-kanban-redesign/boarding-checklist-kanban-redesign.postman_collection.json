@@ -1,0 +1,294 @@
+{
+  "info": {
+    "name": "Boarding Checklist Kanban Redesign (#48)",
+    "description": "Verifies the #48 change (round 1/2): GET /hotel/care-log/today now accepts an optional date_from/date_to range (still defaults to today-only), the complete/start/reopen endpoints are open to every HOTEL_ADVANCE_ROLES member (not just Pet Assistant/Groomer), and hotel/daycare checkout now returns 409 while the stay's Boarding Checklist still has Pending/In Progress tasks. Round 3 adds: GET /hotel/activity-log (the new Hotel/Daycare activity logbook) and GET /daycare/sessions's new date_from/date_to range (Daycare checkout UI parity with Hotel). Fill in the variables below (an existing hotel stay's care-log entry id / stay id with outstanding tasks) before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    {
+      "key": "care_log_entry_id",
+      "value": "",
+      "description": "A Pending care_log_entries row id at the logged-in staff member's branch."
+    },
+    {
+      "key": "hotel_stay_id",
+      "value": "",
+      "description": "An In-Progress hotel stay id whose Boarding Checklist still has at least one Pending/In Progress task."
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /hotel/care-log/today with no filters (unchanged today-only default)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/today",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "today"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('entries is an array', () => pm.expect(Array.isArray(body.entries)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET /hotel/care-log/today?date_from=&date_to= (multi-date range, redesign)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/today?date_from=2026-01-01&date_to=2026-12-31",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "today"],
+          "query": [
+            { "key": "date_from", "value": "2026-01-01" },
+            { "key": "date_to", "value": "2026-12-31" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /hotel/care-log/today?date_from=not-a-date - rejected by the query validator",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/today?date_from=not-a-date",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "today"],
+          "query": [{ "key": "date_from", "value": "not-a-date" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH /hotel/care-log-entry/:id/complete - now reachable by every advance role, not just Pet Assistant/Groomer",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log-entry/{{care_log_entry_id}}/complete",
+          "host": ["{{base_url}}"],
+          "path": [
+            "hotel",
+            "care-log-entry",
+            "{{care_log_entry_id}}",
+            "complete"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('request succeeded (200) or the entry was already completed (409) - either proves the route is reachable by this role', () => pm.expect([200, 409]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. POST /hotel/stays/:id/checkout - blocked (409) while the Boarding Checklist still has Pending/In Progress tasks",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays/{{hotel_stay_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays", "{{hotel_stay_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('rejected with 409', () => pm.response.to.have.status(409));",
+              "pm.test('error message names the incomplete task count', () => pm.expect(body.error).to.match(/Boarding checklist has \\d+ incomplete task/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Round 3: GET /hotel/activity-log with no filters (Hotel/Daycare activity logbook)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/activity-log",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "activity-log"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('entries is an array', () => pm.expect(Array.isArray(body.entries)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Round 3: GET /hotel/activity-log?date_from=not-a-date - rejected by the query validator",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/activity-log?date_from=not-a-date",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "activity-log"],
+          "query": [{ "key": "date_from", "value": "not-a-date" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Round 3: GET /daycare/sessions?status=&date_from=&date_to= (Daycare checkout UI parity with Hotel)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions?status=Completed&date_from=2026-01-01&date_to=2026-12-31",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions"],
+          "query": [
+            { "key": "status", "value": "Completed" },
+            { "key": "date_from", "value": "2026-01-01" },
+            { "key": "date_to", "value": "2026-12-31" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('sessions is an array', () => pm.expect(Array.isArray(body.sessions)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Round 3: GET /daycare/sessions?status=Bogus - rejected by the query validator",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions?status=Bogus",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions"],
+          "query": [{ "key": "status", "value": "Bogus" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

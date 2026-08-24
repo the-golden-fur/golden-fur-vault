@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "Show Unconfirmed Bookings in Groomer/Vet Queues - Filter Toggle",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "grooming_service_id", "value": "" },
+    { "key": "groomer_identifier", "value": "" },
+    { "key": "groomer_password", "value": "" },
+    { "key": "groomer_access_token", "value": "" },
+    { "key": "groomer_staff_id", "value": "" },
+    { "key": "vet_identifier", "value": "" },
+    { "key": "vet_password", "value": "" },
+    { "key": "vet_access_token", "value": "" },
+    { "key": "pending_booking_id", "value": "" },
+    { "key": "slot_start", "value": "" },
+    { "key": "slot_end", "value": "" },
+    { "key": "yesterday_date", "value": "" },
+    { "key": "tomorrow_date", "value": "" },
+    { "key": "day_after_tomorrow_date", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// A slot 1-2 hours from now, so it's confidently still inside",
+          "// 'today' (UTC) for the queue's todayRangeUtc() filter. Re-run the",
+          "// whole collection if it happens to straddle UTC midnight.",
+          "if (!pm.collectionVariables.get('slot_start')) {",
+          "  const now = new Date();",
+          "  const start = new Date(now.getTime() + 60 * 60 * 1000);",
+          "  const end = new Date(now.getTime() + 120 * 60 * 1000);",
+          "  pm.collectionVariables.set('slot_start', start.toISOString());",
+          "  pm.collectionVariables.set('slot_end', end.toISOString());",
+          "",
+          "  const isoDate = (d) => d.toISOString().slice(0, 10);",
+          "  const dayMs = 24 * 60 * 60 * 1000;",
+          "  pm.collectionVariables.set('yesterday_date', isoDate(new Date(now.getTime() - dayMs)));",
+          "  pm.collectionVariables.set('tomorrow_date', isoDate(new Date(now.getTime() + dayMs)));",
+          "  pm.collectionVariables.set('day_after_tomorrow_date', isoDate(new Date(now.getTime() + 2 * dayMs)));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Customer login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Groomer login (capture token + own staff id from JWT)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{groomer_identifier}}\",\n  \"password\": \"{{groomer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('groomer login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const token = pm.response.json().access_token;",
+              "  pm.collectionVariables.set('groomer_access_token', token);",
+              "  const payloadB64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+              "  const payload = JSON.parse(atob(payloadB64));",
+              "  pm.collectionVariables.set('groomer_staff_id', payload.sub);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create a Grooming booking, pay-at-counter (Cash) -> Pending",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"staff_preference\": { \"type\": \"specific\", \"staff_id\": \"{{groomer_staff_id}}\" },\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"Cash\",\n  \"payment_confirmed\": false,\n  \"special_instructions\": \"queue-unconfirmed-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Pending - cash payment not yet cleared (#51 AC-4)', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.status).to.eql('Pending');",
+              "  pm.expect(booking.assigned_staff_id).to.eql(pm.collectionVariables.get('groomer_staff_id'));",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('pending_booking_id', pm.response.json().booking.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /grooming/queue (default) - Pending booking is hidden",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, no pendingBookings key, Pending booking absent from sessions', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.pendingBookings).to.be.undefined;",
+              "  const ids = body.sessions.map((s) => s.booking_id);",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('pending_booking_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /grooming/queue?includePending=true - Pending booking is surfaced",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?includePending=true",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [{ "key": "includePending", "value": "true" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, Pending booking is in pendingBookings, not in sessions', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const pendingId = pm.collectionVariables.get('pending_booking_id');",
+              "  const pendingIds = body.pendingBookings.map((b) => b.id);",
+              "  pm.expect(pendingIds).to.include(pendingId);",
+              "  const sessionBookingIds = body.sessions.map((s) => s.booking_id);",
+              "  pm.expect(sessionBookingIds).to.not.include(pendingId);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. GET /grooming/queue with a wide date_from/date_to - Pending booking still surfaced",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?includePending=true&date_from={{yesterday_date}}&date_to={{tomorrow_date}}",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [
+            { "key": "includePending", "value": "true" },
+            { "key": "date_from", "value": "{{yesterday_date}}" },
+            { "key": "date_to", "value": "{{tomorrow_date}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, a yesterday-to-tomorrow range still includes a today booking', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const pendingIds = body.pendingBookings.map((b) => b.id);",
+              "  pm.expect(pendingIds).to.include(pm.collectionVariables.get('pending_booking_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GET /grooming/queue with a future-only date range - Pending booking excluded",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?includePending=true&date_from={{tomorrow_date}}&date_to={{day_after_tomorrow_date}}",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [
+            { "key": "includePending", "value": "true" },
+            { "key": "date_from", "value": "{{tomorrow_date}}" },
+            { "key": "date_to", "value": "{{day_after_tomorrow_date}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"200, a tomorrow-only range excludes today's booking\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const pendingIds = body.pendingBookings.map((b) => b.id);",
+              "  pm.expect(pendingIds).to.not.include(pm.collectionVariables.get('pending_booking_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cleanup - cancel the Pending booking created in step 3",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_reason\": \"queue-unconfirmed-postman cleanup\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{pending_booking_id}}/cancel",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{pending_booking_id}}", "cancel"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup succeeds, no leftover test data', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().booking.status).to.eql('Cancelled');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Veterinarian login (capture token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{vet_identifier}}\",\n  \"password\": \"{{vet_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('vet login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('vet_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. GET /veterinary/consultations/queue (default) - no pendingBookings key",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{vet_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/queue",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "queue"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, pendingBookings omitted when not requested', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pendingBookings).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. GET /veterinary/consultations/queue?includePending=true - pendingBookings present",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{vet_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/queue?includePending=true",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "queue"],
+          "query": [{ "key": "includePending", "value": "true" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, pendingBookings is an array (shape check)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pendingBookings).to.be.an('array');",
+              "});",
+              "// A real Pending Veterinary booking only exists today via the #67",
+              "// follow-up flow (POST /veterinary/consultations/:id/follow-up),",
+              "// not via normal booking creation (Veterinary always auto-",
+              "// Confirms - #51 AC-4). See the .md doc's manual verification",
+              "// section for an end-to-end walkthrough seeding one."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

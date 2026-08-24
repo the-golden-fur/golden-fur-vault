@@ -1,0 +1,173 @@
+{
+  "info": {
+    "name": "Hotel Queue Checkout List Parity (#43)",
+    "description": "Verifies the #43 change to GET /hotel/stays: it now accepts the same status + inclusive date-range (date_from/date_to, matching scheduled_check_out_date) query shape GET /bookings already offers, backing HotelStayPicker's checkout tab now having the same QueueFilterBar (date range + status) HotelBookingPicker's check-in tab has. Covers the new listHotelStaysQueryValidator's happy path and its rejection of an invalid status/date. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /hotel/stays with no filters (unchanged default behavior)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('stays is an array', () => pm.expect(Array.isArray(body.stays)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET /hotel/stays?status=In Progress",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays?status=In Progress",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"],
+          "query": [{ "key": "status", "value": "In Progress" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /hotel/stays?status=Completed&date_from=&date_to= (inclusive date range against scheduled_check_out_date)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays?status=Completed&date_from=2026-01-01&date_to=2026-12-31",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"],
+          "query": [
+            { "key": "status", "value": "Completed" },
+            { "key": "date_from", "value": "2026-01-01" },
+            { "key": "date_to", "value": "2026-12-31" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('request succeeded', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /hotel/stays?status=Bogus - rejected by the query validator",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays?status=Bogus",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"],
+          "query": [{ "key": "status", "value": "Bogus" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. GET /hotel/stays?date_from=not-a-date - rejected by the query validator",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays?date_from=not-a-date",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"],
+          "query": [{ "key": "date_from", "value": "not-a-date" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

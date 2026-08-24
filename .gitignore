@@ -1,0 +1,19 @@
+# Obsidian per-device UI state and cache — churns on every open, not vault content
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+
+# Temp/scratch folders created while extracting or converting content
+.tmp/
+_staging/
+_extract/
+*.tmp
+*.part
+
+# OS junk files
+.DS_Store
+Thumbs.db
+
+# Node dependencies (Prettier tooling)
+node_modules/
+package-lock.json

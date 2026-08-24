@@ -1,0 +1,166 @@
+{
+  "info": {
+    "name": "Fix Customer/Staff Cross-Login",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "staff_email", "value": "" },
+    { "key": "staff_username", "value": "" },
+    { "key": "staff_password", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Staff credentials rejected at customer login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{staff_email}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a valid staff credential pair with 401, not a session', () => {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json()).to.not.have.property('access_token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Customer credentials rejected at staff login (email identifier)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a valid customer credential pair with 401, not a session', () => {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json()).to.not.have.property('access_token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Real staff login via username still succeeds",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('logs in successfully with a real staff username', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Real staff login via email still succeeds",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_email}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('logs in successfully with a real staff email (the path that was previously vulnerable)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Real customer login still succeeds",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('logs in successfully with a real customer account', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

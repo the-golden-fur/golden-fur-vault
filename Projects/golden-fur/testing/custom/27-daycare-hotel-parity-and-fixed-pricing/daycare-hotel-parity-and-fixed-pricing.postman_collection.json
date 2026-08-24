@@ -1,0 +1,342 @@
+{
+  "info": {
+    "name": "Daycare/Hotel Parity & Fixed Pricing (#27)",
+    "description": "Verifies the backend-testable pieces of the #27 custom change: (1) a Daycare check-in (walk-in) now claims a real cage and accepts structured feeding/walking/playing/medication instructions, generating a shared `stays` row + Care Log entries exactly like Hotel check-in; (2) Daycare checkout releases the cage; (3) the seeded Hotel service is now a single fixed-price 'Overnight Stay (Aircon Room)' row (the four old per-cage-size services are inactive); (4) booking a Hotel stay for 5+ nights (the seeded min_nights_for_free_package) auto-attaches the Golden Package as a zero-priced booking_items row and the receipt/line-items reflect it. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "Any active branch id (must match the receptionist's own branch)"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "A seeded customer id"
+    },
+    {
+      "key": "daycare_pet_id",
+      "value": "",
+      "description": "A Dog/Cat pet id owned by customer_id, already staff-assessed (weight_class + coat_type set)"
+    },
+    {
+      "key": "hotel_pet_id",
+      "value": "",
+      "description": "A second staff-assessed pet id owned by customer_id, used for the Hotel free-package booking"
+    },
+    { "key": "hotel_service_id", "value": "" },
+    { "key": "hotel_booking_id", "value": "" },
+    { "key": "daycare_stay_id", "value": "" },
+    { "key": "daycare_cage_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Confirm Hotel is now a single fixed-price service",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/services?category=Hotel",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"],
+          "query": [{ "key": "category", "value": "Hotel" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const services = pm.response.json();",
+              "const active = services.filter((s) => s.is_active);",
+              "pm.test('exactly one active Hotel service', () => pm.expect(active.length).to.eql(1));",
+              "pm.test('active Hotel service has a free-package threshold', () => {",
+              "  pm.expect(active[0].min_nights_for_free_package).to.be.a('number');",
+              "  pm.expect(active[0].free_package_name).to.be.a('string');",
+              "});",
+              "if (active[0]) pm.collectionVariables.set('hotel_service_id', active[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Book Hotel for min_nights_for_free_package nights (awards the free package)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{hotel_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [{ \"service_id\": \"{{hotel_service_id}}\" }],\n  \"scheduled_start\": \"2026-09-01T04:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-06T04:00:00.000Z\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        },
+        "description": "5 nights (scheduled_end - scheduled_start = 5 * 1440min) - matches the seeded min_nights_for_free_package on the Overnight Stay service."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booking created', () => pm.response.to.have.status(201));",
+              "if (body.booking && body.booking.id) pm.collectionVariables.set('hotel_booking_id', body.booking.id);",
+              "pm.test('booking_items includes a zero-priced package line (the free package)', () => {",
+              "  const packageItems = ((body.booking && body.booking.booking_items) || []).filter((i) => i.package_id);",
+              "  pm.expect(packageItems.length).to.be.greaterThan(0);",
+              "  pm.expect(Number(packageItems[0].price_at_booking)).to.eql(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET the booking back - free package still present",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{hotel_booking_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{hotel_booking_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('found', () => pm.response.to.have.status(200));",
+              "pm.test('still has the free package item', () => {",
+              "  const packageItems = ((body.booking && body.booking.booking_items) || []).filter((i) => i.package_id);",
+              "  pm.expect(packageItems.length).to.be.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Daycare walk-in check-in with cage + care instructions",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{daycare_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"feeding\": [\n    { \"meal_time\": \"Noon\", \"food_type\": \"Dry kibble\", \"quantity\": \"1 cup\" }\n  ],\n  \"walking\": [\n    { \"time_block\": \"Afternoon\", \"duration_minutes\": 15 }\n  ],\n  \"playing\": [],\n  \"medications\": [],\n  \"notify_opt_in\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('checked in', () => pm.response.to.have.status(201));",
+              "const session = body.session;",
+              "pm.test('a real cage was assigned', () => pm.expect(session.cage_id).to.be.a('string'));",
+              "pm.test('stay_type is Daycare', () => pm.expect(session.stay_type).to.eql('Daycare'));",
+              "if (session) {",
+              "  pm.collectionVariables.set('daycare_stay_id', session.id);",
+              "  pm.collectionVariables.set('daycare_cage_id', session.cage_id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Today's Care Log includes the Daycare feeding/walking rows just created",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/today",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "today"]
+        },
+        "description": "Same endpoint Hotel's Care Log checklist uses - a Daycare check-in's feeding/walking rows now show up here too, since both write to the shared care_log_entries table."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "const forThisStay = (body.entries || []).filter((e) => e.stay_id === pm.collectionVariables.get('daycare_stay_id'));",
+              "pm.test('at least the feeding + walking entries exist for this stay', () => pm.expect(forThisStay.length).to.be.greaterThan(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Cage now shows Occupied on the cage grid",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "const allCages = Object.values(body.grid || {}).flat();",
+              "const thisCage = allCages.find((c) => c.id === pm.collectionVariables.get('daycare_cage_id'));",
+              "pm.test('the cage claimed by the Daycare check-in is Occupied', () => {",
+              "  pm.expect(thisCage).to.exist;",
+              "  pm.expect(thisCage.status).to.eql('Occupied');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Daycare checkout releases the cage",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions/{{daycare_stay_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions", "{{daycare_stay_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('checked out', () => pm.response.to.have.status(200));",
+              "pm.test('computed_charge is set', () => pm.expect(body.session.computed_charge).to.not.be.null);",
+              "pm.test('status is Completed', () => pm.expect(body.session.status).to.eql('Completed'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Cage is Available again after Daycare checkout",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "const allCages = Object.values(body.grid || {}).flat();",
+              "const thisCage = allCages.find((c) => c.id === pm.collectionVariables.get('daycare_cage_id'));",
+              "pm.test('the cage is Available again', () => {",
+              "  pm.expect(thisCage).to.exist;",
+              "  pm.expect(thisCage.status).to.eql('Available');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

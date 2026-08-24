@@ -1,0 +1,315 @@
+{
+  "info": {
+    "name": "Issue 66 - Veterinary Consultation Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "vet_email", "value": "" },
+    { "key": "vet_password", "value": "" },
+    { "key": "receptionist_email", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "vet_token", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "vet_booking_id", "value": "" },
+    { "key": "consultation_id", "value": "" },
+    { "key": "pet_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Veterinarian",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{vet_email}}\",\n  \"password\": \"{{vet_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Vet login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('vet_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_email}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET consultation queue (Vet) - auto-creates Pending consultation",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/queue",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "queue"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, consultation exists for the booking with status Pending', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const consultations = pm.response.json().consultations;",
+              "  pm.expect(consultations).to.be.an('array');",
+              "  const match = consultations.find(c => c.booking_id === pm.collectionVariables.get('vet_booking_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.status).to.eql('Pending');",
+              "  pm.collectionVariables.set('consultation_id', match.id);",
+              "  pm.collectionVariables.set('pet_id', match.pet_id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Receptionist attempts PATCH (write-restricted)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Ongoing\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 Forbidden - Receptionist can read but not write', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-1 PATCH -> Ongoing with vitals/diagnosis (Vet)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Ongoing\",\n  \"temperature\": 38.5,\n  \"weight\": 12.3,\n  \"heart_rate\": 90,\n  \"respiratory_rate\": 20,\n  \"diagnosis\": \"Ear infection\",\n  \"medications\": [\n    { \"name\": \"Amoxicillin\", \"dose\": \"50mg\", \"notes\": \"Twice daily\" }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, status Ongoing with vitals/diagnosis/medications saved', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const consultation = pm.response.json().consultation;",
+              "  pm.expect(consultation.status).to.eql('Ongoing');",
+              "  pm.expect(consultation.diagnosis).to.eql('Ear infection');",
+              "  pm.expect(consultation.medications[0].name).to.eql('Amoxicillin');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-2/AC-3 PATCH -> Completed with line items + vaccination (Vet)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Completed\",\n  \"professional_fee\": 500,\n  \"medications\": [\n    { \"name\": \"Amoxicillin\", \"dose\": \"50mg\", \"amount\": 150 }\n  ],\n  \"procedures\": [\n    { \"procedure_type\": \"Vaccination\", \"description\": \"Rabies booster\", \"amount\": 300 }\n  ],\n  \"vaccination\": {\n    \"vaccine_name\": \"Rabies\",\n    \"date_administered\": \"2026-07-19\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, status Completed with completed_at set', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const consultation = pm.response.json().consultation;",
+              "  pm.expect(consultation.status).to.eql('Completed');",
+              "  pm.expect(consultation.completed_at).to.be.a('string');",
+              "});",
+              "pm.test('Reminder: verify in Supabase Studio - consultation_line_items has 3 rows (professional_fee/medication/procedure) for this consultation_id, and pet_vaccination_records has a new Rabies row for this pet_id', function () {",
+              "  pm.expect(true).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-4 GET current prescription for the pet",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/pets/{{pet_id}}/current-prescription",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "pets", "{{pet_id}}", "current-prescription"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, medications match the completed consultation', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const prescription = pm.response.json().prescription;",
+              "  pm.expect(prescription).to.not.be.null;",
+              "  pm.expect(prescription.consultation_id).to.eql(pm.collectionVariables.get('consultation_id'));",
+              "  pm.expect(prescription.medications[0].name).to.eql('Amoxicillin');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. GET pet history for the pet",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/pets/{{pet_id}}/history",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "pets", "{{pet_id}}", "history"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, the just-completed consultation appears in history', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const consultations = pm.response.json().consultations;",
+              "  const match = consultations.find(c => c.id === pm.collectionVariables.get('consultation_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.diagnosis).to.eql('Ear infection');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. PATCH an already-Completed consultation (rejected)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"diagnosis\": \"Late edit attempt\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 already finalized', function () {",
+              "  pm.response.to.have.status(409);",
+              "  pm.expect(pm.response.json().error).to.match(/already finalized/i);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

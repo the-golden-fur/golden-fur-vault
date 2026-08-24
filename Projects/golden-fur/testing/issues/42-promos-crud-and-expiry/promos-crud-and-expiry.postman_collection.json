@@ -1,0 +1,358 @@
+{
+  "info": {
+    "name": "Issue 42 - Promos CRUD and Expiry",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "promo_id", "value": "" },
+    { "key": "condition_promo_id", "value": "" },
+    { "key": "expired_promo_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1: POST date-bounded promo (future window)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Future Promo\",\n  \"start_date\": \"2027-01-01\",\n  \"end_date\": \"2027-01-31\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 15,\n  \"scope_type\": \"all_services\",\n  \"branch_scope\": \"both\",\n  \"is_exclusive\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: 201 with dates, exclusivity flag, branch scope', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const promo = pm.response.json().promo;",
+              "  pm.expect(promo.end_date).to.eql('2027-01-31');",
+              "  pm.expect(promo.is_exclusive).to.eql(true);",
+              "  pm.expect(promo.branch_scope).to.eql('both');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('promo_id', pm.response.json().promo.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1: POST condition-based promo (note, no dates)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Condition Promo\",\n  \"condition_note\": \"First booking of the month\",\n  \"discount_type\": \"Flat\",\n  \"value\": 50,\n  \"scope_type\": \"all_services\",\n  \"branch_scope\": \"makati\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: 201 with a condition note and NULL dates', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const promo = pm.response.json().promo;",
+              "  pm.expect(promo.condition_note).to.eql('First booking of the month');",
+              "  pm.expect(promo.end_date).to.eql(null);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('condition_promo_id', pm.response.json().promo.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Setup for AC-5: POST already-expired promo",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Expired Promo\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-01-31\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"all_services\",\n  \"branch_scope\": \"both\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 - an expired window is storable (history) but must never list as active', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('expired_promo_id', pm.response.json().promo.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-5: GET active promos filters the expired one at read time",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: expired promo absent even before the scheduled job runs; live ones present', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().promos.map(function (p) { return p.id; });",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('expired_promo_id'));",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('promo_id'));",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('condition_promo_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Validation: dates + condition note together rejected",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Broken Promo\",\n  \"start_date\": \"2027-01-01\",\n  \"end_date\": \"2027-01-31\",\n  \"condition_note\": \"also a condition\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"all_services\",\n  \"branch_scope\": \"both\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400: a promo is date-bounded or condition-based, never both', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-4: Admin manually deactivates the future promo",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{promo_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos", "{{promo_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: 200 - manual deactivation works regardless of end_date', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().promo.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-6: non-admin write rejected with 403",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{condition_promo_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos", "{{condition_promo_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-6: 403 for a non-Admin/Superadmin write', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Cleanup: deactivate the condition + expired promos",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{condition_promo_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos", "{{condition_promo_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "// The expired promo is deactivated by the expiry job / SQL step;",
+              "// see promos-crud-and-expiry.sql for AC-2/AC-3 verification."
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

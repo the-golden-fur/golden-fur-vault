@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "Issue 16 - TOTP Attempt Lockout",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "staff_username",
+      "value": ""
+    },
+    {
+      "key": "staff_password",
+      "value": ""
+    },
+    {
+      "key": "staff_access_token",
+      "value": ""
+    },
+    {
+      "key": "customer_email",
+      "value": ""
+    },
+    {
+      "key": "customer_password",
+      "value": ""
+    },
+    {
+      "key": "customer_access_token",
+      "value": ""
+    },
+    {
+      "key": "totp_code",
+      "value": "000000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Staff - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff - TOTP Verify Invalid Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{staff_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{totp_code}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "verify"]
+        }
+      }
+    },
+    {
+      "name": "Customer - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - TOTP Verify Invalid Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{totp_code}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "verify"]
+        }
+      }
+    }
+  ]
+}

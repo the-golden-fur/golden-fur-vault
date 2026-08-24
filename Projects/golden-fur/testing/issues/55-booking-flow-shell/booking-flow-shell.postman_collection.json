@@ -1,0 +1,119 @@
+{
+  "info": {
+    "name": "Issue 55 - Booking Flow Shell (GET /bookings/catalog)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "branch_makati_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Customer reads the Makati catalog (regression: was 403 via /maintenance/*)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/catalog?branch_id={{branch_makati_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "catalog"],
+          "query": [{ "key": "branch_id", "value": "{{branch_makati_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with services/packages/promos, not 403', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.services).to.be.an('array').that.is.not.empty;",
+              "  pm.expect(body.packages).to.be.an('array');",
+              "  pm.expect(body.promos).to.be.an('array');",
+              "  body.services.forEach((s) => pm.expect(s.is_active).to.eql(true));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Category filter narrows services",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/catalog?branch_id={{branch_makati_id}}&category=Grooming",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "catalog"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_makati_id}}" },
+            { "key": "category", "value": "Grooming" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, every service matches the category filter', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  body.services.forEach((s) => pm.expect(s.category).to.eql('Grooming'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

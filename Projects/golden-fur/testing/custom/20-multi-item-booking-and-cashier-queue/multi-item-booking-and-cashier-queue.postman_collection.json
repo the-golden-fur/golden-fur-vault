@@ -1,0 +1,668 @@
+{
+  "info": {
+    "name": "Multi-item Bookings, Cashier Queue, Booking-time Discounts/Promos",
+    "description": "Verifies: (1) a booking can hold several services/packages via `items`, and duplicate/empty `items` are rejected, (2) a Cashier cannot Start a booking (403) but CAN Mark a Completed booking Paid, (3) a discount can only be applied by a money-handling staff role on a Cash booking, while a promo needs neither, (4) only Admin/Superadmin can PATCH /bookings/:id/status directly, and it can move a booking BACKWARD (e.g. Paid -> Completed -> Pending), clearing/preserving timestamps correctly, while Cancelled/No-show stay rejected from this endpoint. Fill in customer_identifier/customer_password, cashier_identifier/cashier_password (a Cashier-role login), receptionist_identifier/receptionist_password (any non-Cashier, non-Admin staff login), and admin_identifier/admin_password (Admin or Superadmin) before running. Fill branch_id (Supabase SQL Editor: `select id, name from public.branches;`) and pet_id (an already-assessed pet - weight_class/coat_type both set - belonging to that customer). Fill discount_id/promo_id with real active rows scoped to grooming_service_id or the Grooming category (Admin's Discounts/Promos pages, or `select id, name, scope_type from public.discounts/promos;`) if you want requests 10-12 to actually apply something rather than 400 on scope mismatch. Run requests in order, top to bottom - the first request sets dynamic future dates every other request reuses, and requests 14-17 depend on request 9 having already marked created_booking_id Paid.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "An Admin or Superadmin login - for the status-override dropdown endpoint"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    {
+      "key": "grooming_service_id",
+      "value": "a1300000-0000-4000-a000-000000000001",
+      "description": "Seeded 'Bath' Grooming service"
+    },
+    {
+      "key": "grooming_service_id_2",
+      "value": "a1300000-0000-4000-a000-000000000002",
+      "description": "Seeded 'Blow-dry' Grooming service"
+    },
+    {
+      "key": "discount_id",
+      "value": "",
+      "description": "An active discount scoped to grooming_service_id or the Grooming category"
+    },
+    {
+      "key": "promo_id",
+      "value": "",
+      "description": "An active promo scoped to grooming_service_id, all_services, or matching branch_scope"
+    },
+    { "key": "created_booking_id", "value": "" },
+    { "key": "scheduled_start", "value": "" },
+    { "key": "scheduled_end", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Set dynamic future dates (run once first)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);",
+              "start.setUTCHours(9, 0, 0, 0);",
+              "const end = new Date(start.getTime() + 60 * 60 * 1000);",
+              "pm.collectionVariables.set('scheduled_start', start.toISOString());",
+              "pm.collectionVariables.set('scheduled_end', end.toISOString());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        },
+        "header": []
+      }
+    },
+    {
+      "name": "1. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('customer_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as Receptionist (or any non-Cashier staff)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('receptionist_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create a multi-item booking (2 Grooming services)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [\n    { \"service_id\": \"{{grooming_service_id}}\" },\n    { \"service_id\": \"{{grooming_service_id_2}}\" }\n  ],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+              "if (pm.response.code === 201) {",
+              "  const body = pm.response.json();",
+              "  pm.test('booking_items has 2 rows', function () { pm.expect(body.booking.booking_items.length).to.eql(2); });",
+              "  pm.collectionVariables.set('created_booking_id', body.booking.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Create booking with duplicate item (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [\n    { \"service_id\": \"{{grooming_service_id}}\" },\n    { \"service_id\": \"{{grooming_service_id}}\" }\n  ],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Invalid payload', function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Create booking with empty items (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Invalid payload', function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Cashier: Start the Pending booking (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/start",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "start"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Receptionist: Start then Complete the booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/start",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "start"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK (Start)', function () { pm.response.to.have.status(200); });",
+              "pm.sendRequest({",
+              "  url: pm.collectionVariables.get('base_url') + '/bookings/' + pm.collectionVariables.get('created_booking_id') + '/complete',",
+              "  method: 'POST',",
+              "  header: { Authorization: 'Bearer ' + pm.collectionVariables.get('receptionist_access_token') }",
+              "}, function (err, res) {",
+              "  pm.test('200 OK (Complete)', function () { pm.expect(res.code).to.eql(200); });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Cashier: Mark the Completed booking Paid",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/mark-paid",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "mark-paid"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.test('status is Paid', function () { pm.expect(pm.response.json().status).to.eql('Paid'); }); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Apply a Cash discount as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"CUSTOMER_ID_HERE\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [ { \"service_id\": \"{{grooming_service_id}}\" } ],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\",\n  \"payment_method\": \"Cash\",\n  \"discount_id\": \"{{discount_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created (or 400 if discount_id scope does not match grooming_service_id - fill a real matching discount_id)', function () {",
+              "  pm.expect([201, 400]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  const b = pm.response.json().booking;",
+              "  pm.test('selected_discount_id set', function () { pm.expect(b.selected_discount_id).to.eql(pm.collectionVariables.get('discount_id')); });",
+              "  pm.test('discount_amount > 0', function () { pm.expect(b.discount_amount).to.be.above(0); });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "description": "Replace CUSTOMER_ID_HERE with the real customer id this pet belongs to (a staff caller must name the customer)."
+    },
+    {
+      "name": "11. Apply a discount with GCash (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"CUSTOMER_ID_HERE\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [ { \"service_id\": \"{{grooming_service_id}}\" } ],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\",\n  \"payment_method\": \"GCash\",\n  \"discount_id\": \"{{discount_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 - Cash only', function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ],
+      "description": "Replace CUSTOMER_ID_HERE. Confirms the Cash-only rule regardless of scope match."
+    },
+    {
+      "name": "12. Apply a promo as customer (no staff role needed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [ { \"service_id\": \"{{grooming_service_id}}\" } ],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\",\n  \"promo_id\": \"{{promo_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created (or 400 if promo_id scope does not match - fill a real matching promo_id)', function () {",
+              "  pm.expect([201, 400]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  const b = pm.response.json().booking;",
+              "  pm.test('selected_promo_id set', function () { pm.expect(b.selected_promo_id).to.eql(pm.collectionVariables.get('promo_id')); });",
+              "  pm.test('promo_amount > 0', function () { pm.expect(b.promo_amount).to.be.above(0); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Login as Admin/Superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('admin_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Receptionist: PATCH status directly (rejected - Admin/Superadmin only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Completed\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Admin: revert the Paid booking back to Completed",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Completed\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) {",
+              "  const b = pm.response.json().booking;",
+              "  pm.test('status is Completed', function () { pm.expect(b.status).to.eql('Completed'); });",
+              "  pm.test('paid_at cleared', function () { pm.expect(b.paid_at).to.be.null; });",
+              "  pm.test('completed_at still set (from the earlier Complete, not a fresh timestamp)', function () { pm.expect(b.completed_at).to.not.be.null; });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "description": "Depends on request 9 (Cashier: Mark the Completed booking Paid) having already run, so created_booking_id is currently Paid."
+    },
+    {
+      "name": "16. Admin: revert all the way back to Pending",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Pending\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) {",
+              "  const b = pm.response.json().booking;",
+              "  pm.test('status is Pending', function () { pm.expect(b.status).to.eql('Pending'); });",
+              "  pm.test('started_at cleared', function () { pm.expect(b.started_at).to.be.null; });",
+              "  pm.test('completed_at cleared', function () { pm.expect(b.completed_at).to.be.null; });",
+              "  pm.test('paid_at cleared', function () { pm.expect(b.paid_at).to.be.null; });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Admin: reject Cancelled via the status-override endpoint (use POST /cancel instead)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Cancelled\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Invalid payload', function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Round 4: Get booking by id (backs the new Booking Details page)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{created_booking_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{created_booking_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) {",
+              "  const b = pm.response.json().booking;",
+              "  pm.test('booking_items present', function () { pm.expect(b.booking_items).to.be.an('array'); });",
+              "  pm.test('no service_id/package_id columns on the booking itself', function () { pm.expect(b.service_id).to.be.undefined; pm.expect(b.package_id).to.be.undefined; });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "description": "Not a new endpoint (GET /bookings/:id already existed) - included because it's the one BookingDetailsPage.tsx calls, so this confirms the response shape the new page renders."
+    }
+  ]
+}

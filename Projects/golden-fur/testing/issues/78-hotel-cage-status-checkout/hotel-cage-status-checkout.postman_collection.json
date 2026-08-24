@@ -1,0 +1,300 @@
+{
+  "info": {
+    "name": "Issue 78 - Hotel Cage Status + Checkout Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "receptionist_email", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "admin_email", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "stay_id", "value": "" },
+    { "key": "cage_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_email}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1 GET cage grid",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, the checked-in cage shows status Occupied', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const grid = pm.response.json().grid;",
+              "  const allCages = [].concat(grid.S, grid.M, grid.L, grid.XL);",
+              "  const cage = allCages.find(c => c.id === pm.collectionVariables.get('cage_id'));",
+              "  pm.expect(cage).to.not.be.undefined;",
+              "  pm.expect(cage.status).to.eql('Occupied');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1 GET available counts",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages/available",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages", "available"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, counts object present for all four sizes', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const counts = pm.response.json().counts;",
+              "  pm.expect(counts).to.have.all.keys('S', 'M', 'L', 'XL');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-2 PATCH cage status (Receptionist, forbidden)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Under Maintenance\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/cage/{{cage_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cage", "{{cage_id}}", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 Forbidden for Receptionist', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-2 PATCH an Available cage to Under Maintenance and back (Admin)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Available\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/cage/{{cage_id}}/status",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cage", "{{cage_id}}", "status"]
+        },
+        "description": "NOTE: this cage is Occupied by the active stay, so this call is expected to 409 (must be Under Maintenance to reset to Available) - use a DIFFERENT, currently-Available cage_id to actually exercise the toggle. Swap the cage_id variable before running if you want a 200 here."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 (if cage_id was Available) or 409 (if still Occupied by the active stay)', function () {",
+              "  pm.expect([200, 409]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3/AC-4 POST checkout (on-time)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays/{{stay_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays", "{{stay_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, extensionFee null on time, remainingBalance computed', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.stay.status).to.eql('Completed');",
+              "  pm.expect(typeof body.remainingBalance).to.eql('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-4 verify cage released to Available",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('the checked-out cage now shows status Available', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const grid = pm.response.json().grid;",
+              "  const allCages = [].concat(grid.S, grid.M, grid.L, grid.XL);",
+              "  const cage = allCages.find(c => c.id === pm.collectionVariables.get('cage_id'));",
+              "  pm.expect(cage).to.not.be.undefined;",
+              "  pm.expect(cage.status).to.eql('Available');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-3 POST checkout again (already Completed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays/{{stay_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays", "{{stay_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 already checked out', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

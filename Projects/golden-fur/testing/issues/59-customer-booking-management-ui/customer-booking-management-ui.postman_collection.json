@@ -1,0 +1,190 @@
+{
+  "info": {
+    "name": "Issue 59 - Customer Booking Management (GET /bookings, customer scope)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "other_customer_account_email", "value": "" },
+    { "key": "other_customer_password", "value": "" },
+    { "key": "other_customer_access_token", "value": "" },
+    { "key": "first_booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login other customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{other_customer_account_email}}\",\n  \"password\": \"{{other_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('other customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('other_customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1 List my bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, every row belongs to the caller', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.bookings).to.be.an('array');",
+              "  pm.expect(body.bookings.length).to.be.greaterThan(0, 'create a booking first if this fails');",
+              "});",
+              "const body = pm.response.json();",
+              "if (body.bookings && body.bookings.length > 0) {",
+              "  pm.collectionVariables.set('first_booking_id', body.bookings[0].id);",
+              "  const decoded = JSON.parse(atob(pm.collectionVariables.get('customer_access_token').split('.')[1]));",
+              "  pm.test('AC-1: every returned booking.customer_id matches the caller', function () {",
+              "    body.bookings.forEach((b) => pm.expect(b.customer_id).to.eql(decoded.sub));",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1 Other customer cannot see the first customer's booking",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{other_customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, does not include the other customer\\'s booking id', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const ids = (body.bookings || []).map((b) => b.id);",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('first_booking_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. A status filter never leaks another customer's rows",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?status=Cancelled",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "status", "value": "Cancelled" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, still customer-scoped with a filter applied', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const decoded = JSON.parse(atob(pm.collectionVariables.get('customer_access_token').split('.')[1]));",
+              "  (body.bookings || []).forEach((b) => pm.expect(b.customer_id).to.eql(decoded.sub));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

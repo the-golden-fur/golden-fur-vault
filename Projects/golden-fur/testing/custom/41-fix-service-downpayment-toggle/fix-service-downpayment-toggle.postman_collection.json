@@ -1,0 +1,138 @@
+{
+  "info": {
+    "name": "Fix Service Downpayment Toggle (#41)",
+    "description": "Verifies the #41 bug fix: turning off \"Requires a downpayment\" on a service (or package - same validator) no longer trips services_downpayment_amount_check. Covers both halves of the fix: (1) the clean payload the fixed client now sends (requires_downpayment: false with downpayment_amount/downpayment_type omitted or null) succeeds; (2) the previously-buggy payload (requires_downpayment: false with a stale downpayment_amount left over) is now rejected with a friendly 400 from the server validator instead of a raw Postgres constraint error. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "downpayment_service_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create a Grooming service requiring a flat PHP 150 downpayment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Downpayment toggle regression test\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300,\n  \"requires_downpayment\": true,\n  \"downpayment_amount\": 150,\n  \"downpayment_type\": \"Flat\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('service created', () => pm.response.to.have.status(201));",
+              "pm.test('requires_downpayment is true', () => pm.expect(body.service.requires_downpayment).to.eql(true));",
+              "if (body.service && body.service.id) pm.collectionVariables.set('downpayment_service_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. PATCH: turn the toggle off with a stale downpayment_amount (the pre-fix buggy payload) - expect a friendly 400, not a raw DB error",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requires_downpayment\": false,\n  \"downpayment_amount\": 150\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{downpayment_service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{downpayment_service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400 (validation), not 500 (raw constraint violation)', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH: turn the toggle off with amount/type explicitly nulled (the fixed client payload) - expect success",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requires_downpayment\": false,\n  \"downpayment_amount\": null,\n  \"downpayment_type\": null\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{downpayment_service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{downpayment_service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('update succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('requires_downpayment is false', () => pm.expect(body.service.requires_downpayment).to.eql(false));",
+              "pm.test('downpayment_amount is null', () => pm.expect(body.service.downpayment_amount).to.eql(null));",
+              "pm.test('downpayment_type is null', () => pm.expect(body.service.downpayment_type).to.eql(null));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

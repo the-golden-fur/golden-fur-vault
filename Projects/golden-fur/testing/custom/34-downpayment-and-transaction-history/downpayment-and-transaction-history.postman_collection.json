@@ -1,0 +1,525 @@
+{
+  "info": {
+    "name": "Downpayment and Transaction History (#34)",
+    "description": "Verifies the backend-testable pieces of the #34 custom change (including the flat-or-percentage design revision): (1) a service/package can be flagged requires_downpayment with a downpayment_type ('Flat' PHP or 'Percentage' of price_at_booking) via POST/PATCH /maintenance/services|packages, and the old branch-wide policy_configurations.downpayment_percentage no longer exists; (2) a booking against a flagged service snapshots downpayment_required/downpayment_amount (computed per-type) and, when paid online, lets the customer/receptionist choose payment_choice ('downpayment' vs 'full') which drives payment_stage; (3) an unpaid downpayment-required booking is excluded from GET /grooming/queue (mirrors Hotel/Daycare/Veterinary) until payment_stage advances past Unpaid; (4) GET /reports/transaction-history now allows Cashier (previously 403'd despite the client already assuming it could); (5) the new customer-facing GET /reports/my-transaction-history. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "cashier_identifier",
+      "value": "",
+      "description": "A Cashier-role staff login - used to confirm the transaction-history role fix"
+    },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    {
+      "key": "customer_identifier",
+      "value": "",
+      "description": "A customer login, used only for GET /reports/my-transaction-history"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "Any active branch id (must match the admin/cashier's own branch)"
+    },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "A pet id, staff-assessed (weight_class + coat_type set), owned by the customer above"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "The customer id that owns pet_id above"
+    },
+    {
+      "key": "scheduled_start_a",
+      "value": "",
+      "description": "A near-future ISO datetime with an offset, e.g. 2026-09-01T09:00:00+00:00 - must fall within the branch's operating hours"
+    },
+    { "key": "scheduled_end_a", "value": "" },
+    { "key": "scheduled_start_b", "value": "" },
+    { "key": "scheduled_end_b", "value": "" },
+    { "key": "downpayment_service_id", "value": "" },
+    { "key": "booking_a_id", "value": "" },
+    { "key": "booking_b_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create a Grooming service requiring a flat PHP 150 downpayment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Full Groom (deposit required)\",\n  \"category\": \"Grooming\",\n  \"base_price\": 500,\n  \"requires_downpayment\": true,\n  \"downpayment_amount\": 150,\n  \"downpayment_type\": \"Flat\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('flag, amount, and type round-trip', () => {",
+              "  pm.expect(body.service.requires_downpayment).to.eql(true);",
+              "  pm.expect(Number(body.service.downpayment_amount)).to.eql(150);",
+              "  pm.expect(body.service.downpayment_type).to.eql('Flat');",
+              "});",
+              "if (body.service) pm.collectionVariables.set('downpayment_service_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2b. Rejects requires_downpayment=true with no amount/type",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Invalid downpayment service\",\n  \"category\": \"Grooming\",\n  \"base_price\": 500,\n  \"requires_downpayment\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2c. Rejects a Percentage downpayment over 100",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Invalid percentage downpayment service\",\n  \"category\": \"Grooming\",\n  \"base_price\": 500,\n  \"requires_downpayment\": true,\n  \"downpayment_amount\": 150,\n  \"downpayment_type\": \"Percentage\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400 (cannot exceed 100%)', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Make the new service available at this branch",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{downpayment_service_id}}/availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "services",
+            "{{downpayment_service_id}}",
+            "availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('ok', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Booking A - pay the downpayment now (GCash, payment_choice=downpayment)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{downpayment_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start_a}}\",\n  \"scheduled_end\": \"{{scheduled_end_a}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"payment_choice\": \"downpayment\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('snapshots the catalog downpayment and lands on Paid in Advance (balance still owed at the counter)', () => {",
+              "  pm.expect(body.booking.downpayment_required).to.eql(true);",
+              "  pm.expect(Number(body.booking.downpayment_amount)).to.eql(150);",
+              "  pm.expect(body.booking.payment_stage).to.eql('Paid in Advance');",
+              "});",
+              "if (body.booking) pm.collectionVariables.set('booking_a_id', body.booking.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Grooming queue already shows Booking A (its downpayment was paid online)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?date_from={{scheduled_start_a}}&date_to={{scheduled_start_a}}",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [
+            { "key": "date_from", "value": "{{scheduled_start_a}}" },
+            { "key": "date_to", "value": "{{scheduled_start_a}}" }
+          ]
+        },
+        "description": "Trim date_from/date_to to just the YYYY-MM-DD portion of scheduled_start_a if Postman doesn't URL-encode the '+' offset correctly."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('Booking A is present', () => {",
+              "  const ids = (body.sessions || []).map((s) => s.booking_id);",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('booking_a_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Booking B - pay at the counter (Cash, deferred)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{downpayment_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start_b}}\",\n  \"scheduled_end\": \"{{scheduled_end_b}}\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created, still Unpaid (nothing collected yet)', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(body.booking.downpayment_required).to.eql(true);",
+              "  pm.expect(body.booking.payment_stage).to.eql('Unpaid');",
+              "});",
+              "if (body.booking) pm.collectionVariables.set('booking_b_id', body.booking.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Grooming queue does NOT show Booking B yet (downpayment unpaid)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?date_from={{scheduled_start_b}}&date_to={{scheduled_start_b}}",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [
+            { "key": "date_from", "value": "{{scheduled_start_b}}" },
+            { "key": "date_to", "value": "{{scheduled_start_b}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('Booking B is absent - gated until the downpayment is collected', () => {",
+              "  const ids = (body.sessions || []).map((s) => s.booking_id);",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('booking_b_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Receptionist collects Booking B's downpayment at the counter",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"choice\": \"advance\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_b_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_b_id}}", "payment-stage", "advance"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('advances to Paid in Advance', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(body.booking.payment_stage).to.eql('Paid in Advance');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Grooming queue now shows Booking B",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/grooming/queue?date_from={{scheduled_start_b}}&date_to={{scheduled_start_b}}",
+          "host": ["{{base_url}}"],
+          "path": ["grooming", "queue"],
+          "query": [
+            { "key": "date_from", "value": "{{scheduled_start_b}}" },
+            { "key": "date_to", "value": "{{scheduled_start_b}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('Booking B is now present', () => {",
+              "  const ids = (body.sessions || []).map((s) => s.booking_id);",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('booking_b_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('cashier_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cashier can now read Transaction History (previously 403)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/transaction-history",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "transaction-history"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200, not 403', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customer/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customer", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Customer reads their own transaction history",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/my-transaction-history",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "my-transaction-history"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('every returned row (if any) belongs to this customer', () => {",
+              "  const custId = pm.collectionVariables.get('customer_id');",
+              "  (body.transactions || []).forEach((t) => pm.expect(t.customer_id).to.eql(custId));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

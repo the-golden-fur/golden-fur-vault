@@ -1,0 +1,243 @@
+{
+  "info": {
+    "name": "Restrict Cage Size Selection (#42)",
+    "description": "Verifies the #42 cage-size booking restriction: a customer booking a Hotel service for their own pet can only have a cage preference honored when it matches the pet's own weight_class (a mismatched preference silently degrades to null, same as an unavailable cage) - POST /bookings, preferredCageId logic in booking.service.ts/cagePicker.service.ts. A receptionist (staff) creating a walk-in booking on the customer's behalf is exempt and can freely pick any cage size. Preconditions: the branch has at least one 'Available' S-size and one 'Available' M-size cage, the Hotel service type has cage_picker_enabled on (Admin Settings > Service Types), and pet_id belongs to the customer and has weight_class 'S'. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "receptionist_identifier",
+      "value": "",
+      "description": "A Receptionist-role staff login at the same branch"
+    },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "Owned by the customer above, weight_class must be 'S'"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "The pet owner's customer id"
+    },
+    {
+      "key": "hotel_service_id",
+      "value": "",
+      "description": "An active Hotel-category service id (not requiring a downpayment, or set payment_confirmed/payment_choice accordingly if it does)"
+    },
+    { "key": "cage_id_s", "value": "" },
+    { "key": "cage_id_m", "value": "" },
+    {
+      "key": "scheduled_start_a",
+      "value": "",
+      "description": "Near-future ISO datetime, e.g. 2026-09-01T09:00:00+00:00"
+    },
+    { "key": "scheduled_end_a", "value": "" },
+    { "key": "scheduled_start_b", "value": "" },
+    { "key": "scheduled_end_b", "value": "" },
+    { "key": "scheduled_start_c", "value": "" },
+    { "key": "scheduled_end_c", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET cage picker options - find an S cage and an M cage",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/cage-picker?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "cage-picker"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('cage picker is enabled', () => pm.expect(body.cage_picker_enabled).to.eql(true));",
+              "const sCage = body.options.find((o) => o.type === 'specific' && o.size === 'S');",
+              "const mCage = body.options.find((o) => o.type === 'specific' && o.size === 'M');",
+              "pm.test('an Available S cage exists', () => pm.expect(sCage).to.not.be.undefined);",
+              "pm.test('an Available M cage exists', () => pm.expect(mCage).to.not.be.undefined);",
+              "if (sCage) pm.collectionVariables.set('cage_id_s', sCage.cage_id);",
+              "if (mCage) pm.collectionVariables.set('cage_id_m', mCage.cage_id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Customer books Hotel with a mismatched-size (M) cage preference - degrades to no preference",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [{ \"service_id\": \"{{hotel_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start_a}}\",\n  \"scheduled_end\": \"{{scheduled_end_a}}\",\n  \"cage_preference\": { \"type\": \"specific\", \"cage_id\": \"{{cage_id_m}}\" }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booking created', () => pm.response.to.have.status(201));",
+              "pm.test('mismatched cage preference was NOT honored (degraded to null)', () => pm.expect(body.booking.preferred_cage_id).to.eql(null));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Customer books Hotel with a matching-size (S) cage preference - honored",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [{ \"service_id\": \"{{hotel_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start_b}}\",\n  \"scheduled_end\": \"{{scheduled_end_b}}\",\n  \"cage_preference\": { \"type\": \"specific\", \"cage_id\": \"{{cage_id_s}}\" }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booking created', () => pm.response.to.have.status(201));",
+              "pm.test('matching-size cage preference was honored', () => pm.expect(body.booking.preferred_cage_id).to.eql(pm.collectionVariables.get('cage_id_s')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Receptionist books the same pet into a mismatched-size (M) cage - honored (staff is exempt)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [{ \"service_id\": \"{{hotel_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start_c}}\",\n  \"scheduled_end\": \"{{scheduled_end_c}}\",\n  \"cage_preference\": { \"type\": \"specific\", \"cage_id\": \"{{cage_id_m}}\" }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booking created', () => pm.response.to.have.status(201));",
+              "pm.test('mismatched-size cage preference was honored for a staff booking', () => pm.expect(body.booking.preferred_cage_id).to.eql(pm.collectionVariables.get('cage_id_m')));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

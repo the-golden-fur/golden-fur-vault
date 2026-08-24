@@ -1,0 +1,258 @@
+{
+  "info": {
+    "name": "39 - Notifications Page & Announcements",
+    "description": "The new /messages/* messaging surface behind the Admin/Superadmin announcement composer: create an announcement, confirm a non-admin is forbidden from creating one, list/read a thread, reply, and mark a thread read. The notifications page itself (Inbox/Messages tabs, bell 'View all' link, customer bell/sidebar entry) is client-only and covered by the sibling .md's manual steps instead.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "Admin or Superadmin username/email"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "staff_identifier",
+      "value": "",
+      "description": "Any non-admin staff member at the same branch as admin_identifier - used both as a targeted recipient and to prove the 403"
+    },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    {
+      "key": "staff_role",
+      "value": "",
+      "description": "e.g. Receptionist - must match staff_identifier's actual role"
+    },
+    { "key": "thread_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff (recipient)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Non-admin staff cannot create an announcement (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"subject\": \"Should be rejected\",\n  \"body\": \"Non-admin senders are forbidden.\",\n  \"targetStaffRoles\": [\"{{staff_role}}\"],\n  \"includeAllCustomers\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/messages/announcements",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "announcements"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin creates an announcement targeting staff_role",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"subject\": \"Postman test announcement\",\n  \"body\": \"This is a test announcement sent from Postman.\",\n  \"targetStaffRoles\": [\"{{staff_role}}\"],\n  \"includeAllCustomers\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/messages/announcements",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "announcements"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('thread has an id', () => pm.expect(body.thread?.id).to.be.a('string'));",
+              "if (body.thread?.id) pm.collectionVariables.set('thread_id', body.thread.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Recipient sees the thread in their inbox",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/messages/threads",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "threads"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('includes the new thread, unread', () => {",
+              "  const match = (body.threads || []).find((t) => t.id === pm.collectionVariables.get('thread_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.unread).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Recipient replies to the thread",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"body\": \"Got it, thanks!\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/messages/threads/{{thread_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "threads", "{{thread_id}}", "messages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('reply sent', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin sees the reply in the thread detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/messages/threads/{{thread_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "threads", "{{thread_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('has both the announcement and the reply', () => {",
+              "  pm.expect(body.thread.messages.length).to.be.at.least(2);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Recipient marks the thread read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/messages/threads/{{thread_id}}/read",
+          "host": ["{{base_url}}"],
+          "path": ["messages", "threads", "{{thread_id}}", "read"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('ok', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    }
+  ]
+}

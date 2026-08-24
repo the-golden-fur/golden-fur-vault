@@ -1,0 +1,385 @@
+{
+  "info": {
+    "name": "Archive Workflow + Daycare Sessions",
+    "description": "Deactivate-first archive workflow for Products/Staff/Customers/Pets, plus the new GET /daycare/sessions list endpoint. Fill in admin_identifier/admin_password (Admin or Superadmin) before running. Run 1 first (login), then set the *_id variables from your own data (e.g. an existing product/staff/customer/pet id), then run the rest in order per section.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "product_id", "value": "" },
+    { "key": "staff_id", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "pet_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Products - Archive fails while still active (403)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('archiving an active product is rejected with 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Products - Deactivate",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"is_active\": false\n}" },
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('deactivate returns 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Products - Archive (now succeeds)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('archive returns 204', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Products - List archived",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products/archived",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "archived"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list archived returns 200 and includes the product just archived', function () {",
+              "  pm.response.to.have.status(200);",
+              "  var ids = pm.response.json().items.map(function (i) { return i.id; });",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('product_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Products - Restore",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_id}}/restore",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_id}}", "restore"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('restore returns 204', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Staff - Archive fails while still active (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/archive",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}", "archive"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('archiving an active staff account is rejected with 403', function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Staff - List archived",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/archived",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "archived"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list archived staff returns 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Customers - Deactivate",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/deactivate",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "deactivate"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('deactivate returns 204', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Customers - Archive (cascades to pets)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/archive",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "archive"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('archive returns 204', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Customers - List archived",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/archived",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "archived"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list archived customers returns 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Pets - Archive an individual pet (owner or Admin-tier staff)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('archiving an active pet is rejected with 403 unless deactivated first', function () { pm.expect(pm.response.code).to.be.oneOf([204, 403]); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Pets - List archived (global, Admin-tier only)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/archived",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "archived"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list archived pets returns 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Daycare - List active sessions (new endpoint)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions?status=Active",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions"],
+          "query": [{ "key": "status", "value": "Active" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('list daycare sessions returns 200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

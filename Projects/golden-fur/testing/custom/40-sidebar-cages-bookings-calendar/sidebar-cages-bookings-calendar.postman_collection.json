@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "40 - Cage Occupancy: Receptionist Access",
+    "description": "Server-side role gate change for GET /reports/cage-occupancy: Receptionist is now allowed (CAGE_OCCUPANCY_READ_ROLES in reports.types.ts), while DSR/analytics stay unaffected. Confirms Receptionist gets 200 and a role with no report access (e.g. Groomer) still gets 403. The sidebar/calendar-view changes in this batch are client-only and covered by the sibling .md's manual steps instead.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "receptionist_identifier",
+      "value": "",
+      "description": "Receptionist username/email"
+    },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    {
+      "key": "no_access_identifier",
+      "value": "",
+      "description": "Any staff role NOT in CAGE_OCCUPANCY_READ_ROLES, e.g. Groomer, Cashier, Veterinarian, or Pet Assistant - used to prove the 403 is still enforced for everyone else"
+    },
+    { "key": "no_access_password", "value": "" },
+    { "key": "no_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as a role with no report access",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{no_access_identifier}}\",\n  \"password\": \"{{no_access_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('no_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Receptionist reads cage occupancy (200)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/cage-occupancy",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "cage-occupancy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('rows array present', () => Array.isArray(body.rows));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Non-report role is still forbidden from cage occupancy (403)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{no_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/cage-occupancy",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "cage-occupancy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Receptionist is still forbidden from the DSR (403, unaffected)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/dsr",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "dsr"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('still forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,326 @@
+{
+  "info": {
+    "name": "Fix Unpaid-Pet Duplicate Booking (#44)",
+    "description": "Verifies the #44 bug fix: a pet whose most recent booking already finished (status Completed) but was never paid (payment_stage still 'Unpaid') is now flagged by GET /bookings/pet-conflicts, the same as a Pending/In Progress booking already was - so the pet stays blocked from a brand-new booking until that one is settled. Before the fix, listPetBookingConflicts only looked at status, so a Completed-but-unpaid booking stopped blocking the pet the moment it was marked Complete. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "The pet owner's customer id"
+    },
+    {
+      "key": "receptionist_identifier",
+      "value": "",
+      "description": "A Receptionist-role staff login at the same branch"
+    },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "Owned by the customer above"
+    },
+    { "key": "hotel_service_id", "value": "" },
+    { "key": "cage_id", "value": "" },
+    {
+      "key": "scheduled_start",
+      "value": "",
+      "description": "ISO datetime, any time this branch/service is bookable"
+    },
+    {
+      "key": "scheduled_end",
+      "value": "",
+      "description": "ISO datetime after scheduled_start"
+    },
+    { "key": "booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Customer creates a pay-at-counter Hotel booking (no payment_method - stays Unpaid)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [{ \"service_id\": \"{{hotel_service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\",\n  \"cage_preference\": { \"type\": \"specific\", \"cage_id\": \"{{cage_id}}\" }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booking created', () => pm.response.to.have.status(201));",
+              "pm.test('payment_stage starts Unpaid', () => pm.expect(body.booking.payment_stage).to.eql('Unpaid'));",
+              "if (body.booking && body.booking.id) pm.collectionVariables.set('booking_id', body.booking.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Before Start: GET pet-conflicts already flags the pet (Pending)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/pet-conflicts?customer_id={{customer_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "pet-conflicts"],
+          "query": [{ "key": "customer_id", "value": "{{customer_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('pet is flagged while Pending', () => {",
+              "  const flagged = body.conflicts.some((c) => c.pet_id === pm.collectionVariables.get('pet_id') && c.booking_id === pm.collectionVariables.get('booking_id'));",
+              "  pm.expect(flagged).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Receptionist starts the booking (Pending -> In Progress)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/start",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "start"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('started', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Receptionist completes the booking (In Progress -> Completed, payment_stage untouched)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/complete",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "complete"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('completed', () => pm.response.to.have.status(200));",
+              "pm.test('status is Completed', () => pm.expect(body.booking.status).to.eql('Completed'));",
+              "pm.test('payment_stage is still Unpaid (pay-at-counter, never marked paid)', () => pm.expect(body.booking.payment_stage).to.eql('Unpaid'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. After Complete: GET pet-conflicts STILL flags the pet - the #44 fix (was previously cleared here)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/pet-conflicts?customer_id={{customer_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "pet-conflicts"],
+          "query": [{ "key": "customer_id", "value": "{{customer_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('pet is still flagged - Completed but Unpaid', () => {",
+              "  const flagged = body.conflicts.some((c) => c.pet_id === pm.collectionVariables.get('pet_id') && c.booking_id === pm.collectionVariables.get('booking_id'));",
+              "  pm.expect(flagged).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Receptionist advances payment_stage to Paid (cashier 'Mark as Paid')",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"choice\": \"onsite\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "payment-stage", "advance"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('advanced', () => pm.response.to.have.status(200));",
+              "pm.test('payment_stage is now Paid', () => pm.expect(body.booking.payment_stage).to.eql('Paid'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. After payment: GET pet-conflicts no longer flags the pet",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/pet-conflicts?customer_id={{customer_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "pet-conflicts"],
+          "query": [{ "key": "customer_id", "value": "{{customer_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('pet is no longer flagged once paid', () => {",
+              "  const flagged = body.conflicts.some((c) => c.pet_id === pm.collectionVariables.get('pet_id') && c.booking_id === pm.collectionVariables.get('booking_id'));",
+              "  pm.expect(flagged).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

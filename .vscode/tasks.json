@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // ── Setup ──────────────────────────────────────────────────
+    {
+      "label": "🛠️ Setup: Install",
+      "type": "npm",
+      "script": "install",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ── Formatting ─────────────────────────────────────────────
+    {
+      "label": "🎨 Format: Check",
+      "type": "npm",
+      "script": "format:check",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "🎨 Format: Fix (write)",
+      "type": "npm",
+      "script": "format",
+      "presentation": {
+        "group": "quality",
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+
+    // ── Git ────────────────────────────────────────────────────
+    {
+      "label": "📋 Git: Status",
+      "type": "shell",
+      "command": "git status",
+      "presentation": {
+        "group": "git",
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

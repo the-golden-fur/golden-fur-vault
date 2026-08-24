@@ -1,0 +1,225 @@
+{
+  "info": {
+    "name": "Billing Miscellaneous Sale (#85)",
+    "description": "Full CRUD on POST/GET/PATCH/DELETE /billing/misc-sale. Fill in cashier_identifier/cashier_password, admin_identifier/admin_password, and customer_id (an existing customer_profiles row) before running. Run 1-2 first (logins), then the rest in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "misc_sale_transaction_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('admin_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Cashier records a freetext miscellaneous sale",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"description\": \"Custom grooming brush\",\n  \"amount\": 180,\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, freetext line item recorded', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.transaction.transaction_type).to.eql('miscellaneous_sale');",
+              "  pm.expect(body.lineItem.reference_id).to.be.null;",
+              "});",
+              "if (pm.response.code === 201) { pm.collectionVariables.set('misc_sale_transaction_id', pm.response.json().transaction.id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Cashier cannot update the sale (403)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"amount\": 999\n}" },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_transaction_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_transaction_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 forbidden for a non-Admin role', function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Admin updates the sale amount",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"amount\": 220\n}" },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_transaction_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_transaction_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, amount and total_amount recomputed', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.lineItem.line_total).to.eql(220);",
+              "  pm.expect(body.transaction.total_amount).to.eql(220);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin lists miscellaneous sales",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, includes the sale from step 3', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().transactions.map((t) => t.id);",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('misc_sale_transaction_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin deletes the sale (cleanup)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_transaction_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_transaction_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('204 no content', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

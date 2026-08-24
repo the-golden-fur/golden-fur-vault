@@ -1,0 +1,318 @@
+{
+  "info": {
+    "name": "Issue 41 - Packages CRUD Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "service_id_a", "value": "" },
+    { "key": "service_id_b", "value": "" },
+    { "key": "package_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Pick two active Grooming services to bundle",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/services?category=Grooming",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"],
+          "query": [{ "key": "category", "value": "Grooming" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('at least two active Grooming services exist (run the #44 seed if this fails)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const services = pm.response.json().services;",
+              "  pm.expect(services.length).to.be.at.least(2);",
+              "  pm.collectionVariables.set('service_id_a', services[0].id);",
+              "  pm.collectionVariables.set('service_id_b', services[1].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1/AC-2: POST per-branch package, price independent of sum",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"name\": \"Postman Test Package\",\n  \"bundled_price\": 123.45,\n  \"service_ids\": [\"{{service_id_a}}\", \"{{service_id_b}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1/AC-2: 201, branch-scoped, arbitrary bundled price stored as sent', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const pkg = pm.response.json().package;",
+              "  pm.expect(pkg.branch_id).to.eql(pm.collectionVariables.get('branch_id'));",
+              "  pm.expect(Number(pkg.bundled_price)).to.eql(123.45);",
+              "  pm.expect(pkg.package_services).to.have.lengthOf(2);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('package_id', pm.response.json().package.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3: PATCH removes a service and edits the price",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bundled_price\": 99,\n  \"service_ids\": [\"{{service_id_a}}\", \"{{service_id_b}}\"],\n  \"name\": \"Postman Test Package (edited)\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages/{{package_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages", "{{package_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 200 with edited name/price and replaced bundle', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const pkg = pm.response.json().package;",
+              "  pm.expect(pkg.name).to.eql('Postman Test Package (edited)');",
+              "  pm.expect(Number(pkg.bundled_price)).to.eql(99);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Validation: single-service bundle rejected",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"name\": \"Solo Bundle\",\n  \"bundled_price\": 100,\n  \"service_ids\": [\"{{service_id_a}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400: a package bundles two or more services (#41 user story)', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-5: GET packages filterable by branch (any staff role)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 200 and the created package is listed for its branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().packages.map(function (p) { return p.id; });",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('package_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-5: non-admin POST is rejected with 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"name\": \"Should Not Exist\",\n  \"bundled_price\": 100,\n  \"service_ids\": [\"{{service_id_a}}\", \"{{service_id_b}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 403 for a non-Admin/Superadmin write', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Cleanup: deactivate the test package",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages/{{package_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages", "{{package_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: 200 and package inactive', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().package.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

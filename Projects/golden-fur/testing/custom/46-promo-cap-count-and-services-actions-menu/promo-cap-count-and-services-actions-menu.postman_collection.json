@@ -1,0 +1,327 @@
+{
+  "info": {
+    "name": "Custom change: promo cap count type + service type branch availability",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "service_type_id", "value": "" },
+    { "key": "branch_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Custom change: sets the system-wide default cap to a count of 2 promos",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cap_type\": \"count\",\n  \"cap_value\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('accepts cap_type=count with a whole-number cap_value', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const config = pm.response.json().configuration;",
+              "  pm.expect(config.cap_type).to.eql('count');",
+              "  pm.expect(config.cap_value).to.eql(2);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Custom change: rejects a fractional count cap_value",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cap_type\": \"count\",\n  \"cap_value\": 1.5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 for a fractional count cap_value', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. 403 for a non-Admin/Superadmin role",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cap_type\": \"count\",\n  \"cap_value\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 for a non-Admin/Superadmin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. GET promo cap configurations reflects the count cap",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('the system-wide default row now reads cap_type=count', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const rows = pm.response.json().configurations;",
+              "  const defaultRow = rows.find((row) => row.branch_id === null);",
+              "  pm.expect(defaultRow.cap_type).to.eql('count');",
+              "  pm.expect(defaultRow.cap_value).to.eql(2);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Custom change: GET service types includes per-branch availability, seeded true for every branch",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('every service type carries a service_type_branch_availability array, all seeded available', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const types = pm.response.json().service_types;",
+              "  pm.expect(types.length).to.be.above(0);",
+              "  const first = types[0];",
+              "  pm.expect(first.service_type_branch_availability).to.be.an('array');",
+              "  pm.expect(first.service_type_branch_availability.length).to.be.above(0);",
+              "  pm.expect(first.service_type_branch_availability.every((row) => row.is_available)).to.be.true;",
+              "  pm.collectionVariables.set('service_type_id', first.id);",
+              "  pm.collectionVariables.set('branch_id', first.service_type_branch_availability[0].branch_id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Custom change: turns off one branch's availability for a service type, independently of its is_active flag",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{service_type_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "service-types",
+            "{{service_type_id}}",
+            "branch-availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('sets is_available=false for that one branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const availability = pm.response.json().availability;",
+              "  pm.expect(availability.is_available).to.eql(false);",
+              "  pm.expect(availability.branch_id).to.eql(pm.collectionVariables.get('branch_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. 403 for a non-Admin/Superadmin role setting service type branch availability",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{service_type_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "service-types",
+            "{{service_type_id}}",
+            "branch-availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 for a non-Admin/Superadmin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

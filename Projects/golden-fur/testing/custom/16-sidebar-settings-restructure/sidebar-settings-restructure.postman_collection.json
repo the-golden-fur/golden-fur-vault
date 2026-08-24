@@ -1,0 +1,347 @@
+{
+  "info": {
+    "name": "Sidebar + Settings Restructure",
+    "description": "Revision 1: PATCH /staff/:id/username (self-service username change). Revision 2: PATCH /auth/staff/preferences with font_size_preference, and POST /staff/:id/unavailability with requested_reviewer_id. Fill in staff_a_id/staff_b_id (from Staff Management or the staff_profiles table) and reviewer_id (a Supervisor/Admin/Superadmin at staff_a's branch) before running. Run 1-2 first (logins), then the rest in order - 6 depends on 3 having changed staff A's username; 9-10 depend on 1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_a_identifier", "value": "" },
+    { "key": "staff_a_password", "value": "" },
+    { "key": "staff_a_id", "value": "" },
+    { "key": "staff_b_identifier", "value": "" },
+    { "key": "staff_b_password", "value": "" },
+    { "key": "staff_b_id", "value": "" },
+    { "key": "staff_a_access_token", "value": "" },
+    { "key": "staff_b_access_token", "value": "" },
+    { "key": "new_username", "value": "" },
+    { "key": "reviewer_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Staff A",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_a_identifier}}\",\n  \"password\": \"{{staff_a_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_a_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Staff B",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_b_identifier}}\",\n  \"password\": \"{{staff_b_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_b_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Staff A changes their own username - succeeds",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_a_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{new_username}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_a_id}}/username",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_a_id}}", "username"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with the updated staff profile', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.username).to.eql(pm.collectionVariables.get('new_username'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Staff B attempts to set their username too short - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_b_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"ab\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_b_id}}/username",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_b_id}}", "username"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a too-short username with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Staff B attempts to change Staff A's username - 403",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_b_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"hijacked\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_a_id}}/username",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_a_id}}", "username"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects changing another staff member\\'s username with 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Staff B attempts to reuse Staff A's (new) username - 409",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_b_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{new_username}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_b_id}}/username",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_b_id}}", "username"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a duplicate username with 409', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Staff A sets font_size_preference - succeeds",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_a_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"font_size_preference\": \"large\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with both current preferences', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().font_size_preference).to.eql('large');",
+              "  pm.expect(pm.response.json()).to.have.property('theme_preference');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Staff A submits an invalid font_size_preference - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_a_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"font_size_preference\": \"huge\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects an invalid font size with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Staff A requests a day off addressed to a specific reviewer - succeeds",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_a_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quick_action\": true,\n  \"requested_reviewer_id\": \"{{reviewer_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_a_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_a_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 201 with the requested_reviewer_id echoed back', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().block.requested_reviewer_id).to.eql(pm.collectionVariables.get('reviewer_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Staff A addresses a day off to Staff B (not a manager / wrong branch) - 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_a_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quick_action\": true,\n  \"requested_reviewer_id\": \"{{staff_b_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_a_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_a_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a non-manager or different-branch reviewer with 400 (skip/adjust if staff_b happens to be an eligible manager at the same branch)', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

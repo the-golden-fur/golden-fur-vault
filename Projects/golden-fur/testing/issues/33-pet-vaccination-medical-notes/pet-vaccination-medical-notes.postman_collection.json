@@ -1,0 +1,504 @@
+{
+  "info": {
+    "name": "Issue 33 - Vaccination Records + Medical Notes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "other_customer_email", "value": "" },
+    { "key": "other_customer_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "other_customer_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "record_id", "value": "" },
+    { "key": "note_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as customer (pet owner)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as a different customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{other_customer_email}}\",\n  \"password\": \"{{other_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('other customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('other_customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as staff (Receptionist or Veterinarian)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('staff login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Setup: customer creates a test pet",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Vax Test Pet\",\n  \"species\": \"Dog\",\n  \"weight_class\": \"M\",\n  \"coat_type\": \"SC\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('setup: creates the test pet', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.collectionVariables.set('pet_id', pm.response.json().pet.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-1: Staff creates a vaccination record",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vaccine_name\": \"Rabies\",\n  \"date_administered\": \"2026-07-01\",\n  \"next_due_date\": \"2027-07-01\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: creates the record with vaccine name and date administered', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const record = pm.response.json().record;",
+              "  pm.expect(record.vaccine_name).to.eql('Rabies');",
+              "  pm.expect(record.date_administered).to.exist;",
+              "  pm.collectionVariables.set('record_id', record.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-2: Owning customer GETs vaccination records",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: the owning customer can read-only list records', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().records.length).to.be.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-2: A different customer is forbidden",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{other_customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: a different customer receives 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-3: Staff PATCHes the vaccination record",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notes\": \"No adverse reaction observed\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records/{{record_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records", "{{record_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: an authorized staff role can PATCH the record', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-3: Customer PATCHing the record is forbidden",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notes\": \"Should not be allowed\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records/{{record_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records", "{{record_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: a customer attempting PATCH receives 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-4: Staff creates a medical note with a valid category",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note_text\": \"Mild seasonal allergy observed at intake\",\n  \"category\": \"Allergy\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/medical-notes",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "medical-notes"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: creates the note and records staff_id + timestamp automatically', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const note = pm.response.json().note;",
+              "  pm.expect(note.category).to.eql('Allergy');",
+              "  pm.expect(note.staff_id).to.exist;",
+              "  pm.expect(note.created_at).to.exist;",
+              "  pm.collectionVariables.set('note_id', note.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. AC-5: Owning customer GETs medical notes",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/medical-notes",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "medical-notes"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: the owning customer can read-only list notes', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notes.length).to.be.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. AC-5: Staff GETs medical notes",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/medical-notes",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "medical-notes"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: an authorized staff role can list notes', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. AC-6: No PATCH route exists for medical notes",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"note_text\": \"Attempting to edit\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/medical-notes/{{note_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "medical-notes", "{{note_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-6: the route itself does not exist (404), not just a 403 authorization check', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Cleanup: staff deletes the vaccination record",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/vaccination-records/{{record_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "vaccination-records", "{{record_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Cleanup: customer deletes the test pet (cascades the medical note)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

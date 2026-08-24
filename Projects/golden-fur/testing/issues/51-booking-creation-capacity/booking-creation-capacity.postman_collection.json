@@ -1,0 +1,463 @@
+{
+  "info": {
+    "name": "Issue 51 - Booking Creation + Capacity Enforcement",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "other_customer_pet_id", "value": "" },
+    { "key": "branch_makati_id", "value": "" },
+    { "key": "branch_southwoods_id", "value": "" },
+    { "key": "grooming_service_id", "value": "" },
+    { "key": "daycare_service_id", "value": "" },
+    { "key": "hotel_service_id", "value": "" },
+    { "key": "vet_service_id", "value": "" },
+    { "key": "addon_service_id", "value": "" },
+    { "key": "grooming_booking_id", "value": "" },
+    { "key": "assigned_groomer_id", "value": "" },
+    { "key": "slot_start", "value": "" },
+    { "key": "slot_end", "value": "" },
+    { "key": "slot2_start", "value": "" },
+    { "key": "slot2_end", "value": "" },
+    { "key": "slot3_start", "value": "" },
+    { "key": "slot3_end", "value": "" },
+    { "key": "hotel_end", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Slot times: Monday after next, 10:00-14:00 Asia/Manila = 02:00-06:00 UTC.",
+          "if (!pm.collectionVariables.get('slot_start')) {",
+          "  const now = new Date();",
+          "  const diff = (((8 - now.getUTCDay()) % 7) || 7) + 7;",
+          "  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));",
+          "  const at = (h) => new Date(monday.getTime() + h * 3600 * 1000).toISOString();",
+          "  pm.collectionVariables.set('slot_start', at(2));",
+          "  pm.collectionVariables.set('slot_end', at(3));",
+          "  pm.collectionVariables.set('slot2_start', at(3));",
+          "  pm.collectionVariables.set('slot2_end', at(4));",
+          "  pm.collectionVariables.set('slot3_start', at(4));",
+          "  pm.collectionVariables.set('slot3_end', at(5));",
+          "  pm.collectionVariables.set('hotel_end', at(26));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-1 Create Grooming booking (paid online)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Confirmed with auto-assigned staff', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.status).to.eql('Confirmed');",
+              "  pm.expect(booking.assigned_staff_id).to.be.a('string');",
+              "  pm.expect(booking.downpayment_amount).to.eql(null);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  const booking = pm.response.json().booking;",
+              "  pm.collectionVariables.set('grooming_booking_id', booking.id);",
+              "  pm.collectionVariables.set('assigned_groomer_id', booking.assigned_staff_id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-4 Create Daycare booking (pay-at-counter -> Pending)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Daycare\",\n  \"service_id\": \"{{daycare_service_id}}\",\n  \"scheduled_start\": \"{{slot2_start}}\",\n  \"scheduled_end\": \"{{slot2_end}}\",\n  \"payment_method\": \"Cash\",\n  \"payment_confirmed\": false,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 but Pending - payment gate not cleared (AC-4)', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.status).to.eql('Pending');",
+              "  pm.expect(booking.payment_confirmed).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1 Create Hotel booking (50% downpayment)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Hotel\",\n  \"service_id\": \"{{hotel_service_id}}\",\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{hotel_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Confirmed with downpayment = 50% of total', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.status).to.eql('Confirmed');",
+              "  pm.expect(Number(booking.downpayment_amount)).to.eql(Number(booking.total_price) / 2);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-1/AC-4 Create Veterinary at Makati (no payment gate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Veterinary\",\n  \"service_id\": \"{{vet_service_id}}\",\n  \"scheduled_start\": \"{{slot3_start}}\",\n  \"scheduled_end\": \"{{slot3_end}}\",\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Confirmed with no payment fields at all (AC-4)', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.status).to.eql('Confirmed');",
+              "  pm.expect(booking.payment_confirmed).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Add-on price snapshot (optional - needs addon_service_id)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_southwoods_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"addon_service_ids\": [\"{{addon_service_id}}\"],\n  \"scheduled_start\": \"{{slot2_start}}\",\n  \"scheduled_end\": \"{{slot2_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 with a booking_addons snapshot row', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.booking_addons).to.have.lengthOf(1);",
+              "  pm.expect(Number(booking.booking_addons[0].price_at_booking)).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3 Veterinary at Southwoods -> 422 branch eligibility",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_southwoods_id}}\",\n  \"service_category\": \"Veterinary\",\n  \"service_id\": \"{{vet_service_id}}\",\n  \"scheduled_start\": \"{{slot3_start}}\",\n  \"scheduled_end\": \"{{slot3_end}}\",\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('422 with a branch-eligibility error, not capacity', function () {",
+              "  pm.response.to.have.status(422);",
+              "  pm.expect(pm.response.json().error).to.include('Makati');",
+              "  pm.expect(pm.response.json().error).to.not.include('capacity');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-2 Same groomer, same slot (specific preference) -> 409",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"staff_preference\": { \"type\": \"specific\", \"staff_id\": \"{{assigned_groomer_id}}\" },\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - that staff member already has the Confirmed booking from request 2', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-5 (sequential approximation) duplicate Grooming slot",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 while other groomers remain free, 409 once none are', function () {",
+              "  pm.expect([201, 409]).to.include(pm.response.code);",
+              "});",
+              "// Re-send this request until it returns 409 - each 201 books the",
+              "// next auto-assigned groomer at this slot. The true concurrent",
+              "// race is covered by the automated race-loser unit test."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-6 Another customer's pet -> 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{other_customer_pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Daycare\",\n  \"service_id\": \"{{daycare_service_id}}\",\n  \"scheduled_start\": \"{{slot2_start}}\",\n  \"scheduled_end\": \"{{slot2_end}}\",\n  \"payment_method\": \"Cash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue51-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 - pet does not belong to this customer', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. GET /bookings/:id returns the booking with children",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{grooming_booking_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{grooming_booking_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with the Grooming booking and its preference row', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.id).to.eql(pm.collectionVariables.get('grooming_booking_id'));",
+              "  pm.expect(booking.staff_picker_preferences).to.have.lengthOf(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

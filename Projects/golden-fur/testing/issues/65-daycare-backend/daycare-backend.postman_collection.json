@@ -1,0 +1,269 @@
+{
+  "info": {
+    "name": "Issue 65 - Daycare Check-in/Checkout Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "receptionist_email", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "daycare_booking_id", "value": "" },
+    { "key": "walkin_pet_id", "value": "" },
+    { "key": "branch_makati_id", "value": "" },
+    { "key": "booking_session_id", "value": "" },
+    { "key": "walkin_session_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_email}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-1 Check-in via existing booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{daycare_booking_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Active session tied to the booking', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const session = pm.response.json().session;",
+              "  pm.expect(session.status).to.eql('Active');",
+              "  pm.expect(session.booking_id).to.eql(pm.collectionVariables.get('daycare_booking_id'));",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('booking_session_id', pm.response.json().session.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1 Check-in walk-in (no booking)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{walkin_pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Active session with no booking_id', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const session = pm.response.json().session;",
+              "  pm.expect(session.status).to.eql('Active');",
+              "  pm.expect(session.booking_id).to.eql(null);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('walkin_session_id', pm.response.json().session.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2 Cutoff-blocked check-in (run after 4:00 PM Asia/Manila)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{walkin_pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nowManila = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: false });",
+              "const hour = parseInt(nowManila.split(', ')[1].split(':')[0], 10);",
+              "if (hour >= 16) {",
+              "  pm.test('AC-2: 400 Check-in unavailable after cutoff, past 4 PM Asia/Manila', function () {",
+              "    pm.response.to.have.status(400);",
+              "    pm.expect(pm.response.json().error).to.match(/Check-in unavailable after/);",
+              "  });",
+              "} else {",
+              "  pm.test('Before 4 PM Asia/Manila - expect 201 (not the cutoff path); re-run after 4 PM to see AC-2', function () {",
+              "    pm.response.to.have.status(201);",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3/AC-5 Checkout booking session (<= 1 hour)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions/{{booking_session_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions", "{{booking_session_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, Completed with computed_charge = 100 (run within an hour of check-in)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const session = pm.response.json().session;",
+              "  pm.expect(session.status).to.eql('Completed');",
+              "  pm.expect(session.computed_charge).to.eql(100);",
+              "  pm.expect(session.check_out_at).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Checkout walk-in session",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions/{{walkin_session_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions", "{{walkin_session_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 200, Completed with computed_charge set together', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const session = pm.response.json().session;",
+              "  pm.expect(session.status).to.eql('Completed');",
+              "  pm.expect(session.computed_charge).to.be.a('number');",
+              "});",
+              "pm.test('Note: for the exact 2h15m -> 200 case, see daycareBilling.service.spec.ts (impractical to wait 2h+ in Postman)', function () {",
+              "  pm.expect(true).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Checkout an already-Completed session",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions/{{booking_session_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions", "{{booking_session_id}}", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 already checked out', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

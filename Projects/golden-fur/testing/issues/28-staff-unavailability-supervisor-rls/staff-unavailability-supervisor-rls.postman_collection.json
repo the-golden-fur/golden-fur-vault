@@ -1,0 +1,224 @@
+{
+  "info": {
+    "name": "Issue 28 - Staff Unavailability Supervisor RLS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "supervisor_identifier", "value": "" },
+    { "key": "supervisor_password", "value": "" },
+    { "key": "supervisor_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "peer_staff_id", "value": "" },
+    { "key": "block_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Supervisor",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{supervisor_identifier}}\",\n  \"password\": \"{{supervisor_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Supervisor login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('supervisor_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist (regression control)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-5: Receptionist cannot create a block on behalf of a peer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-03-01T01:00:00.000Z\",\n  \"end_time\": \"2027-03-01T03:00:00.000Z\",\n  \"reason\": \"Should be forbidden\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{peer_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{peer_staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: Receptionist on-behalf-of create returns 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1: Supervisor creates a block on behalf of a peer staff member",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-03-01T01:00:00.000Z\",\n  \"end_time\": \"2027-03-01T03:00:00.000Z\",\n  \"reason\": \"Created by Supervisor on behalf of peer\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{peer_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{peer_staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: Supervisor on-behalf-of create returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const block = pm.response.json().block;",
+              "  pm.expect(block.staff_id).to.eql(pm.collectionVariables.get('peer_staff_id'));",
+              "  pm.collectionVariables.set('block_id', block.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3: Supervisor reads the peer's blocks",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{peer_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{peer_staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: Supervisor GET returns 200 and includes the created block', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().blocks.map((b) => b.id);",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('block_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-2: Supervisor cancels the peer's block",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{peer_staff_id}}/unavailability/{{block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{peer_staff_id}}",
+            "unavailability",
+            "{{block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: Supervisor cancelling the peer\\'s block returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

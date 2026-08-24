@@ -1,0 +1,399 @@
+{
+  "info": {
+    "name": "24 - Scheduling & Policy Config",
+    "description": "Branch creation, lunch break + reschedule notice policy config, and the Monthly Schedule (rest day / vacation leave) branch-shared calendar.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "superadmin_identifier", "value": "" },
+    { "key": "superadmin_password", "value": "" },
+    { "key": "superadmin_access_token", "value": "" },
+    { "key": "supervisor_identifier", "value": "" },
+    { "key": "supervisor_password", "value": "" },
+    { "key": "supervisor_access_token", "value": "" },
+    {
+      "key": "supervisor_staff_id",
+      "value": "",
+      "description": "staff_profiles.id of the Supervisor login above (staff login does not return it - grab it from Supabase or Staff Management)"
+    },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "The Supervisor login's own home branch id (staff_profiles.branch_id)"
+    },
+    {
+      "key": "target_staff_id",
+      "value": "",
+      "description": "Any active staff id (not the Supervisor themselves) at branch_id, e.g. a Groomer"
+    },
+    { "key": "new_branch_id", "value": "" },
+    { "key": "rest_day_block_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{superadmin_identifier}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('superadmin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Supervisor",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{supervisor_identifier}}\",\n  \"password\": \"{{supervisor_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('supervisor_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Superadmin creates a new branch",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Test Branch\",\n  \"address\": \"123 Test St\",\n  \"timezone\": \"Asia/Manila\",\n  \"is_vet_branch\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/branches",
+          "host": ["{{base_url}}"],
+          "path": ["branches"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('branch created', () => pm.response.to.have.status(201));",
+              "pm.test('operating_hours defaults to closed every day', () => pm.expect(body.branch.operating_hours).to.eql({}));",
+              "if (body.branch && body.branch.id) pm.collectionVariables.set('new_branch_id', body.branch.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. A non-Superadmin cannot create a branch (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Should Not Be Created\",\n  \"address\": \"n/a\",\n  \"timezone\": \"Asia/Manila\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/branches",
+          "host": ["{{base_url}}"],
+          "path": ["branches"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden for Supervisor', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. List policy configurations (all-staff read)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('default row has lunch break fields', () => {",
+              "  const defaultRow = body.policies.find((row) => row.branch_id === null);",
+              "  pm.expect(defaultRow).to.have.property('lunch_break_enabled');",
+              "  pm.expect(defaultRow).to.have.property('lunch_break_start');",
+              "  pm.expect(defaultRow).to.have.property('lunch_break_end');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Superadmin updates notice period + lunch break (default row)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_period_days\": 3,\n  \"lunch_break_enabled\": true,\n  \"lunch_break_start\": \"12:00\",\n  \"lunch_break_end\": \"13:00\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('lunch break saved', () => pm.expect(body.policy.lunch_break_enabled).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. A non-Admin/Superadmin cannot update policy (403)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_period_days\": 5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden for Supervisor', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Staff member cannot self-service a Rest Day (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_full_day\": true,\n  \"date\": \"2026-09-01\",\n  \"leave_type\": \"Rest Day\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{supervisor_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{supervisor_staff_id}}", "unavailability"]
+        },
+        "description": "Self-service: :id is the Supervisor's own staff_profiles.id (supervisor_staff_id variable)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rest day self-service is forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Supervisor sets a Rest Day for another staff member (on-behalf-of, auto-approved)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_full_day\": true,\n  \"date\": \"2026-09-01\",\n  \"leave_type\": \"Rest Day\",\n  \"reason\": \"Postman test rest day\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{target_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{target_staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('auto-approved, tagged Rest Day', () => {",
+              "  pm.expect(body.block.status).to.eql('approved');",
+              "  pm.expect(body.block.leave_type).to.eql('Rest Day');",
+              "});",
+              "if (body.block && body.block.id) pm.collectionVariables.set('rest_day_block_id', body.block.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Monthly Schedule - branch-shared read shows the Rest Day with its 'added by' log",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/branches/{{branch_id}}/schedule?from=2026-09-01T00:00:00.000Z&to=2026-10-01T00:00:00.000Z",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "branches", "{{branch_id}}", "schedule"],
+          "query": [
+            { "key": "from", "value": "2026-09-01T00:00:00.000Z" },
+            { "key": "to", "value": "2026-10-01T00:00:00.000Z" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('the rest day is present with created_by_name + created_at', () => {",
+              "  const row = body.entries.find((e) => e.id === pm.collectionVariables.get('rest_day_block_id'));",
+              "  pm.expect(row).to.not.be.undefined;",
+              "  pm.expect(row.created_by_name).to.not.be.null;",
+              "  pm.expect(row.created_at).to.not.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cancel the test Rest Day",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{supervisor_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{target_staff_id}}/unavailability/{{rest_day_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{target_staff_id}}",
+            "unavailability",
+            "{{rest_day_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('cancelled', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

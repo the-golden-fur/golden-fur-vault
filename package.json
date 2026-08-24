@@ -1,0 +1,27 @@
+{
+  "name": "golden-fur-vault",
+  "version": "1.0.0",
+  "description": "Private Obsidian-compatible second brain for the golden-fur capstone project",
+  "private": true,
+  "scripts": {
+    "=== CODE QUALITY ===": "",
+    "format": "prettier --write \"**/*.{md,mdx,yaml,yml,json}\"",
+    "format:check": "prettier --check \"**/*.{md,mdx,yaml,yml,json}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-golden-fur/golden-fur-vault.git"
+  },
+  "keywords": [],
+  "author": "the-golden-fur",
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/the-golden-fur/golden-fur-vault/issues"
+  },
+  "homepage": "https://github.com/the-golden-fur/golden-fur-vault#readme"
+}

@@ -1,0 +1,213 @@
+{
+  "info": {
+    "name": "Issue 75 - Hotel Check-in Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "receptionist_email", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "hotel_booking_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "cage_id", "value": "" },
+    { "key": "stay_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_email}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-2 GET cage suggestion",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/pets/{{pet_id}}/cage-suggestion",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "pets", "{{pet_id}}", "cage-suggestion"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, suggestedSize + at least one Available cage', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.suggestedSize).to.be.a('string');",
+              "  pm.expect(body.availableCages).to.be.an('array').that.is.not.empty;",
+              "  pm.collectionVariables.set('cage_id', body.availableCages[0].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET current prescription",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/pets/{{pet_id}}/current-prescription",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "pets", "{{pet_id}}", "current-prescription"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, prescription is null or an object', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const prescription = pm.response.json().prescription;",
+              "  pm.expect(prescription === null || typeof prescription === 'object').to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1/AC-3/AC-4 POST check-in",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{hotel_booking_id}}\",\n  \"cage_id\": \"{{cage_id}}\",\n  \"feeding\": [\n    { \"meal_time\": \"Morning\", \"food_type\": \"Dry kibble\", \"quantity\": \"1 cup\" }\n  ],\n  \"walking\": [\n    { \"time_block\": \"7:00 AM\", \"duration_minutes\": 15 }\n  ],\n  \"notify_opt_in\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, stay Active, instructions + care log entries present', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.stay.status).to.eql('Active');",
+              "  pm.expect(body.feeding).to.have.lengthOf(1);",
+              "  pm.expect(body.walking).to.have.lengthOf(1);",
+              "  pm.expect(body.careLogEntries.length).to.be.greaterThan(0);",
+              "  pm.collectionVariables.set('stay_id', body.stay.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-2/AC-4 verify cage now Occupied",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('the checked-in cage now shows status Occupied', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const grid = pm.response.json().grid;",
+              "  const allCages = [].concat(grid.S, grid.M, grid.L, grid.XL);",
+              "  const cage = allCages.find(c => c.id === pm.collectionVariables.get('cage_id'));",
+              "  pm.expect(cage).to.not.be.undefined;",
+              "  pm.expect(cage.status).to.eql('Occupied');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-2 POST check-in reusing the now-Occupied cage (different booking)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{hotel_booking_id}}\",\n  \"cage_id\": \"{{cage_id}}\",\n  \"feeding\": [],\n  \"walking\": [],\n  \"notify_opt_in\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - either already-checked-in booking or cage no longer available', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

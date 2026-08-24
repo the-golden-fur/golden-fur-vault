@@ -1,0 +1,219 @@
+{
+  "info": {
+    "name": "Daycare Fee Configuration (#30)",
+    "description": "Verifies the backend-testable pieces of the #30 custom change (final, per-service design - see this folder's .md 'Design revision' section for why an intermediate Policies-page draft was reverted before shipping): a Daycare service's first-hour, succeeding-hour, and overnight fees are all configurable per service via POST/PATCH /maintenance/services - with no base_price required for that category - and actually drive daycareBilling.service.ts's computed charge at checkout, instead of hardcoded ₱100/₱50/₱850 figures shared by every service. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "Any active branch id (must match the admin's own branch for check-in/checkout)"
+    },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "A pet id, staff-assessed (weight_class + coat_type set)"
+    },
+    { "key": "premium_daycare_service_id", "value": "" },
+    { "key": "daycare_session_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create a Daycare service with no base_price - fees only",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Premium Daycare\",\n  \"category\": \"Daycare\",\n  \"first_hour_fee\": 200,\n  \"succeeding_hour_fee\": 75,\n  \"daycare_overnight_fee\": 900\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created without a base_price in the request', () => pm.response.to.have.status(201));",
+              "pm.test('base_price was auto-derived to equal first_hour_fee', () => {",
+              "  pm.expect(Number(body.service.base_price)).to.eql(200);",
+              "  pm.expect(Number(body.service.first_hour_fee)).to.eql(200);",
+              "  pm.expect(Number(body.service.succeeding_hour_fee)).to.eql(75);",
+              "  pm.expect(Number(body.service.daycare_overnight_fee)).to.eql(900);",
+              "});",
+              "if (body.service) pm.collectionVariables.set('premium_daycare_service_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Make the new service available at this branch",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{premium_daycare_service_id}}/availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "services",
+            "{{premium_daycare_service_id}}",
+            "availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('ok', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Raising first_hour_fee on an existing Daycare service keeps base_price in sync",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"first_hour_fee\": 250\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{premium_daycare_service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{premium_daycare_service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('updated', () => pm.response.to.have.status(200));",
+              "pm.test('base_price followed first_hour_fee to 250, without being sent explicitly', () => {",
+              "  pm.expect(Number(body.service.base_price)).to.eql(250);",
+              "  pm.expect(Number(body.service.first_hour_fee)).to.eql(250);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Daycare walk-in check-in naming the Premium Daycare service",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_id\": \"{{premium_daycare_service_id}}\",\n  \"feeding\": [],\n  \"walking\": [],\n  \"playing\": [],\n  \"medications\": [],\n  \"notify_opt_in\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('checked in', () => pm.response.to.have.status(201));",
+              "pm.test('the session recorded the named service', () => pm.expect(body.session.service_id).to.eql(pm.collectionVariables.get('premium_daycare_service_id')));",
+              "if (body.session) pm.collectionVariables.set('daycare_session_id', body.session.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Checkout uses the service's own first-hour fee (₱250), not the ₱100 default",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions/{{daycare_session_id}}/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions", "{{daycare_session_id}}", "checkout"]
+        },
+        "description": "Run this immediately after step 5 - the elapsed time should be well under an hour, so computed_charge should equal the service's own first_hour_fee (₱250, after step 4's update), not the documented ₱100 default."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('checked out', () => pm.response.to.have.status(200));",
+              "pm.test('computed_charge used the Premium Daycare service\\'s own ₱250 first-hour fee', () => {",
+              "  pm.expect(Number(body.session.computed_charge)).to.eql(250);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

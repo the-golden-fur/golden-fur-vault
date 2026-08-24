@@ -1,0 +1,150 @@
+{
+  "info": {
+    "name": "Issue 76 - Hotel Care Log Completion Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "pet_assistant_email", "value": "" },
+    { "key": "pet_assistant_password", "value": "" },
+    { "key": "pet_assistant_token", "value": "" },
+    { "key": "care_log_entry_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Pet Assistant",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{pet_assistant_email}}\",\n  \"password\": \"{{pet_assistant_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Pet Assistant login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('pet_assistant_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET today's checklist",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{pet_assistant_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/today",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "today"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, target entry present and uncompleted', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const entries = pm.response.json().entries;",
+              "  const match = entries.find(e => e.id === pm.collectionVariables.get('care_log_entry_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.completed_at).to.be.null;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1/AC-3 PATCH complete",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{pet_assistant_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log-entry/{{care_log_entry_id}}/complete",
+          "host": ["{{base_url}}"],
+          "path": [
+            "hotel",
+            "care-log-entry",
+            "{{care_log_entry_id}}",
+            "complete"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, completed_at/completed_by set server-side', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const entry = pm.response.json().entry;",
+              "  pm.expect(entry.completed_at).to.be.a('string');",
+              "  pm.expect(entry.completed_by).to.be.a('string');",
+              "});",
+              "pm.test('Reminder: check the server console for a [M11 stub] care_log_completed log line if notify_opt_in was true', function () {",
+              "  pm.expect(true).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2 PATCH complete again (already completed)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{pet_assistant_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log-entry/{{care_log_entry_id}}/complete",
+          "host": ["{{base_url}}"],
+          "path": [
+            "hotel",
+            "care-log-entry",
+            "{{care_log_entry_id}}",
+            "complete"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 already completed', function () {",
+              "  pm.response.to.have.status(409);",
+              "  pm.expect(pm.response.json().error).to.match(/already completed/i);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

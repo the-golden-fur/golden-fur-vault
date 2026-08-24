@@ -1,0 +1,477 @@
+{
+  "info": {
+    "name": "25 - Policy Fees & Credit Balances",
+    "description": "Sprint 5 Epic B (Issues #88-#95): downpayment/reschedule-fee/credit-expiry policy config, the cancellation/reschedule cancellation_logs + credit-issuance hookup, and the credit balance/history read surface.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "customer_profiles.id of the customer login above"
+    },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "A real branches.id to scope the policy/credit requests to"
+    },
+    {
+      "key": "reschedulable_booking_id",
+      "value": "",
+      "description": "A Pending booking at branch_id, scheduled far enough out to reschedule twice against the fee allowance"
+    },
+    {
+      "key": "cancellable_booking_id",
+      "value": "",
+      "description": "A Pending Hotel booking with a nonzero downpayment_amount, scheduled with enough notice to qualify for credit"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin/Superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('cashier_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /bookings/policy (list, all-staff read)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK, policies array present', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('policies');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH /bookings/policy — #88 downpayment/reschedule-fee/credit-expiry (Admin only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"downpayment_percentage\": 50,\n  \"reschedule_fee_enabled\": true,\n  \"reschedule_fee_type\": \"Percentage\",\n  \"reschedule_fee_value\": 10,\n  \"reschedule_free_allowance\": 1,\n  \"credit_expiry_enabled\": true,\n  \"credit_expiry_days\": 30\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK, new fields echoed back', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const policy = pm.response.json().policy;",
+              "  pm.expect(policy.reschedule_fee_enabled).to.eql(true);",
+              "  pm.expect(policy.reschedule_free_allowance).to.eql(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Cashier is forbidden from PATCH /bookings/policy",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"downpayment_percentage\": 75\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. POST /bookings/:id/reschedule (1st — within free allowance, no fee)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"2026-09-20T02:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-20T03:00:00.000Z\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{reschedulable_booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{reschedulable_booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#92 AC-1: no fee within the free allowance', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().booking.pending_reschedule_fee_amount).to.eql(null);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. POST /bookings/:id/reschedule (2nd — allowance exhausted, fee charged)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"2026-09-22T02:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-22T03:00:00.000Z\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{reschedulable_booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{reschedulable_booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#92 AC-1: a fee is charged once the allowance is exhausted', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().booking.pending_reschedule_fee_amount).to.be.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. POST /bookings/:id/cancel — qualifying (enough notice, issues credit)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_reason\": \"customer request\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{cancellable_booking_id}}/cancel",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{cancellable_booking_id}}", "cancel"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#91 AC-2: notice met + a downpayment issues credit', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.notice_period_met).to.eql(true);",
+              "  pm.expect(body.credit_issued).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. GET /credits/balances (staff, any customer)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/balances?customer_id={{customer_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "balances"],
+          "query": [{ "key": "customer_id", "value": "{{customer_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#95 AC-3: staff can view a named customer\\'s balances', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('balances');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. GET /credits/balances (customer self-read, no customer_id)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/balances",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "balances"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#95 AC-3: a customer resolves to their own balances', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('balances');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. A staff caller without customer_id gets 400",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/balances",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "balances"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. GET /credits/history?branch_id=... (staff, named customer)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/history?customer_id={{customer_id}}&branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "history"],
+          "query": [
+            { "key": "customer_id", "value": "{{customer_id}}" },
+            { "key": "branch_id", "value": "{{branch_id}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#95 AC-1: history array present, newest first', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('history');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. POST /credits/expire (Admin/Superadmin manual trigger — #93)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/expire",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "expire"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('#93 AC-3: manual trigger returns an expired_count', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('expired_count');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Cashier is forbidden from POST /credits/expire",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/expire",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "expire"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

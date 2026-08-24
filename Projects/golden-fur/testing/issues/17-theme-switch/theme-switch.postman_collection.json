@@ -1,0 +1,250 @@
+{
+  "info": {
+    "name": "Issue 17 - Theme Switch Preferences",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "staff_identifier",
+      "value": ""
+    },
+    {
+      "key": "staff_password",
+      "value": ""
+    },
+    {
+      "key": "staff_access_token",
+      "value": ""
+    },
+    {
+      "key": "customer_email",
+      "value": ""
+    },
+    {
+      "key": "customer_password",
+      "value": ""
+    },
+    {
+      "key": "customer_access_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Staff - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff - Update Preferences (dark)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{staff_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"dark\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      }
+    },
+    {
+      "name": "Staff - Update Preferences (invalid value)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{staff_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"neon\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      }
+    },
+    {
+      "name": "Staff - Update Preferences (no token)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"dark\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      }
+    },
+    {
+      "name": "Customer - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - Update Preferences (light)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"light\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "preferences"]
+        }
+      }
+    },
+    {
+      "name": "Customer - Update Preferences (invalid value)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"neon\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "preferences"]
+        }
+      }
+    },
+    {
+      "name": "Customer - Update Preferences (no token)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"theme_preference\": \"light\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "preferences"]
+        }
+      }
+    }
+  ]
+}

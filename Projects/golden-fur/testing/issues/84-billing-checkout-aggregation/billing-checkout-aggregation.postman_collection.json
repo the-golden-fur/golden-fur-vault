@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "Billing Checkout Aggregation (#84)",
+    "description": "GET /billing/checkout/:bookingId/preview and POST /billing/checkout. Fill in cashier_identifier/cashier_password and booking_id (a Completed/Paid booking with no existing transaction) before running. Run 1 first (login), then 2-4 in order - 4 depends on 3 having created a transaction.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Preview checkout for a booking",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/checkout/{{booking_id}}/preview",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "checkout", "{{booking_id}}", "preview"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with a computed preCreditTotal', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().preCreditTotal).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Checkout the booking (Cash)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{booking_id}}\",\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, Fully Paid, SUM(line_total) = total_amount', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.transaction.payment_status).to.eql('Fully Paid');",
+              "  const summed = body.lineItems.reduce((s, li) => s + li.line_total, 0);",
+              "  pm.expect(Math.round(summed * 100)).to.eql(Math.round(body.transaction.total_amount * 100));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Repeat checkout on the same booking - 409",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{booking_id}}\",\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "checkout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - booking already has a transaction', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

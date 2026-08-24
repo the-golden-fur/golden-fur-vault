@@ -1,0 +1,364 @@
+{
+  "info": {
+    "name": "35 - Service Types & Cage Picker",
+    "description": "Service Types admin CRUD (Grooming/Hotel/Daycare/Veterinary display name, Active flag, Staff/Cage Picker toggles) and the new Cage Picker resolution endpoint it feeds. Promo Cap move, Product Catalog (unchanged), and the booking-flow autosave are client-only and covered by the sibling .md's manual steps instead.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "branch_id", "value": "", "description": "Any active branch id" },
+    { "key": "new_service_type_id", "value": "" },
+    { "key": "hotel_service_type_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. List service types (all-staff read) - seeded Grooming/Hotel/Daycare/Veterinary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('all four seeded types are present', () => {",
+              "  const keys = body.service_types.map((row) => row.key);",
+              "  pm.expect(keys).to.include.members(['Grooming', 'Hotel', 'Daycare', 'Veterinary']);",
+              "});",
+              "const hotel = body.service_types.find((row) => row.key === 'Hotel');",
+              "if (hotel) pm.collectionVariables.set('hotel_service_type_id', hotel.id);",
+              "pm.test('Hotel is seeded with cage_picker_enabled: true', () => {",
+              "  pm.expect(hotel.cage_picker_enabled).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. A non-Admin/Superadmin cannot create a service type (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"key\": \"Boarding\",\n  \"name\": \"Boarding\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden for Receptionist', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Admin creates a new service type",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"key\": \"PostmanTestType\",\n  \"name\": \"Postman Test Type\",\n  \"staff_picker_enabled\": false,\n  \"cage_picker_enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('defaults picker toggles to false', () => {",
+              "  pm.expect(body.service_type.staff_picker_enabled).to.eql(false);",
+              "  pm.expect(body.service_type.cage_picker_enabled).to.eql(false);",
+              "});",
+              "if (body.service_type && body.service_type.id) pm.collectionVariables.set('new_service_type_id', body.service_type.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Creating a duplicate key is rejected (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"key\": \"PostmanTestType\",\n  \"name\": \"Duplicate\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('conflict', () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin renames and deactivates the test service type",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Test Type (Renamed)\",\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{new_service_type_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types", "{{new_service_type_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('renamed and deactivated', () => {",
+              "  pm.expect(body.service_type.name).to.eql('Postman Test Type (Renamed)');",
+              "  pm.expect(body.service_type.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cage Picker options for a Hotel-enabled branch (cage_picker_enabled: true)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/cage-picker?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "cage-picker"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('enabled (Hotel is seeded cage_picker_enabled: true)', () => pm.expect(body.cage_picker_enabled).to.eql(true));",
+              "pm.test('\"No preference\" is first', () => pm.expect(body.options[0]).to.eql({ type: 'no_preference' }));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Admin turns off Hotel's Cage Picker toggle",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cage_picker_enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{hotel_service_type_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types", "{{hotel_service_type_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('cage_picker_enabled is now false', () => pm.expect(body.service_type.cage_picker_enabled).to.eql(false));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Cage Picker now reports disabled, no options",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/cage-picker?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "cage-picker"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('disabled', () => pm.expect(body.cage_picker_enabled).to.eql(false));",
+              "pm.test('no options', () => pm.expect(body.options).to.eql([]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Restore Hotel's Cage Picker toggle (cleanup)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cage_picker_enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{hotel_service_type_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types", "{{hotel_service_type_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('ok', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    }
+  ]
+}

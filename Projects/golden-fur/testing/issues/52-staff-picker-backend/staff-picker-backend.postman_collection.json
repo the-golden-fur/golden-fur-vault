@@ -1,0 +1,396 @@
+{
+  "info": {
+    "name": "Issue 52 - Staff Picker Backend + Admin Toggle",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "branch_makati_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "grooming_service_id", "value": "" },
+    { "key": "slot_start", "value": "" },
+    { "key": "slot_end", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('slot_start')) {",
+          "  const now = new Date();",
+          "  const diff = (((8 - now.getUTCDay()) % 7) || 7) + 7;",
+          "  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));",
+          "  const at = (h) => new Date(monday.getTime() + h * 3600 * 1000).toISOString();",
+          "  pm.collectionVariables.set('slot_start', at(5));",
+          "  pm.collectionVariables.set('slot_end', at(6));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1 GET policy - seeded system-wide default row",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with the seeded branch_id = null default row (AC-1)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const row = pm.response.json().policies.find(p => p.branch_id === null);",
+              "  pm.expect(row).to.not.be.undefined;",
+              "  pm.expect(row.notice_period_days).to.eql(3);",
+              "  pm.expect(row.notice_enforcement_mode).to.eql('Strict');",
+              "  pm.expect(row.staff_picker_enabled_grooming).to.eql(true);",
+              "  pm.expect(row.staff_picker_enabled_veterinary).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2 PATCH disable Grooming picker for Makati (creates override row)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"staff_picker_enabled_grooming\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - branch override row created with the toggle off (AC-2)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const policy = pm.response.json().policy;",
+              "  pm.expect(policy.branch_id).to.eql(pm.collectionVariables.get('branch_makati_id'));",
+              "  pm.expect(policy.staff_picker_enabled_grooming).to.eql(false);",
+              "  pm.expect(policy.staff_picker_enabled_veterinary).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3 staff-picker (customer) while disabled - no staff list",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_makati_id}}&service_category=Grooming&scheduled_start={{slot_start}}&scheduled_end={{slot_end}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "staff-picker"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_makati_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "scheduled_start", "value": "{{slot_start}}" },
+            { "key": "scheduled_end", "value": "{{slot_end}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with staff_picker_enabled false and ZERO options (AC-3)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.eql({ staff_picker_enabled: false, options: [] });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-3 create Grooming booking while disabled - auto-assigned",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"GCash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue52-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 - staff auto-assigned server-side, picker never shown (AC-3)', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const booking = pm.response.json().booking;",
+              "  pm.expect(booking.assigned_staff_id).to.be.a('string');",
+              "  pm.expect(booking.staff_picker_preferences[0].preference_type).to.eql('no_preference');",
+              "  pm.expect(booking.staff_picker_preferences[0].staff_picker_shown).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Re-enable Grooming picker for Makati",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"staff_picker_enabled_grooming\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - toggle restored', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().policy.staff_picker_enabled_grooming).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-4 staff-picker (customer) while enabled - No preference first",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_makati_id}}&service_category=Grooming&scheduled_start={{slot_start}}&scheduled_end={{slot_end}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "staff-picker"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_makati_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "scheduled_start", "value": "{{slot_start}}" },
+            { "key": "scheduled_end", "value": "{{slot_end}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - enabled, No preference first, staff carry the RPC card shape (AC-4)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.staff_picker_enabled).to.eql(true);",
+              "  pm.expect(body.options[0]).to.eql({ type: 'no_preference' });",
+              "  body.options.slice(1).forEach(option => {",
+              "    pm.expect(option.type).to.eql('specific');",
+              "    pm.expect(option.staff_id).to.be.a('string');",
+              "    pm.expect(option).to.have.property('display_name');",
+              "    pm.expect(option).to.have.property('profile_photo_url');",
+              "  });",
+              "});",
+              "// Note: the groomer booked in request 6 is absent for this window",
+              "// (Confirmed-booking overlap, #49 AC-2) - other groomers appear."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9a. Login non-Admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('non-admin staff login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9b. AC-5 non-Admin PATCH policy -> 403",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"staff_picker_enabled_grooming\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 for a non-Admin/Superadmin role (AC-5)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "Fix Pricing Matrix (#28)",
+    "description": "Verifies the backend-testable pieces of the #28 custom change: (1) a Grooming service's price only varies by weight/coat when use_pricing_matrix is true (individual add-on services default to false and stay flat); (2) a Cat pet always gets the flat base_price, even for a matrix-enabled service; (3) the seeded Golden Package now varies by weight/coat for a Dog (use_pricing_matrix: true) but stays flat for a Cat. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "", "description": "Any active branch id" },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "A seeded customer id"
+    },
+    {
+      "key": "dog_pet_id",
+      "value": "",
+      "description": "A Dog pet owned by customer_id, staff-assessed as weight_class S, coat_type SC"
+    },
+    {
+      "key": "cat_pet_id",
+      "value": "",
+      "description": "A Cat pet owned by customer_id, staff-assessed as weight_class S, coat_type SC (assessment is still required by the system today - only the matrix pricing itself is skipped for Cats)"
+    },
+    { "key": "flat_service_id", "value": "" },
+    { "key": "matrix_service_id", "value": "" },
+    { "key": "golden_package_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create a flat (non-matrix) Grooming service",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test Flat Add-on\",\n  \"category\": \"Grooming\",\n  \"base_price\": 150,\n  \"use_pricing_matrix\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('use_pricing_matrix is false', () => pm.expect(body.service.use_pricing_matrix).to.eql(false));",
+              "if (body.service) pm.collectionVariables.set('flat_service_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create a matrix-enabled Grooming service",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test Matrix Basic Groom\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300,\n  \"use_pricing_matrix\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "pm.test('use_pricing_matrix is true and a tier matrix is attached', () => {",
+              "  pm.expect(body.service.use_pricing_matrix).to.eql(true);",
+              "  pm.expect(body.service.service_pricing_tiers.length).to.eql(8);",
+              "});",
+              "if (body.service) pm.collectionVariables.set('matrix_service_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Book the matrix service for a Dog - price is the S/SC tier, not base_price",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{dog_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{matrix_service_id}}\" }],\n  \"scheduled_start\": \"2026-09-10T02:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-10T03:00:00.000Z\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booked', () => pm.response.to.have.status(201));",
+              "pm.test('total_price is not the flat base_price (300) for an S/SC Dog', () => {",
+              "  pm.expect(Number(body.booking.total_price)).to.not.eql(300);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Book the matrix service for a Cat - price is the flat base_price",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{cat_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{matrix_service_id}}\" }],\n  \"scheduled_start\": \"2026-09-10T04:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-10T05:00:00.000Z\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booked', () => pm.response.to.have.status(201));",
+              "pm.test('total_price is exactly the flat base_price (300) for a Cat, regardless of weight/coat', () => {",
+              "  pm.expect(Number(body.booking.total_price)).to.eql(300);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Book the flat (non-matrix) service for a Dog - price never varies",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{dog_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{flat_service_id}}\" }],\n  \"scheduled_start\": \"2026-09-10T06:00:00.000Z\",\n  \"scheduled_end\": \"2026-09-10T07:00:00.000Z\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('booked', () => pm.response.to.have.status(201));",
+              "pm.test('total_price is exactly the flat base_price (150)', () => pm.expect(Number(body.booking.total_price)).to.eql(150));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Golden Package is now matrix-enabled",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "const golden = (body.packages || []).find((p) => p.name === 'Golden Package');",
+              "pm.test('Golden Package exists and is matrix-enabled', () => {",
+              "  pm.expect(golden).to.exist;",
+              "  pm.expect(golden.use_pricing_matrix).to.eql(true);",
+              "});",
+              "if (golden) pm.collectionVariables.set('golden_package_id', golden.id);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

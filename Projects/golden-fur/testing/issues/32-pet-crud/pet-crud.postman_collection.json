@@ -1,0 +1,402 @@
+{
+  "info": {
+    "name": "Issue 32 - Pet CRUD Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "other_customer_id", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "staff_pet_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as staff (Receptionist)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('staff login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1: Customer creates a pet with all required fields",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Buddy\",\n  \"species\": \"Dog\",\n  \"weight_class\": \"M\",\n  \"coat_type\": \"SC\",\n  \"breed\": \"Labrador\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: creates the pet and returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().pet.name).to.eql('Buddy');",
+              "  pm.collectionVariables.set('pet_id', pm.response.json().pet.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2: Missing a required field returns 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Missing Fields\",\n  \"species\": \"Dog\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: returns 400 with field-level validation errors', function () {",
+              "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json().details).to.exist;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3: Owner lists their own pets",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: returns the pets for the owning customer', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pets.length).to.be.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-3: Different customer's pet list returns 403",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{other_customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{other_customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: returns 403 for a different customer\\'s pet list', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-4: Owner GETs the pet by id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: owner can GET the pet directly', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-4: Owner PATCHes the pet",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"health_conditions\": \"None known\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: updates persist', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pet.health_conditions).to.eql('None known');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-4: Authorized staff GETs the pet",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: an authorized staff role can GET any pet', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-5: Staff creates a pet on behalf of a customer",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Walk-in Pet\",\n  \"species\": \"Cat\",\n  \"weight_class\": \"S\",\n  \"coat_type\": \"LC\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{other_customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{other_customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: an authorized staff role can create a pet on behalf of any customer', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.collectionVariables.set('staff_pet_id', pm.response.json().pet.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cleanup: owner deletes their pet",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Cleanup: staff deletes the walk-in pet",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{staff_pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{staff_pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "info": {
+    "name": "Custom change: GET /bookings payment_stage filter",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff (Receptionist/Cashier/Admin/Superadmin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Custom change: GET /bookings?payment_stage=Unpaid only returns Unpaid rows",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?payment_stage=Unpaid",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "payment_stage", "value": "Unpaid" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('every returned booking has payment_stage Unpaid', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const bookings = pm.response.json().bookings;",
+              "  pm.expect(bookings).to.be.an('array');",
+              "  pm.expect(",
+              "    bookings.every((booking) => booking.payment_stage === 'Unpaid')",
+              "  ).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Custom change: GET /bookings?payment_stage=Paid excludes Unpaid/Paid in Advance rows",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?payment_stage=Paid",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "payment_stage", "value": "Paid" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('every returned booking has payment_stage Paid', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const bookings = pm.response.json().bookings;",
+              "  pm.expect(bookings).to.be.an('array');",
+              "  pm.expect(",
+              "    bookings.every((booking) => booking.payment_stage === 'Paid')",
+              "  ).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Custom change: GET /bookings?payment_stage=invalid is rejected",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?payment_stage=invalid",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "payment_stage", "value": "invalid" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 for a payment_stage value outside Unpaid/Paid in Advance/Paid', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /bookings with no payment_stage still returns every status (baseline)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, unfiltered', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().bookings).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

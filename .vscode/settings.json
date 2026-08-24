@@ -1,0 +1,30 @@
+{
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "markdown.extension.toc.levels": "2..4",
+  "yaml.customTags": [],
+  "files.associations": {
+    "AGENTS.md": "markdown",
+    ".agent/**/*.md": "markdown"
+  },
+  "search.exclude": {
+    "**/*.docx": true,
+    "**/*.xlsx": true,
+    "**/*.pdf": true
+  },
+  "files.watcherExclude": {
+    "**/.obsidian/cache/**": true
+  }
+}

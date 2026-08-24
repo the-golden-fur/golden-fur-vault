@@ -1,0 +1,652 @@
+{
+  "info": {
+    "name": "Issue 29 - Staff Unavailability Request Approval Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_id", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_id", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_block_id", "value": "" },
+    { "key": "staff_block_id_2", "value": "" },
+    { "key": "staff_quick_block_id", "value": "" },
+    { "key": "admin_onbehalf_block_id", "value": "" },
+    { "key": "admin_self_block_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff (requester)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('staff login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin (reviewer)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1: Staff self-requests a custom range (pending)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-04-01T01:00:00.000Z\",\n  \"end_time\": \"2027-04-01T03:00:00.000Z\",\n  \"reason\": \"Personal appointment\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: self custom-range POST creates a pending row', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().block.status).to.eql('pending');",
+              "  pm.collectionVariables.set('staff_block_id', pm.response.json().block.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2: Staff quick-action POST (auto-approved)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quick_action\": true,\n  \"reason\": \"Rest of shift\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: quick-action returns 201 approved, or 400 if branch closed today', function () {",
+              "  pm.expect([201, 400]).to.include(pm.response.code);",
+              "  if (pm.response.code === 201) {",
+              "    pm.expect(pm.response.json().block.status).to.eql('approved');",
+              "    pm.collectionVariables.set('staff_quick_block_id', pm.response.json().block.id);",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3: Admin POST on behalf of staff (auto-approved)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-04-02T01:00:00.000Z\",\n  \"end_time\": \"2027-04-02T03:00:00.000Z\",\n  \"reason\": \"Admin on-behalf-of\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: on-behalf-of POST is auto-approved regardless of range', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().block.status).to.eql('approved');",
+              "  pm.collectionVariables.set('admin_onbehalf_block_id', pm.response.json().block.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin self-requests a custom range (pending)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-04-03T01:00:00.000Z\",\n  \"end_time\": \"2027-04-03T03:00:00.000Z\",\n  \"reason\": \"Admin's own request\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{admin_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{admin_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Admin's own custom-range request is pending, same as any staff member\", function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().block.status).to.eql('pending');",
+              "  pm.collectionVariables.set('admin_self_block_id', pm.response.json().block.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-9: Admin cannot review their own pending request",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"approved\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{admin_id}}/unavailability/{{admin_self_block_id}}/review",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{admin_id}}",
+            "unavailability",
+            "{{admin_self_block_id}}",
+            "review"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-9: self-review returns 403 cannot_review_own_request', function () {",
+              "  pm.response.to.have.status(403);",
+              "  pm.expect(pm.response.json().error).to.eql('cannot_review_own_request');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-8: GET pending queue includes both rows, own row flagged non-reviewable",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/unavailability/pending",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "unavailability", "pending"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-8: pending list includes the staff request (reviewable) and the admin\\'s own request (not reviewable)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const blocks = pm.response.json().blocks;",
+              "  const staffRow = blocks.find((b) => b.id === pm.collectionVariables.get('staff_block_id'));",
+              "  const ownRow = blocks.find((b) => b.id === pm.collectionVariables.get('admin_self_block_id'));",
+              "  pm.expect(staffRow, 'staff pending row present').to.exist;",
+              "  pm.expect(staffRow.reviewable).to.eql(true);",
+              "  pm.expect(ownRow, 'admin own pending row present').to.exist;",
+              "  pm.expect(ownRow.reviewable).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-4: Admin approves the staff member's pending request",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"approved\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_block_id}}/review",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_block_id}}",
+            "review"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: approve sets status and reviewed_by/reviewed_at', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const block = pm.response.json().block;",
+              "  pm.expect(block.status).to.eql('approved');",
+              "  pm.expect(block.reviewed_by).to.eql(pm.collectionVariables.get('admin_id'));",
+              "  pm.expect(block.reviewed_at).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-6: reviewing an already-decided request is rejected",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"denied\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_block_id}}/review",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_block_id}}",
+            "review"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-6: re-reviewing a non-pending row returns 404', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. AC-1 (again): Staff submits a second pending request for the deny path",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"start_time\": \"2027-04-05T01:00:00.000Z\",\n  \"end_time\": \"2027-04-05T03:00:00.000Z\",\n  \"reason\": \"Second request, to be denied\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('second self custom-range POST is also pending', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().block.status).to.eql('pending');",
+              "  pm.collectionVariables.set('staff_block_id_2', pm.response.json().block.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. AC-5: Admin denies with a reason",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"denied\",\n  \"denial_reason\": \"Short staffed that day\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_block_id_2}}/review",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_block_id_2}}",
+            "review"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: deny sets status and records the reason', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const block = pm.response.json().block;",
+              "  pm.expect(block.status).to.eql('denied');",
+              "  pm.expect(block.denial_reason).to.eql('Short staffed that day');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. AC-5 (also): a plain staff member calling review at all gets 403",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"approved\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{admin_onbehalf_block_id}}/review",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{admin_onbehalf_block_id}}",
+            "review"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('a staff member (non-manager role) hitting review returns 403 at the requireRole layer', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Cleanup: staff deletes the quick-action block",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_quick_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_quick_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204, or 404 if request 4 hit the branch-closed-today case', function () {",
+              "  pm.expect([204, 404]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Cleanup: staff deletes their approved request",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Cleanup: staff deletes their denied request",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{staff_block_id_2}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{staff_block_id_2}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Cleanup: Admin deletes the on-behalf-of block",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}/unavailability/{{admin_onbehalf_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{staff_id}}",
+            "unavailability",
+            "{{admin_onbehalf_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Cleanup: Admin deletes their own pending-turned-orphaned request",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{admin_id}}/unavailability/{{admin_self_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{admin_id}}",
+            "unavailability",
+            "{{admin_self_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: returns 204', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

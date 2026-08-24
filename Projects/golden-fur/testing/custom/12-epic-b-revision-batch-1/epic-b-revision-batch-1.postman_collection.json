@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "Epic B - Revision Batch 1 (Issues #79-#85)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "service_id", "value": "" },
+    { "key": "package_id", "value": "" },
+    { "key": "promo_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Issue #80/#81: GET pricing configuration",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#80: any staff role can read the singleton pricing configuration', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const config = pm.response.json().configuration;",
+              "  pm.expect(config.size_s_multiplier).to.be.a('number');",
+              "  pm.expect(config.long_coat_addon).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Issue #80 AC-5: non-Admin cannot write pricing configuration",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"long_coat_addon\": 999\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#80 AC-5: 403 for a non-Admin/Superadmin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Issue #81: POST Grooming service with no pricing_tiers field",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Epic B Postman Grooming Service\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#81: 201 with an 8-cell DERIVED matrix, no manual entry needed', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const service = pm.response.json().service;",
+              "  pm.expect(service.service_pricing_tiers).to.have.lengthOf(8);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('service_id', pm.response.json().service.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Issue #81: create rejects a pricing_tiers field (strict payload)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Should Be Rejected\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300,\n  \"pricing_tiers\": [{ \"weight_class\": \"S\", \"coat_type\": \"SC\", \"price\": 300 }]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#81: 400 - pricing_tiers is no longer an accepted field', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Issue #82/#83: GET package pricing configuration",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/package-pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "package-pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#82: any staff role can read the singleton package pricing configuration', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().configuration.bundle_discount_percentage).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Issue #83: create package rejects a bundled_price field",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"name\": \"Should Be Rejected\",\n  \"bundled_price\": 999,\n  \"service_ids\": [\"{{service_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/packages",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "packages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#83: 400 - bundled_price is no longer an accepted field', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Issue #84: GET promo cap configurations",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#84: at least the system-wide default cap (branch_id null) exists', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const configs = pm.response.json().configurations;",
+              "  pm.expect(configs.some(function (c) { return c.branch_id === null; })).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Issue #84 AC-4: Admin edits the system-wide promo cap",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"cap_type\": \"percentage\",\n  \"cap_value\": 25\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#84 AC-4: 200 with the updated cap value', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().configuration.cap_value).to.eql(25);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Issue #84 AC-5: non-Admin cannot write the promo cap",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"cap_type\": \"percentage\",\n  \"cap_value\": 50\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promo-cap-configurations",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promo-cap-configurations"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#84 AC-5: 403 for a non-Admin/Superadmin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Issue #84: create promo rejects an is_exclusive field",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Should Be Rejected\",\n  \"start_date\": \"2026-09-01\",\n  \"end_date\": \"2026-09-30\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"all_services\",\n  \"branch_scope\": \"both\",\n  \"is_exclusive\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#84: 400 - is_exclusive is no longer an accepted field', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Issue #85: GET discounts still supports category scope (Sprint 2 schema, unchanged by this epic)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('#85: 200, at least one discount has scope_type category', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const discounts = pm.response.json().discounts;",
+              "  pm.expect(discounts.some(function (d) { return d.scope_type === 'category'; })).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

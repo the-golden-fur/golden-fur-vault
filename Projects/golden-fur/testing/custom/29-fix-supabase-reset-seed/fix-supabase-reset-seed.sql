@@ -1,0 +1,61 @@
+-- Custom change (#29) - the two fixes below, for manual review/reference.
+-- Source of truth is supabase/migrations/20260807104_m05_m06_unify_stays.sql
+-- (policy name) and supabase/seeds/module-4-hotel/module-4-hotel.seed.sql
+-- (ON CONFLICT), both edited in place since neither had been applied to any
+-- shared/remote environment before this fix.
+
+-- =============================================================================
+-- Fix 1: product_catalog seed ON CONFLICT no longer matches its constraint
+-- =============================================================================
+-- Migration 20260803085 replaced product_catalog's plain
+-- `unique (name, category)` with two PARTIAL unique indexes:
+--
+--   create unique index product_catalog_global_name_category_uniq
+--     on public.product_catalog (name, category) where owner_customer_id is null;
+--   create unique index product_catalog_owner_name_category_uniq
+--     on public.product_catalog (owner_customer_id, name, category) where owner_customer_id is not null;
+--
+-- Postgres can only infer a partial index for ON CONFLICT if the same WHERE
+-- predicate is repeated in the ON CONFLICT clause itself. The seed's plain
+-- `on conflict (name, category) do nothing` (module-4-hotel.seed.sql)
+-- matched neither partial index, so every genuinely fresh `supabase db
+-- reset` failed at this seed step with:
+--   ERROR: there is no unique or exclusion constraint matching the
+--   ON CONFLICT specification (SQLSTATE 42P10)
+--
+-- Fix - add the predicate (these are global/staff-managed rows,
+-- owner_customer_id is NULL by omission):
+
+-- Before:
+--   insert into public.product_catalog (name, category, service_scope, price)
+--   values (...)
+--   on conflict (name, category) do nothing;
+
+-- After:
+--   insert into public.product_catalog (name, category, service_scope, price)
+--   values (...)
+--   on conflict (name, category) where owner_customer_id is null do nothing;
+
+-- =============================================================================
+-- Fix 2: an RLS policy name over Postgres's 63-byte identifier limit
+-- =============================================================================
+-- "Front-desk staff can write medication instructions at their branch" is
+-- 66 bytes - 3 over NAMEDATALEN-1 - so Postgres silently truncates it on
+-- every CREATE POLICY (and warns: NOTICE 42622). This was already true of
+-- the original 20260727052 migration (left untouched - migrations are
+-- immutable history); 20260807104 recreates this same policy (as part of
+-- generalizing hotel_stays into `stays`) and now uses a shortened name for
+-- the CREATE so at least the newly-created copy doesn't re-trigger the
+-- NOTICE. The matching DROP POLICY statement necessarily keeps the
+-- original (over-limit) name, since it has to resolve to whatever name is
+-- actually stored (Postgres's own truncation of the original CREATE) -
+-- using a different, already-short string there would not match and the
+-- DROP would fail with "policy does not exist".
+
+-- Before (in 20260807104):
+--   create policy "Front-desk staff can write medication instructions at their branch"
+--     on public.care_medication_instructions ...
+
+-- After:
+--   create policy "Front-desk staff can write medication instructions at branch"
+--     on public.care_medication_instructions ...

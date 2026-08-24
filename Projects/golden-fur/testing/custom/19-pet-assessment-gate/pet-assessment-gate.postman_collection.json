@@ -1,0 +1,389 @@
+{
+  "info": {
+    "name": "Pet Assessment Gate",
+    "description": "Verifies: (1) a customer cannot set/change their own pet's weight_class/coat_type, (2) staff can, through the real running server (this is also the regression test for the ...075 trigger-fix bug - request 6 would have incorrectly failed with the old trigger), and it stamps assessed_by/assessed_at, (3) an unassessed pet can only book the Initial Assessment service, never a normal service, a package, or Reassessment. Fill in customer_identifier/customer_password (an existing customer login) and admin_identifier/admin_password (Admin or Superadmin) before running. Also fill branch_id with an existing branch id (Supabase SQL Editor: `select id, name from public.branches;` - use the Makati row). Run requests in order, top to bottom - each captures the variables the next one needs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "unassessed_pet_id", "value": "" },
+    {
+      "key": "grooming_service_id",
+      "value": "a1300000-0000-4000-a000-000000000001",
+      "description": "Seeded 'Bath' Grooming service - requires_assessed_pet=true"
+    },
+    {
+      "key": "assessment_service_id",
+      "value": "a1300000-0000-4000-a000-000000000022",
+      "description": "Seeded 'Initial Assessment' service - requires_assessed_pet=false"
+    },
+    {
+      "key": "reassessment_service_id",
+      "value": "a1300000-0000-4000-a000-000000000023",
+      "description": "Seeded 'Reassessment' service - requires_assessed_pet=TRUE (opposite of Initial Assessment - not a substitute entry point for a brand-new pet)"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as staff (Admin/Superadmin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Customer - create pet WITH weight_class/coat_type (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Test Pet (should be rejected)\",\n  \"pet_type\": \"Dog\",\n  \"weight_class\": \"M\",\n  \"coat_type\": \"SC\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('a customer cannot set weight_class/coat_type at create', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Customer - create pet without weight_class/coat_type (succeeds, unassessed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Assessment Gate Test Pet\",\n  \"pet_type\": \"Dog\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('creates the pet as Unassessed', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const pet = pm.response.json().pet;",
+              "  pm.expect(pet.weight_class).to.equal(null);",
+              "  pm.expect(pet.coat_type).to.equal(null);",
+              "  pm.collectionVariables.set('pet_id', pet.id);",
+              "  pm.collectionVariables.set('unassessed_pet_id', pet.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Customer - PATCH own pet's weight_class (rejected)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"weight_class\": \"M\"\n}" },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('a customer cannot change their own pet weight_class', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Staff - PATCH the pet's weight_class/coat_type (assesses it)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_class\": \"M\",\n  \"coat_type\": \"SC\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('staff can assess the pet, and it gets stamped', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const pet = pm.response.json().pet;",
+              "  pm.expect(pet.weight_class).to.equal('M');",
+              "  pm.expect(pet.coat_type).to.equal('SC');",
+              "  pm.expect(pet.assessed_by).to.not.equal(null);",
+              "  pm.expect(pet.assessed_at).to.not.equal(null);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Customer - create a SECOND pet, left unassessed (for the booking gate below)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Assessment Gate Test Pet 2 (stays unassessed)\",\n  \"pet_type\": \"Cat\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('creates a second Unassessed pet', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.collectionVariables.set('unassessed_pet_id', pm.response.json().pet.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Booking gate - unassessed pet + normal Grooming service (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{unassessed_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{grooming_service_id}}\",\n  \"scheduled_start\": \"2027-01-15T09:00:00+00:00\",\n  \"scheduled_end\": \"2027-01-15T09:30:00+00:00\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('booking a normal service for an unassessed pet is rejected', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Booking gate - unassessed pet + Initial Assessment (succeeds)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{unassessed_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{assessment_service_id}}\",\n  \"scheduled_start\": \"2027-01-15T10:00:00+00:00\",\n  \"scheduled_end\": \"2027-01-15T10:30:00+00:00\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('booking Initial Assessment for an unassessed pet succeeds', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "// If this fails with 409 instead, the slot/staff picked above is",
+              "// already taken in your local data - adjust scheduled_start/end",
+              "// (and re-run) rather than treating it as a real failure."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Booking gate - unassessed pet + Reassessment (rejected, unlike Initial Assessment)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{unassessed_pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"{{reassessment_service_id}}\",\n  \"scheduled_start\": \"2027-01-15T11:00:00+00:00\",\n  \"scheduled_end\": \"2027-01-15T11:30:00+00:00\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Reassessment requires an already-assessed pet, unlike Initial Assessment', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

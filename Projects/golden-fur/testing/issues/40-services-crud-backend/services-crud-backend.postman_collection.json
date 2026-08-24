@@ -1,0 +1,357 @@
+{
+  "info": {
+    "name": "Issue 40 - Services CRUD Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "service_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1: POST Grooming service with full size-coat matrix",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Test Grooming Service\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300,\n  \"pricing_tiers\": [\n    { \"weight_class\": \"S\", \"coat_type\": \"SC\", \"price\": 300 },\n    { \"weight_class\": \"S\", \"coat_type\": \"LC\", \"price\": 350 },\n    { \"weight_class\": \"M\", \"coat_type\": \"SC\", \"price\": 400 },\n    { \"weight_class\": \"M\", \"coat_type\": \"LC\", \"price\": 450 },\n    { \"weight_class\": \"L\", \"coat_type\": \"SC\", \"price\": 500 },\n    { \"weight_class\": \"L\", \"coat_type\": \"LC\", \"price\": 550 },\n    { \"weight_class\": \"XL\", \"coat_type\": \"SC\", \"price\": 600 },\n    { \"weight_class\": \"XL\", \"coat_type\": \"LC\", \"price\": 650 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: 201 with 8 pricing tiers and both-branch availability', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const service = pm.response.json().service;",
+              "  pm.expect(service.service_pricing_tiers).to.have.lengthOf(8);",
+              "  pm.expect(service.service_branch_availability.length).to.be.at.least(2);",
+              "  service.service_branch_availability.forEach(function (row) {",
+              "    pm.expect(row.is_available).to.eql(true);",
+              "  });",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('service_id', pm.response.json().service.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2: PATCH a single tier without resubmitting the set",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"base_price\": 320,\n  \"pricing_tiers\": [\n    { \"weight_class\": \"M\", \"coat_type\": \"LC\", \"price\": 999 }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: 200, the single M/LC tier updated, others untouched', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const service = pm.response.json().service;",
+              "  pm.expect(Number(service.base_price)).to.eql(320);",
+              "  pm.expect(service.service_pricing_tiers).to.have.lengthOf(8);",
+              "  const updated = service.service_pricing_tiers.find(function (t) {",
+              "    return t.weight_class === 'M' && t.coat_type === 'LC';",
+              "  });",
+              "  pm.expect(Number(updated.price)).to.eql(999);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-4: PATCH branch availability toggle (off at one branch)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{service_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "services",
+            "{{service_id}}",
+            "branch-availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: 200 and the single branch is now unavailable', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const availability = pm.response.json().availability;",
+              "  pm.expect(availability.branch_id).to.eql(pm.collectionVariables.get('branch_id'));",
+              "  pm.expect(availability.is_available).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-3: PATCH is_active = false (soft delete)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 200 and is_active is false', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().service.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3: GET active list no longer contains the service",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: deactivated service absent from the active list', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().services.map(function (s) { return s.id; });",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('service_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-3: GET by id still returns the inactive row",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/services/{{service_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services", "{{service_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 200 with is_active false - row and history remain queryable', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const service = pm.response.json().service;",
+              "  pm.expect(service.id).to.eql(pm.collectionVariables.get('service_id'));",
+              "  pm.expect(service.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-5: non-admin POST is rejected with 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Should Not Exist\",\n  \"category\": \"Grooming\",\n  \"base_price\": 100\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 403 for a non-Admin/Superadmin write', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-5: non-admin GET (active services) succeeds",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 200 for any authenticated staff role', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().services).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,203 @@
+{
+  "info": {
+    "name": "Issue 60 - Receptionist Bookings Queue (GET /bookings, staff scope)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "superadmin_identifier", "value": "" },
+    { "key": "superadmin_password", "value": "" },
+    { "key": "superadmin_access_token", "value": "" },
+    { "key": "branch_makati_id", "value": "" },
+    { "key": "today_date", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('today_date')) {",
+          "  pm.collectionVariables.set('today_date', new Date().toISOString().slice(0, 10));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1a. Login receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('receptionist login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1b. Login superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{superadmin_identifier}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('superadmin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('superadmin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-1 Receptionist: bookings for a branch + date",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?branch_id={{branch_makati_id}}&date={{today_date}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_makati_id}}" },
+            { "key": "date", "value": "{{today_date}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, every row is at the requested branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.bookings).to.be.an('array');",
+              "  body.bookings.forEach((b) => pm.expect(b.branch_id).to.eql(pm.collectionVariables.get('branch_makati_id')));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1 Filter by service_category + status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?service_category=Grooming&status=Confirmed",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "status", "value": "Confirmed" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, every row matches both filters', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  body.bookings.forEach((b) => {",
+              "    pm.expect(b.service_category).to.eql('Grooming');",
+              "    pm.expect(b.status).to.eql('Confirmed');",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-2 Superadmin: no branch filter sees any branch",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, request succeeds with no branch_id filter applied', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().bookings).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

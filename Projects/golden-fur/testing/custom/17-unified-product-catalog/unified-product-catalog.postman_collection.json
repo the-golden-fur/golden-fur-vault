@@ -1,0 +1,243 @@
+{
+  "info": {
+    "name": "Unified Product Catalog",
+    "description": "GET/POST/PATCH/DELETE /catalog/products (replaces /hotel/food-catalog and /hotel/medication-catalog). Fill in cashier_identifier/cashier_password (any non-Admin staff role) and admin_identifier/admin_password (Admin/Superadmin) before running. Run 1-2 first (logins), then the rest in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "product_catalog_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Cashier reads the seeded food catalog",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products?category=food&service_scope=hotel",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products"],
+          "query": [
+            { "key": "category", "value": "food" },
+            { "key": "service_scope", "value": "hotel" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with at least the 7 seeded food items', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().items.length).to.be.at.least(7);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin creates a product catalog item",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Verification Leash\",\n  \"category\": \"misc_retail\",\n  \"service_scope\": \"general\",\n  \"price\": 250\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/catalog/products",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 with the created item', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().item.category).to.eql('misc_retail');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('product_catalog_id', pm.response.json().item.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Cashier cannot write the catalog (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Should be rejected\",\n  \"category\": \"misc_retail\",\n  \"service_scope\": \"general\",\n  \"price\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/catalog/products",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 forbidden for a non-Admin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin deactivates the item (soft-disable, not delete)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_catalog_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_catalog_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, is_active false', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().item.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin deletes the verification product (cleanup)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/catalog/products/{{product_catalog_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["catalog", "products", "{{product_catalog_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('204 no content', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

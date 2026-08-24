@@ -1,0 +1,250 @@
+{
+  "info": {
+    "name": "Hotel Care Instructions & Pricing Follow-up (#23)",
+    "description": "Verifies the backend-testable pieces of the #23 follow-up: (1) a new staff-facing GET /customers/:customerId/food-medication-catalog returns a specific customer's own saved food/medication types (not the caller's own, not the old global staff catalog); (2) a Hotel booking's hotel_preferences accepts a 'Noon' meal_time and per-night stay_date on feeding/walking/playing/medications; (3) GET /bookings/:id returns that same hotel_preferences payload back (backs the read-only Care Instructions section on the booking details page); (4) POST /hotel/check-in accepts 'Noon' as a feeding meal_time and it persists to care_feeding_instructions without a DB constraint violation. Fill in customer_identifier/customer_password and receptionist_identifier/receptionist_password before running. Fill branch_id/pet_id from existing seed data. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "branch_id", "value": "", "description": "Any active branch id" },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "A Dog/Cat pet id owned by the customer, already staff-assessed (weight_class + coat_type set)"
+    },
+    { "key": "hotel_booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "if (body.user && body.user.id) pm.collectionVariables.set('customer_id', body.user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Customer catalog - create a food type (as customer, for staff to see later)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Noon salmon kibble\",\n  \"category\": \"food\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/me/food-medication-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "me", "food-medication-catalog"]
+        }
+      }
+    },
+    {
+      "name": "4. Staff view of a specific customer's catalog (new endpoint)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/food-medication-catalog?category=food",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "food-medication-catalog"],
+          "query": [{ "key": "category", "value": "food" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('contains the customer-owned entry just created', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.items.some((item) => item.name === 'Noon salmon kibble')).to.be.true;",
+              "});",
+              "pm.test('customer without a staff role cannot call this route', function () {",
+              "  pm.sendRequest({",
+              "    url: pm.collectionVariables.get('base_url') + '/customers/' + pm.collectionVariables.get('customer_id') + '/food-medication-catalog',",
+              "    method: 'GET',",
+              "    header: { Authorization: 'Bearer ' + pm.collectionVariables.get('customer_access_token') }",
+              "  }, function (err, res) {",
+              "    pm.expect(res.code).to.equal(403);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Create Hotel booking - Noon feeding + per-night stay_date",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [],\n  \"scheduled_start\": \"2026-08-10T00:00:00.000+08:00\",\n  \"scheduled_end\": \"2026-08-12T00:00:00.000+08:00\",\n  \"hotel_preferences\": {\n    \"uniform_instructions\": false,\n    \"feeding\": [\n      { \"meal_time\": \"Noon\", \"food_type\": \"Salmon kibble\", \"quantity\": \"1 cup\", \"stay_date\": \"2026-08-10\" },\n      { \"meal_time\": \"Morning\", \"food_type\": \"Wet food\", \"quantity\": \"1 can\" }\n    ],\n    \"walking\": [ { \"time_block\": \"Morning\", \"duration_minutes\": 15, \"stay_date\": \"2026-08-11\" } ],\n    \"playing\": [ { \"time_block\": \"Afternoon\", \"duration_minutes\": 10 } ],\n    \"medications\": []\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.booking && body.booking.id) pm.collectionVariables.set('hotel_booking_id', body.booking.id);",
+              "pm.test('Noon meal_time accepted', function () {",
+              "  pm.expect(pm.response.code).to.equal(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Booking details - hotel_preferences round-trips with Noon + stay_date",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{hotel_booking_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{hotel_booking_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "const prefs = body.booking.hotel_preferences;",
+              "pm.test('Noon feeding row with stay_date is present', function () {",
+              "  pm.expect(prefs.feeding.some((row) => row.meal_time === 'Noon' && row.stay_date === '2026-08-10')).to.be.true;",
+              "});",
+              "pm.test('dateless feeding row is present (applies to every night)', function () {",
+              "  pm.expect(prefs.feeding.some((row) => row.meal_time === 'Morning' && !row.stay_date)).to.be.true;",
+              "});",
+              "pm.test('dated walking row is present', function () {",
+              "  pm.expect(prefs.walking.some((row) => row.stay_date === '2026-08-11')).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Hotel check-in - Noon feeding persists (no DB constraint violation)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{hotel_booking_id}}\",\n  \"feeding\": [\n    { \"meal_time\": \"Noon\", \"food_type\": \"Salmon kibble\", \"quantity\": \"1 cup\", \"stay_date\": \"2026-08-10\" },\n    { \"meal_time\": \"Morning\", \"food_type\": \"Wet food\", \"quantity\": \"1 can\" }\n  ],\n  \"walking\": [ { \"time_block\": \"Morning\", \"duration_minutes\": 15, \"stay_date\": \"2026-08-11\" } ],\n  \"playing\": [ { \"time_block\": \"Afternoon\", \"duration_minutes\": 10 } ],\n  \"medications\": [],\n  \"notify_opt_in\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('check-in with a Noon meal_time succeeds', function () {",
+              "  pm.expect(pm.response.code).to.equal(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

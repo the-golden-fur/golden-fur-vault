@@ -1,0 +1,579 @@
+{
+  "info": {
+    "name": "Epic A — Revision Batch 1 (Issues #71-#78)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "makati.admin1" },
+    { "key": "admin_password", "value": "password123" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "superadmin_identifier", "value": "makati.superadmin1" },
+    { "key": "superadmin_password", "value": "password123" },
+    { "key": "superadmin_access_token", "value": "" },
+    { "key": "vet_identifier", "value": "makati.veterinarian1" },
+    { "key": "vet_password", "value": "password123" },
+    { "key": "vet_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "makati.receptionist1" },
+    { "key": "receptionist_password", "value": "password123" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "southwoods_branch_id", "value": "" },
+    { "key": "new_staff_username", "value": "" },
+    { "key": "new_staff_id", "value": "" },
+    { "key": "customer_account_email", "value": "customer1@goldenfur.com" },
+    { "key": "customer_password", "value": "password123" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "pet_id", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('new_staff_username')) {",
+          "  pm.collectionVariables.set('new_staff_username', 'epica.postman' + Date.now());",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Admin login (Makati)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Superadmin login (needed to look up a Southwoods branch id)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{superadmin_identifier}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('superadmin login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('superadmin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET /staff (Superadmin) — find a Southwoods branch_id to prove Issue #73 parity",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, at least one staff row exists at a branch other than the admin\\'s own', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const staff = pm.response.json().staff;",
+              "  pm.expect(staff.length).to.be.greaterThan(0);",
+              "});",
+              "const staff = pm.response.json().staff || [];",
+              "const admin = staff.find((s) => s.username === pm.collectionVariables.get('admin_identifier'));",
+              "const other = staff.find((s) => admin && s.branch_id !== admin.branch_id);",
+              "if (other) { pm.collectionVariables.set('southwoods_branch_id', other.branch_id); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. POST /staff — Admin creates staff at a DIFFERENT branch (Issue #73: full parity with Superadmin)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{new_staff_username}}\",\n  \"registered_email\": \"{{new_staff_username}}@goldenfur.com\",\n  \"display_name\": \"Epic A Postman Test\",\n  \"role\": \"Receptionist\",\n  \"branch_id\": \"{{southwoods_branch_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 — Admin is no longer restricted to their own branch', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.staff.branch_id).to.eql(pm.collectionVariables.get('southwoods_branch_id'));",
+              "  pm.expect(body).to.have.property('temporary_password');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('new_staff_id', pm.response.json().staff.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. POST /staff/:id/resend-account-email — Admin (Issue #74 AC-1)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/resend-account-email",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "resend-account-email"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 — resend succeeds and returns a confirmation message', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('message');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. POST /staff/:id/resend-account-email — Receptionist token gets 403 (Issue #74 AC-3)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/resend-account-email",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "resend-account-email"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 — only Admin/Superadmin may resend', () => {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Receptionist login (used by request 6, and health-conditions checks below)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('receptionist login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Customer login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const token = pm.response.json().access_token;",
+              "  pm.collectionVariables.set('customer_access_token', token);",
+              "  const payloadB64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+              "  const payload = JSON.parse(atob(payloadB64));",
+              "  pm.collectionVariables.set('customer_id', payload.sub);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. GET /customers/:customerId/pets — grab a pet_id to exercise",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}/pets",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}", "pets"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, at least one pet on file (seeded by module-2)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pets.length).to.be.greaterThan(0);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('pet_id', pm.response.json().pets[0].id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. GET /pets/:id — pet_type/breed_id/photo_url present (Issue #71/#78)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('pet shape matches the Revision Batch 1 schema', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const pet = pm.response.json().pet;",
+              "  pm.expect(pet).to.have.property('pet_type');",
+              "  pm.expect(pet).to.have.property('breed_id');",
+              "  pm.expect(pet).to.have.property('photo_url');",
+              "  // species/breed/health_conditions are deliberately NOT asserted",
+              "  // absent here - migrations 041/042 are additive-only (see the",
+              "  // BREAKING CHANGE fix), so those columns still exist, deprecated,",
+              "  // until 20260725046_m02_drop_deprecated_pet_columns.sql is run.",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. GET /pets/:id/health-conditions — owning customer, before any vet has recorded one (Issue #78 AC-4)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/health-conditions",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "health-conditions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, null (not an error) when none recorded yet', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().health_conditions).to.be.null;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Veterinarian login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{vet_identifier}}\",\n  \"password\": \"{{vet_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('vet login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('vet_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. PATCH /veterinary/pets/:petId/health-conditions — non-Veterinarian gets 403 (Issue #78 AC-2)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"conditions_text\": \"Should be rejected\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/pets/{{pet_id}}/health-conditions",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "pets", "{{pet_id}}", "health-conditions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 — health conditions are Veterinarian-write-only', () => {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. PATCH /veterinary/pets/:petId/health-conditions — Veterinarian records a condition (Issue #78 AC-1)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"conditions_text\": \"Seasonal allergies (Postman verification)\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/pets/{{pet_id}}/health-conditions",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "pets", "{{pet_id}}", "health-conditions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, upserted', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().health_conditions.conditions_text).to.eql('Seasonal allergies (Postman verification)');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. GET /pets/:id/health-conditions — Receptionist now sees the vet's update, no stale cache (Issue #78 AC-3)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/health-conditions",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "health-conditions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, reflects the just-saved value live', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().health_conditions.conditions_text).to.eql('Seasonal allergies (Postman verification)');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. PATCH /pets/:id — breed_id required going forward is a client-side rule only; server still accepts it unset (Issue #77 dev note)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_type\": \"Dog\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 — pet_type accepted (renamed field, same values)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().pet.pet_type).to.eql('Dog');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

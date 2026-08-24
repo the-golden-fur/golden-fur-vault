@@ -1,0 +1,499 @@
+{
+  "info": {
+    "name": "Issue 54 - Cancellation/Reschedule Endpoints + Notice-Period Stub",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_account_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "other_customer_account_email", "value": "" },
+    { "key": "other_customer_password", "value": "" },
+    { "key": "other_customer_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "branch_makati_id", "value": "" },
+    { "key": "daycare_service_id", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "slot_start", "value": "" },
+    { "key": "slot_end", "value": "" },
+    { "key": "tomorrow_start", "value": "" },
+    { "key": "tomorrow_end", "value": "" },
+    { "key": "plus12_start", "value": "" },
+    { "key": "plus12_end", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('slot_start')) {",
+          "  const now = Date.now();",
+          "  const day = 24 * 3600 * 1000;",
+          "  pm.collectionVariables.set('slot_start', new Date(now + 10 * day).toISOString());",
+          "  pm.collectionVariables.set('slot_end', new Date(now + 10 * day + 3600 * 1000).toISOString());",
+          "  pm.collectionVariables.set('tomorrow_start', new Date(now + 1 * day).toISOString());",
+          "  pm.collectionVariables.set('tomorrow_end', new Date(now + 1 * day + 3600 * 1000).toISOString());",
+          "  pm.collectionVariables.set('plus12_start', new Date(now + 12 * day).toISOString());",
+          "  pm.collectionVariables.set('plus12_end', new Date(now + 12 * day + 3600 * 1000).toISOString());",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1a. Login customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_account_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1b. Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create a Daycare booking ~10 days out",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_makati_id}}\",\n  \"service_category\": \"Daycare\",\n  \"service_id\": \"{{daycare_service_id}}\",\n  \"scheduled_start\": \"{{slot_start}}\",\n  \"scheduled_end\": \"{{slot_end}}\",\n  \"payment_method\": \"Cash\",\n  \"payment_confirmed\": true,\n  \"special_instructions\": \"issue54-postman\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Confirmed', function () {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(pm.response.json().booking.status).to.eql('Confirmed');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('booking_id', pm.response.json().booking.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-2 Reschedule to tomorrow (Strict, default) -> 422",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"{{tomorrow_start}}\",\n  \"scheduled_end\": \"{{tomorrow_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('422 - names the 3-day notice requirement (AC-2)', function () {",
+              "  pm.response.to.have.status(422);",
+              "  pm.expect(pm.response.json().error).to.include('3 day');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1 Reschedule to +12 days (meets notice) -> 200",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"{{plus12_start}}\",\n  \"scheduled_end\": \"{{plus12_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - schedule updated in place, no violation (AC-1)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.policy_violation).to.eql(false);",
+              "  pm.expect(body.booking.scheduled_start).to.eql(pm.collectionVariables.get('plus12_start'));",
+              "  pm.expect(body.booking.reschedule_count).to.eql(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5a. Admin: PATCH policy -> Soft mode",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_enforcement_mode\": \"Soft\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5b. AC-3 Reschedule to tomorrow again (Soft) -> 200 with policy_violation true",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"{{tomorrow_start}}\",\n  \"scheduled_end\": \"{{tomorrow_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with policy_violation: true (AC-3)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().policy_violation).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6a. Admin: PATCH policy -> disable enforcement",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_enforcement_enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6b. AC-4 Reschedule to tomorrow (enforcement disabled) -> 200, no violation",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduled_start\": \"{{tomorrow_start}}\",\n  \"scheduled_end\": \"{{tomorrow_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "reschedule"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with policy_violation false regardless of timing (AC-4)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().policy_violation).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6c. Admin: restore Strict + enforcement on (cleanup)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_enforcement_mode\": \"Strict\",\n  \"notice_enforcement_enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - shared default row restored for other issues'' verification runs', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-5 Cancel the booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_reason\": \"issue54-postman cleanup\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/cancel",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "cancel"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - Cancelled with cancelled_at set, no credit fields (AC-5)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.booking.status).to.eql('Cancelled');",
+              "  pm.expect(body.booking.cancelled_at).to.be.a('string');",
+              "  pm.expect(body).to.not.have.property('credit_amount');",
+              "  pm.expect(body).to.not.have.property('credit_balance');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8a. Login another customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{other_customer_account_email}}\",\n  \"password\": \"{{other_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('other customer login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('other_customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8b. AC-6 Another customer attempts to cancel -> 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{other_customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/cancel",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "cancel"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 - only the owning customer or staff may act (AC-6)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

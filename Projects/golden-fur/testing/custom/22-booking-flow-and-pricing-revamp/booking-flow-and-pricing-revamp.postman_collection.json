@@ -1,0 +1,357 @@
+{
+  "info": {
+    "name": "Booking Flow & Pricing Revamp (#22)",
+    "description": "Verifies: (1) GET /bookings/availability/next-slot returns the earliest open day/slot looking forward from a date; (2) GET /bookings/availability/parts-of-day returns which Morning/Afternoon/Evening blocks fit a branch's operating hours; (3) a hotel booking's hotel_preferences no longer accepts brought_by_customer (rejected as an unrecognized key) and does accept per-night stay_date/uniform_instructions/playing; (4) a customer can create/list/rename/archive their own food-medication-catalog entries, scoped to themselves; (5) GET/PATCH /maintenance/pricing-configuration includes daycare_overnight_fee. Fill in customer_identifier/customer_password, receptionist_identifier/receptionist_password, admin_identifier/admin_password before running. Fill branch_id/pet_id/hotel_booking_id from existing seed data. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "", "description": "Any active branch id" },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "A Dog/Cat pet id owned by the customer, already staff-assessed (weight_class + coat_type set)"
+    },
+    {
+      "key": "hotel_booking_id",
+      "value": "",
+      "description": "A Confirmed Hotel-category booking, not yet checked in"
+    },
+    { "key": "customer_catalog_item_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Availability - next available slot (fully-booked warning)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability/next-slot?branch_id={{branch_id}}&service_category=Hotel&from_date=2026-08-05&slot_duration_minutes=1440&pet_weight_class=M",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability", "next-slot"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Hotel" },
+            { "key": "from_date", "value": "2026-08-05" },
+            { "key": "slot_duration_minutes", "value": "1440" },
+            { "key": "pet_weight_class", "value": "M" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Availability - parts of day within operating hours",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability/parts-of-day?branch_id={{branch_id}}&date=2026-08-05",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability", "parts-of-day"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "date", "value": "2026-08-05" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. Create Hotel booking - brought_by_customer is rejected (400, unrecognized key)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [],\n  \"scheduled_start\": \"2026-08-10T00:00:00.000+08:00\",\n  \"scheduled_end\": \"2026-08-11T00:00:00.000+08:00\",\n  \"hotel_preferences\": {\n    \"feeding\": [\n      { \"meal_time\": \"Morning\", \"food_type\": \"Kibble\", \"quantity\": \"1 cup\", \"brought_by_customer\": false }\n    ],\n    \"walking\": [],\n    \"playing\": [],\n    \"medications\": []\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      }
+    },
+    {
+      "name": "7. Create Hotel booking - per-night stay_date + playing accepted",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Hotel\",\n  \"items\": [],\n  \"scheduled_start\": \"2026-08-10T00:00:00.000+08:00\",\n  \"scheduled_end\": \"2026-08-12T00:00:00.000+08:00\",\n  \"hotel_preferences\": {\n    \"uniform_instructions\": false,\n    \"feeding\": [\n      { \"meal_time\": \"Morning\", \"food_type\": \"Kibble\", \"quantity\": \"1 cup\", \"stay_date\": \"2026-08-10\" },\n      { \"meal_time\": \"Morning\", \"food_type\": \"Wet food\", \"quantity\": \"1 can\", \"stay_date\": \"2026-08-11\" }\n    ],\n    \"walking\": [ { \"time_block\": \"Morning\", \"duration_minutes\": 15 } ],\n    \"playing\": [ { \"time_block\": \"Afternoon\", \"duration_minutes\": 10 } ],\n    \"medications\": []\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      }
+    },
+    {
+      "name": "8. Customer catalog - create a food type",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Chicken kibble\",\n  \"category\": \"food\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/me/food-medication-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "me", "food-medication-catalog"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.item && body.item.id) pm.collectionVariables.set('customer_catalog_item_id', body.item.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Customer catalog - list (own + global)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/me/food-medication-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "me", "food-medication-catalog"]
+        }
+      }
+    },
+    {
+      "name": "10. Customer catalog - rename own entry",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Chicken kibble (grain-free)\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/me/food-medication-catalog/{{customer_catalog_item_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "customers",
+            "me",
+            "food-medication-catalog",
+            "{{customer_catalog_item_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "11. Customer catalog - archive own entry",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/me/food-medication-catalog/{{customer_catalog_item_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "customers",
+            "me",
+            "food-medication-catalog",
+            "{{customer_catalog_item_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12. Hotel check-in - stay_date-aware feeding/playing rows",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{hotel_booking_id}}\",\n  \"feeding\": [\n    { \"meal_time\": \"Morning\", \"food_type\": \"Kibble\", \"quantity\": \"1 cup\", \"stay_date\": \"2026-08-10\" }\n  ],\n  \"walking\": [ { \"time_block\": \"Morning\", \"duration_minutes\": 15 } ],\n  \"playing\": [ { \"time_block\": \"Afternoon\", \"duration_minutes\": 10 } ],\n  \"medications\": [],\n  \"notify_opt_in\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "check-in"]
+        }
+      }
+    },
+    {
+      "name": "13. Pricing configuration - GET includes daycare_overnight_fee",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      }
+    },
+    {
+      "name": "14. Pricing configuration - PATCH daycare_overnight_fee",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"daycare_overnight_fee\": 900\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      }
+    }
+  ]
+}

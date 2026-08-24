@@ -1,0 +1,296 @@
+{
+  "info": {
+    "name": "Issue 67 - Veterinary Follow-Up Scheduling Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "vet_email", "value": "" },
+    { "key": "vet_password", "value": "" },
+    { "key": "receptionist_email", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "vet_token", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "vet_booking_id", "value": "" },
+    { "key": "consultation_id", "value": "" },
+    { "key": "follow_up_booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Veterinarian",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{vet_email}}\",\n  \"password\": \"{{vet_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Vet login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('vet_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_email}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Receptionist login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('receptionist_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET consultation queue (Vet) - auto-creates Pending consultation",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/queue",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "queue"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, consultation exists for the booking', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const consultations = pm.response.json().consultations;",
+              "  const match = consultations.find(c => c.booking_id === pm.collectionVariables.get('vet_booking_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.collectionVariables.set('consultation_id', match.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. POST follow-up on a Pending (not-yet-started) consultation (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"follow_up_date\": \"2026-08-15\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}/follow-up",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "consultations",
+            "{{consultation_id}}",
+            "follow-up"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - consultation has not started yet', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH -> Ongoing (Vet)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Ongoing\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, status Ongoing', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().consultation.status).to.eql('Ongoing');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-1/AC-2 POST follow-up (Vet)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"follow_up_date\": \"2026-08-15\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}/follow-up",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "consultations",
+            "{{consultation_id}}",
+            "follow-up"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, new Pending booking created and linked', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.booking.status).to.eql('Pending');",
+              "  pm.expect(body.booking.service_category).to.eql('Veterinary');",
+              "  pm.expect(body.consultation.follow_up_booking_id).to.eql(body.booking.id);",
+              "  pm.expect(body.consultation.follow_up_date).to.eql('2026-08-15');",
+              "  pm.collectionVariables.set('follow_up_booking_id', body.booking.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3 Receptionist sees the Pending follow-up in the bookings list",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{receptionist_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?status=Pending",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "status", "value": "Pending" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, the follow-up booking is visible with no new query needed', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const bookings = pm.response.json().bookings;",
+              "  const match = bookings.find(b => b.id === pm.collectionVariables.get('follow_up_booking_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. POST a second follow-up on the same consultation (rejected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"follow_up_date\": \"2026-08-20\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}/follow-up",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "consultations",
+            "{{consultation_id}}",
+            "follow-up"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - a follow-up is already scheduled', function () {",
+              "  pm.response.to.have.status(409);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

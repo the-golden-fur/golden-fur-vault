@@ -1,0 +1,519 @@
+{
+  "info": {
+    "name": "Discount builder branch multiselect - branch availability API",
+    "description": "Covers the changed/new discount API surface from the discount builder branch multiselect: POST /discounts now takes branch_ids (array) instead of branch_id, GET /discounts?branch_id filters via the new discount_branch_availability join, and the new PATCH /discounts/:id/branch-availability endpoint. Items 11-13 (Revision 4) cover the unify-active/available change: turning off a discount's only remaining branch auto-derives is_active to false, and Promos get the same branch-availability endpoint (POST /maintenance/promos now takes branch_ids, PATCH /maintenance/promos/:id/branch-availability) while keeping their own is_active independent. Run items 1-2 first (logins), then the rest in order - later requests depend on ids captured earlier. Fill in the collection variables (including two distinct branch_id/branch_id_2 values) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "branch_id_2", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "custom_discount_id", "value": "" },
+    { "key": "custom_promo_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. POST /discounts with branch_ids (two branches)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_ids\": [\"{{branch_id}}\", \"{{branch_id_2}}\"],\n  \"name\": \"Postman Multi-Branch Discount\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"category\",\n  \"scope_category\": \"Grooming\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, available at both requested branches, no branch_id field', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const discount = pm.response.json().discount;",
+              "  pm.expect(discount.branch_id).to.be.undefined;",
+              "  const branchIds = discount.discount_branch_availability.map(function (r) { return r.branch_id; });",
+              "  pm.expect(branchIds).to.include(pm.collectionVariables.get('branch_id'));",
+              "  pm.expect(branchIds).to.include(pm.collectionVariables.get('branch_id_2'));",
+              "  discount.discount_branch_availability.forEach(function (row) {",
+              "    pm.expect(row.is_available).to.eql(true);",
+              "  });",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('custom_discount_id', pm.response.json().discount.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. POST /discounts rejects an empty branch_ids array",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_ids\": [],\n  \"name\": \"Should Fail\",\n  \"discount_type\": \"Flat\",\n  \"value\": 5,\n  \"scope_type\": \"category\",\n  \"scope_category\": \"Grooming\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 Invalid payload - at least one branch is required', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /discounts?branch_id filters via availability - both branches see it",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts?branch_id={{branch_id_2}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id_2}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('the new discount is visible when filtering by its second branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().discounts.map(function (d) { return d.id; });",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('custom_discount_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Non-admin write to branch-availability is rejected",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id_2}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}", "branch-availability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 for a non-Admin/Superadmin role', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. PATCH /discounts/:id/branch-availability turns off the second branch",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id_2}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}", "branch-availability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, that branch row flips to unavailable', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const availability = pm.response.json().availability;",
+              "  pm.expect(availability.branch_id).to.eql(pm.collectionVariables.get('branch_id_2'));",
+              "  pm.expect(availability.is_available).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. GET /discounts?branch_id no longer includes it for the disabled branch",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts?branch_id={{branch_id_2}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id_2}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('the discount drops out of the branch_id_2 filter, but stays live at branch_id', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().discounts.map(function (d) { return d.id; });",
+              "  pm.expect(ids).to.not.include(pm.collectionVariables.get('custom_discount_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. GET /discounts?branch_id still includes it for the untouched branch",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('branch_id (never touched) still sees the discount', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const ids = pm.response.json().discounts.map(function (d) { return d.id; });",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('custom_discount_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. PATCH /discounts/:id/branch-availability turns off the last remaining branch - is_active auto-derives to false (Revision 4: unify active/available)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}", "branch-availability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, branch flips unavailable, and with no branch left available is_active auto-derives to false', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const availability = pm.response.json().availability;",
+              "  pm.expect(availability.branch_id).to.eql(pm.collectionVariables.get('branch_id'));",
+              "  pm.expect(availability.is_available).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cleanup: archive the Postman discount",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: 204 - discount archived (item 10 auto-derived it inactive by turning off its last branch, per archiveDiscount\\'s guard)', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. POST /maintenance/promos with branch_ids (Revision 4: promos get the same branch-availability model)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_ids\": [\"{{branch_id}}\", \"{{branch_id_2}}\"],\n  \"name\": \"Postman Multi-Branch Promo\",\n  \"start_date\": \"2026-08-20\",\n  \"end_date\": \"2026-12-31\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"all_services\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201, available at both requested branches, no branch_scope field', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const promo = pm.response.json().promo;",
+              "  pm.expect(promo.branch_scope).to.be.undefined;",
+              "  const branchIds = promo.promo_branch_availability.map(function (r) { return r.branch_id; });",
+              "  pm.expect(branchIds).to.include(pm.collectionVariables.get('branch_id'));",
+              "  pm.expect(branchIds).to.include(pm.collectionVariables.get('branch_id_2'));",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('custom_promo_id', pm.response.json().promo.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. PATCH /maintenance/promos/:id/branch-availability turns off a branch - is_active is untouched (Promos stay independent)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id_2}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{custom_promo_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "promos",
+            "{{custom_promo_id}}",
+            "branch-availability"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, that branch row flips unavailable', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const availability = pm.response.json().availability;",
+              "  pm.expect(availability.branch_id).to.eql(pm.collectionVariables.get('branch_id_2'));",
+              "  pm.expect(availability.is_available).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Cleanup: deactivate and archive the Postman promo",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{custom_promo_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos", "{{custom_promo_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 - is_active set directly (unaffected by branch availability, unlike the other four entities)', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Cleanup: archive the Postman promo",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos/{{custom_promo_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos", "{{custom_promo_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: 204 - promo archived', function () {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

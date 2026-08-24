@@ -1,0 +1,91 @@
+{
+  "info": {
+    "name": "Issue 37 - Shared Storage + Errors + CORS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "allowed_origin", "value": "http://localhost:5173" },
+    { "key": "disallowed_origin", "value": "http://evil.example.com" }
+  ],
+  "item": [
+    {
+      "name": "1. AC-4: GET /health from an allowed Origin",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Origin", "value": "{{allowed_origin}}" }],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: allowed origin succeeds and echoes Access-Control-Allow-Origin', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.headers.get('Access-Control-Allow-Origin')).to.eql(pm.collectionVariables.get('allowed_origin'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-4: GET /health from a disallowed Origin",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Origin", "value": "{{disallowed_origin}}" }],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: disallowed origin is rejected (no CORS header, not a 200)', function () {",
+              "  pm.expect(pm.response.headers.has('Access-Control-Allow-Origin')).to.be.false;",
+              "  pm.expect(pm.response.code).to.not.eql(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-1/AC-2: GET /staff with no Authorization header",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('errorHandler honors the legacy .statusCode from jwtMiddleware (pre-Epic-D pattern)', function () {",
+              "  pm.response.to.have.status(401);",
+              "  pm.expect(pm.response.json().error).to.eql('Missing or malformed token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,195 @@
+{
+  "info": {
+    "name": "Configurable Pricing Rules (#31)",
+    "description": "Verifies the backend-testable pieces of the #31 custom change: pricing_configuration's five size/coat rules (Small/Medium/Large/Extra Large size, Long coat) are each independently a Multiplier, Flat add-on, or Percentage add-on via GET/PATCH /maintenance/pricing-configuration, and a multiplier rule of exactly 0 is rejected while a flat/percentage rule of 0 is accepted. Fill in the variables below before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Confirm the seeded rule shape (every size Multiplier, Long coat Flat)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('sizes default to multiplier, coat defaults to flat', () => {",
+              "  pm.expect(body.configuration.size_s_rule_type).to.eql('multiplier');",
+              "  pm.expect(body.configuration.coat_long_rule_type).to.eql('flat');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Rejects a multiplier rule of exactly 0",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"size_s_rule_type\": \"multiplier\",\n  \"size_s_rule_value\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected as a validation error', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Switch Long coat to Percentage add-on (25%) and Small size to Flat add-on (₱50)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"size_s_rule_type\": \"flat\",\n  \"size_s_rule_value\": 50,\n  \"coat_long_rule_type\": \"percentage\",\n  \"coat_long_rule_value\": 25\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('updated', () => pm.response.to.have.status(200));",
+              "pm.test('a flat/percentage rule change is accepted', () => {",
+              "  pm.expect(body.configuration.size_s_rule_type).to.eql('flat');",
+              "  pm.expect(Number(body.configuration.size_s_rule_value)).to.eql(50);",
+              "  pm.expect(body.configuration.coat_long_rule_type).to.eql('percentage');",
+              "  pm.expect(Number(body.configuration.coat_long_rule_value)).to.eql(25);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. A flat rule of exactly 0 is accepted (unlike multiplier)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"size_s_rule_type\": \"flat\",\n  \"size_s_rule_value\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('accepted', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Restore the seeded defaults",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"size_s_rule_type\": \"multiplier\",\n  \"size_s_rule_value\": 1,\n  \"coat_long_rule_type\": \"flat\",\n  \"coat_long_rule_value\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pricing-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pricing-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('restored', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "info": {
+    "name": "Billing Payment Methods (#83)",
+    "description": "GET /billing/paymongo/fee-rate and a signature-less POST /billing/paymongo/webhook (expected 401 - full webhook confirmation needs a real PayMongo HMAC signature and sandbox credentials, see the issue doc). Fill in cashier_identifier/cashier_password before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Get PayMongo fee rate",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/paymongo/fee-rate",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "paymongo", "fee-rate"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with a numeric feePercent', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().feePercent).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Webhook without a signature - rejected",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": {\n    \"id\": \"evt_test\",\n    \"attributes\": {\n      \"type\": \"source.chargeable\",\n      \"data\": {\n        \"id\": \"src_test\",\n        \"attributes\": { \"status\": \"chargeable\" }\n      }\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/paymongo/webhook",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "paymongo", "webhook"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('401 - missing/invalid paymongo-signature header', function () {",
+              "  pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

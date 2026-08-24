@@ -1,0 +1,606 @@
+{
+  "info": {
+    "name": "Staff Queue Overhaul (Advance Rights, Payment Stage, Assigned Filter)",
+    "description": "Verifies: (1) Groomer/Pet Assistant now pass the Hotel/Daycare role gate (previously 403) via GET /hotel/stays, GET /daycare/sessions, and POST /hotel/check-in, POST /daycare/check-in (minimal/invalid bodies are fine here - the point is confirming the role gate no longer rejects them with 403, a 400 from body validation is an acceptable/expected outcome); (2) the new payment_stage track - POST /bookings/:id/payment-stage/advance requires `choice` only when currently Unpaid, moves Paid in Advance -> Paid with no choice, 409s once already Paid, and is gated to money-handling roles; PATCH /bookings/:id/payment-stage is Admin/Superadmin-only; (3) GET /bookings?assigned_staff_id=... filters by exact match or the 'unassigned' sentinel. Fill in groomer_identifier/groomer_password, admin_identifier/admin_password, cashier_identifier/cashier_password, receptionist_identifier/receptionist_password before running. Fill hotel_booking_id/daycare_booking_id with any Hotel/Daycare booking id (Supabase SQL Editor: `select id, service_category from public.bookings where service_category in ('Hotel','Daycare') limit 5;`). Fill payment_stage_booking_id with a Pending/In Progress booking currently Unpaid (fresh booking, or `update public.bookings set payment_stage = 'Unpaid' where id = '...';`). Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "groomer_identifier", "value": "" },
+    { "key": "groomer_password", "value": "" },
+    { "key": "groomer_access_token", "value": "" },
+    { "key": "groomer_staff_id", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "receptionist_access_token", "value": "" },
+    {
+      "key": "hotel_booking_id",
+      "value": "",
+      "description": "Any Hotel-category booking id"
+    },
+    {
+      "key": "daycare_booking_id",
+      "value": "",
+      "description": "Any Daycare-category booking id"
+    },
+    {
+      "key": "payment_stage_booking_id",
+      "value": "",
+      "description": "A Pending/In Progress booking currently payment_stage = Unpaid"
+    },
+    {
+      "key": "paid_booking_id",
+      "value": "",
+      "description": "A booking already at payment_stage = Paid (for the 409 check)"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Groomer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{groomer_identifier}}\",\n  \"password\": \"{{groomer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('groomer_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('admin_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('cashier_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200', function () { pm.response.to.have.status(200); });",
+              "if (pm.response.code === 200) { pm.collectionVariables.set('receptionist_access_token', pm.response.json().access_token); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Groomer: GET /hotel/stays (was 403, now allowed)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/stays",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "stays"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('not 403', function () { pm.expect(pm.response.code).to.not.equal(403); });",
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Groomer: POST /hotel/check-in (role gate only - 400/other is fine, 403 is not)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{groomer_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{hotel_booking_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('role gate passed (not 403)', function () { pm.expect(pm.response.code).to.not.equal(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Groomer: GET /daycare/sessions (was 403, now allowed)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/daycare/sessions",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "sessions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('not 403', function () { pm.expect(pm.response.code).to.not.equal(403); });",
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Groomer: POST /daycare/check-in (role gate only)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{groomer_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_id\": \"{{daycare_booking_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/daycare/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["daycare", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('role gate passed (not 403)', function () { pm.expect(pm.response.code).to.not.equal(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Cashier: Advance payment with NO choice on Unpaid booking (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": [
+            "bookings",
+            "{{payment_stage_booking_id}}",
+            "payment-stage",
+            "advance"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 - choice required', function () { pm.response.to.have.status(400); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Cashier: Advance payment choice=advance (200, Paid in Advance)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"choice\": \"advance\"\n}" },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": [
+            "bookings",
+            "{{payment_stage_booking_id}}",
+            "payment-stage",
+            "advance"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('payment_stage is Paid in Advance', function () { pm.expect(pm.response.json().booking.payment_stage).to.eql('Paid in Advance'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cashier: Advance payment again, no choice needed (200, Paid)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": [
+            "bookings",
+            "{{payment_stage_booking_id}}",
+            "payment-stage",
+            "advance"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('payment_stage is Paid', function () { pm.expect(pm.response.json().booking.payment_stage).to.eql('Paid'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Cashier: Advance payment on already-Paid booking (409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage/advance",
+          "host": ["{{base_url}}"],
+          "path": [
+            "bookings",
+            "{{payment_stage_booking_id}}",
+            "payment-stage",
+            "advance"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('409 - already paid', function () { pm.response.to.have.status(409); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Groomer: Override payment stage (403 - not an override role)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{groomer_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_stage\": \"Unpaid\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{payment_stage_booking_id}}", "payment-stage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Admin: Override payment stage back to Unpaid (200)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_stage\": \"Unpaid\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/payment-stage",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{payment_stage_booking_id}}", "payment-stage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('payment_stage reverted to Unpaid', function () { pm.expect(pm.response.json().booking.payment_stage).to.eql('Unpaid'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Groomer: List bookings assigned to me",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?assigned_staff_id={{groomer_staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [
+            { "key": "assigned_staff_id", "value": "{{groomer_staff_id}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('every booking is assigned to this staff id', function () {",
+              "  const bookings = pm.response.json().bookings;",
+              "  bookings.forEach((b) => pm.expect(b.assigned_staff_id).to.eql(pm.collectionVariables.get('groomer_staff_id')));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Receptionist: List unassigned bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings?assigned_staff_id=unassigned",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"],
+          "query": [{ "key": "assigned_staff_id", "value": "unassigned" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('every booking has no assigned staff', function () {",
+              "  const bookings = pm.response.json().bookings;",
+              "  bookings.forEach((b) => pm.expect(b.assigned_staff_id).to.be.null);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Round 2: retired POST /bookings/:id/mark-paid no longer exists (404)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{payment_stage_booking_id}}/mark-paid",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{payment_stage_booking_id}}", "mark-paid"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('404 - route removed (payment_stage/advance replaces it)', function () { pm.response.to.have.status(404); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Round 2: booking.status never reaches Paid - list bookings and confirm",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{receptionist_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('no booking has status Paid', function () {",
+              "  const bookings = pm.response.json().bookings;",
+              "  bookings.forEach((b) => pm.expect(b.status).to.not.eql('Paid'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

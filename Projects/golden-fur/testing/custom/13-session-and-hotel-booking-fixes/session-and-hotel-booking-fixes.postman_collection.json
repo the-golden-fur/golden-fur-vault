@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "Session & Hotel Booking Fixes",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. POST /bookings rejects hotel_preferences on a non-Hotel category (staff caller)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"branch_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"service_category\": \"Grooming\",\n  \"service_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"scheduled_start\": \"2027-01-01T01:00:00+00:00\",\n  \"scheduled_end\": \"2027-01-01T02:00:00+00:00\",\n  \"hotel_preferences\": {\n    \"feeding\": [{\"meal_time\": \"Morning\", \"food_type\": \"Kibble\", \"quantity\": \"1 cup\"}],\n    \"walking\": [],\n    \"medications\": []\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejected 400 - validator runs before any DB lookup, so placeholder IDs are fine here', function () {",
+              "  pm.response.to.have.status(400);",
+              "});",
+              "pm.test('the rejection is specifically about hotel_preferences + category, not something else', function () {",
+              "  const details = pm.response.json().details || [];",
+              "  const flagged = details.some((issue) => (issue.path || []).includes('hotel_preferences'));",
+              "  pm.expect(flagged).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. POST /bookings rejects a malformed hotel_preferences shape (customer caller)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"branch_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"service_category\": \"Hotel\",\n  \"service_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"scheduled_start\": \"2027-01-01T01:00:00+00:00\",\n  \"scheduled_end\": \"2027-01-02T01:00:00+00:00\",\n  \"hotel_preferences\": {\n    \"feeding\": [{\"meal_time\": \"Midnight Snack\", \"food_type\": \"Kibble\", \"quantity\": \"1 cup\"}],\n    \"walking\": [],\n    \"medications\": []\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejected 400 - meal_time is not one of Morning/Afternoon/Evening', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /bookings/availability never returns an already-passed slot for today (Grooming)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('today_date', new Date().toISOString().slice(0, 10));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('every returned slot starts in the future (repro: 8 AM shown as bookable at 3 PM)', function () {",
+              "  const slots = pm.response.json().slots || [];",
+              "  const nowMs = Date.now();",
+              "  slots.forEach((slot) => {",
+              "    pm.expect(new Date(slot.start).getTime()).to.be.greaterThan(nowMs);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{today_date}}&slot_duration_minutes=60",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{today_date}}" },
+            { "key": "slot_duration_minutes", "value": "60" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. GET /bookings/availability still offers today's Hotel slot regardless of time of day",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('today_date', new Date().toISOString().slice(0, 10));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.test('at most one Hotel candidate slot, structurally valid', function () {",
+              "  const slots = pm.response.json().slots || [];",
+              "  pm.expect(slots.length).to.be.at.most(1);",
+              "  slots.forEach((slot) => {",
+              "    pm.expect(slot).to.have.property('available');",
+              "    pm.expect(slot).to.have.property('level');",
+              "  });",
+              "});",
+              "// This does NOT assert available === true - that depends on real cage",
+              "// capacity/branch hours this collection doesn't know. See the MD's",
+              "// manual verification steps (and availability.service.spec.ts's own",
+              "// 'still offers a same-day Hotel slot...' unit test) for the",
+              "// authoritative same-day-after-opening-time check."
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Hotel&date={{today_date}}&slot_duration_minutes=1440&pet_weight_class=M",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Hotel" },
+            { "key": "date", "value": "{{today_date}}" },
+            { "key": "slot_duration_minutes", "value": "1440" },
+            { "key": "pet_weight_class", "value": "M" }
+          ]
+        }
+      }
+    }
+  ]
+}

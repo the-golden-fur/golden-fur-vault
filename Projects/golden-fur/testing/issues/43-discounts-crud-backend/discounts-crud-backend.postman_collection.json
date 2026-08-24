@@ -1,0 +1,387 @@
+{
+  "info": {
+    "name": "Issue 43 - Discounts CRUD Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "mandated_discount_id", "value": "" },
+    { "key": "custom_discount_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as non-admin staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-2: GET discounts - seeded SC/PWD present, inactive",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: mandated Senior Citizen + PWD rows exist for this branch, all inactive (needs the #44 seed)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const discounts = pm.response.json().discounts;",
+              "  const mandated = discounts.filter(function (d) { return d.is_mandated; });",
+              "  const names = mandated.map(function (d) { return d.name; });",
+              "  pm.expect(names).to.include('Senior Citizen Discount');",
+              "  pm.expect(names).to.include('PWD Discount');",
+              "  mandated.forEach(function (d) {",
+              "    pm.expect(d.is_active).to.eql(false);",
+              "    pm.expect(Number(d.value)).to.eql(20);",
+              "  });",
+              "  pm.collectionVariables.set('mandated_discount_id', mandated[0].id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-1: POST custom category-scoped discount",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"name\": \"Postman Loyalty Discount\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"scope_type\": \"category\",\n  \"scope_category\": \"Grooming\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: 201, non-mandated, inactive by default', function () {",
+              "  pm.response.to.have.status(201);",
+              "  const discount = pm.response.json().discount;",
+              "  pm.expect(discount.is_mandated).to.eql(false);",
+              "  pm.expect(discount.is_active).to.eql(false);",
+              "  pm.expect(discount.scope_category).to.eql('Grooming');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('custom_discount_id', pm.response.json().discount.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-3/AC-4: toggle the mandated (category-scoped) discount ON",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{mandated_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{mandated_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3/AC-4: 200, mandated row toggles on independently', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().discount.is_active).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-3: renaming a mandated discount is rejected",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Totally Not Mandated Anymore\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{mandated_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{mandated_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 400 - a mandated name is immutable', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3: changing is_mandated is rejected by the strict validator",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_mandated\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{mandated_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{mandated_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 400 Invalid payload - is_mandated is not an accepted field', function () {",
+              "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json().error).to.eql('Invalid payload');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AC-3: edit the custom discount's value and scope",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"value\": 15,\n  \"scope_type\": \"category\",\n  \"scope_category\": \"Veterinary\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: 200, custom value/scope editable (Veterinary per MA29)', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const discount = pm.response.json().discount;",
+              "  pm.expect(Number(discount.value)).to.eql(15);",
+              "  pm.expect(discount.scope_category).to.eql('Veterinary');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-5: non-admin write rejected, staff GET succeeds",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{custom_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{custom_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 403 for a non-Admin/Superadmin write', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. AC-5: GET as non-admin staff",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: 200 for any authenticated staff role', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().discounts).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cleanup: toggle the mandated discount back OFF",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{mandated_discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{mandated_discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup: 200 and mandated discount inactive again', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().discount.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

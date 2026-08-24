@@ -1,0 +1,532 @@
+{
+  "info": {
+    "name": "Reports/Notifications Proxy Fixes + Notification Preferences",
+    "description": "Covers: GET /reports/{dsr,cage-occupancy,transaction-history} and GET /notifications now returning real JSON (the vite-proxy fix only affects the client dev server, so these are run straight against base_url, i.e. the Express port, not through vite - that's the whole point: they always worked at this layer, only the client's relative fetch through Vite was broken). Also covers the new PATCH /staff/notification-preferences and PATCH /customers/notification-preferences endpoints (merge-not-replace semantics, validation, and role-appropriate event types). Fill in staff_identifier/staff_password (or customer_email/customer_password) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "staff_email", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /reports/dsr returns JSON, not the SPA shell",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/dsr?report_date=2026-08-06",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "dsr"],
+          "query": [{ "key": "report_date", "value": "2026-08-06" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with application/json content-type and a report body', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+              "  pm.expect(pm.response.json()).to.have.property('report');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET /reports/cage-occupancy returns JSON",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/cage-occupancy",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "cage-occupancy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with a rows array', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().rows).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /reports/transaction-history returns JSON",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/transaction-history",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "transaction-history"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with a transactions array', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().transactions).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /notifications returns JSON",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/notifications",
+          "host": ["{{base_url}}"],
+          "path": ["notifications"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 with a notifications array', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notifications).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Toggle one event's email channel off - merges, doesn't replace",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"email\",\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, password_reset.email is now false, account_created untouched', function () {",
+              "  pm.response.to.have.status(200);",
+              "  var prefs = pm.response.json().notification_preferences;",
+              "  pm.expect(prefs.password_reset.email).to.eql(false);",
+              "  pm.expect(prefs.password_reset.in_browser).to.eql(true);",
+              "  pm.expect(prefs.account_created.email).to.eql(true);",
+              "  pm.expect(prefs.account_created.in_browser).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Invalid event_type - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"not_a_real_event\",\n  \"channel\": \"email\",\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects an invalid event_type with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Invalid channel - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"sms\",\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects an invalid channel with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Non-boolean enabled - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"email\",\n  \"enabled\": \"yes\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('rejects a non-boolean enabled value with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Trigger forgot-password (should NOT create a row - email channel still off from step 6, but this checks in_browser separately, see step 11)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{staff_email}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/forgot-password",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "forgot-password"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 (or 400 if Supabase Auth\\'s 15s rate limit is still active - rerun after waiting)', function () {",
+              "  pm.expect([200, 400]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Turn in_browser off for password_reset, trigger forgot-password again, confirm no new row",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"in_browser\",\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, in_browser now false', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notification_preferences.password_reset.in_browser).to.eql(false);",
+              "});",
+              "console.log('Next: wait 15s+ for the Supabase Auth rate limit, POST /auth/staff/forgot-password again, then GET /notifications and confirm the password_reset count did not increase.');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Restore password_reset preferences to all-on",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"email\",\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, email restored to true', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notification_preferences.password_reset.email).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Restore password_reset in_browser to all-on",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"password_reset\",\n  \"channel\": \"in_browser\",\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, in_browser restored to true', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notification_preferences.password_reset.in_browser).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('customer_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. Customer toggles their own booking_cancelled email preference off",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"booking_cancelled\",\n  \"channel\": \"email\",\n  \"enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, booking_cancelled.email is now false', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notification_preferences.booking_cancelled.email).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Customer restores booking_cancelled email preference",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"booking_cancelled\",\n  \"channel\": \"email\",\n  \"enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, email restored to true', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().notification_preferences.booking_cancelled.email).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

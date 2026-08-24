@@ -1,0 +1,140 @@
+{
+  "info": {
+    "name": "Issue 77 - Hotel End-of-Day Care Log Flagging",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_email", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "care_log_entry_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-1/AC-2 GET flagged entries",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/flagged",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "flagged"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, the back-dated uncompleted entry is flagged', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const entries = pm.response.json().entries;",
+              "  const match = entries.find(e => e.id === pm.collectionVariables.get('care_log_entry_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-3 complete the flagged entry",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log-entry/{{care_log_entry_id}}/complete",
+          "host": ["{{base_url}}"],
+          "path": [
+            "hotel",
+            "care-log-entry",
+            "{{care_log_entry_id}}",
+            "complete"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, entry completed', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-3 re-GET flagged entries (must no longer appear)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/care-log/flagged",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "care-log", "flagged"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200, completed entry no longer flagged', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const entries = pm.response.json().entries;",
+              "  const match = entries.find(e => e.id === pm.collectionVariables.get('care_log_entry_id'));",
+              "  pm.expect(match).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

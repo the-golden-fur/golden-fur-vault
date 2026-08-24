@@ -1,0 +1,375 @@
+{
+  "info": {
+    "name": "Sprint 1 Gap Audit & Fix — M01/M02",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "admin_branch_id", "value": "" },
+    { "key": "superadmin_identifier", "value": "" },
+    { "key": "superadmin_password", "value": "" },
+    { "key": "superadmin_access_token", "value": "" },
+    { "key": "new_staff_id", "value": "" },
+    { "key": "groomer_identifier", "value": "" },
+    { "key": "groomer_password", "value": "" },
+    { "key": "groomer_access_token", "value": "" },
+    { "key": "groomer_staff_id", "value": "" },
+    { "key": "quick_action_block_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0a. Admin login (capture token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}",
+              "// If your Admin account requires TOTP, use a Supervisor account instead for",
+              "// requests that only need an Admin-tier (not Superadmin) token — note",
+              "// Supervisor is now also MFA-gated after fix #5, so prefer a seed account",
+              "// with TOTP already satisfied for this session."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "0b. Superadmin login (capture token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{superadmin_identifier}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('superadmin login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('superadmin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. FIXED — admin creates a staff account (POST /staff)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"audit.newhire\",\n  \"registered_email\": \"audit.newhire@goldenfur.com\",\n  \"display_name\": \"Audit New Hire\",\n  \"role\": \"Receptionist\",\n  \"branch_id\": \"{{admin_branch_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('FIXED: staff account is created and a temporary password is returned', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.staff).to.have.property('id');",
+              "  pm.expect(body).to.have.property('temporary_password');",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('new_staff_id', pm.response.json().staff.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. FIXED — Admin can deactivate the new staff account",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/manage",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "manage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('FIXED: Admin can deactivate a staff account (M01 Process 5)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. STILL CORRECTLY BLOCKED — Admin cannot change role (Superadmin-only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"Supervisor\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/manage",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "manage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('an Admin (not Superadmin) is still correctly forbidden from changing role', () => {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. FIXED — Superadmin can promote/demote and transfer branch",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"Supervisor\",\n  \"is_active\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/manage",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "manage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('FIXED: Superadmin can change role (and reactivates the account for cleanup)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.role).to.eql('Supervisor');",
+              "  pm.expect(pm.response.json().staff.is_active).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Groomer login (capture token + own staff id from JWT)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{groomer_identifier}}\",\n  \"password\": \"{{groomer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('groomer login succeeds', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json()).to.have.property('access_token');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  const token = pm.response.json().access_token;",
+              "  pm.collectionVariables.set('groomer_access_token', token);",
+              "  const payloadB64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+              "  const payload = JSON.parse(atob(payloadB64));",
+              "  pm.collectionVariables.set('groomer_staff_id', payload.sub);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. FIXED — self quick-action Unavailability Block is now created 'approved'",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quick_action\": true,\n  \"reason\": \"Postman audit repro\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{groomer_staff_id}}/unavailability",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{groomer_staff_id}}", "unavailability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const block = pm.response.json().block;",
+              "if (block && block.id) { pm.collectionVariables.set('quick_action_block_id', block.id); }",
+              "pm.test('FIXED: quick action is immediately approved', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.expect(block.status).to.eql('approved');",
+              "  pm.expect(block.is_quick_action).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Cleanup — cancel the block created in step 6",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{groomer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{groomer_staff_id}}/unavailability/{{quick_action_block_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "staff",
+            "{{groomer_staff_id}}",
+            "unavailability",
+            "{{quick_action_block_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup succeeds, no leftover test data', () => {",
+              "  pm.response.to.have.status(204);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cleanup — deactivate the audit-created staff account",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{new_staff_id}}/manage",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{new_staff_id}}", "manage"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('cleanup succeeds, audit-created account left deactivated', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.is_active).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

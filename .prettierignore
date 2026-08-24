@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Obsidian internals
+.obsidian/
+
+# Lock files
+package-lock.json
+
+# Binary/office docs (not markdown, prettier can't touch these anyway)
+*.docx
+*.xlsx
+*.pdf

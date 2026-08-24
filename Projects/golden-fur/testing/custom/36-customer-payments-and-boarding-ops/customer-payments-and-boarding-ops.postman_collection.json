@@ -1,0 +1,366 @@
+{
+  "info": {
+    "name": "36 - Customer Payments & Boarding Ops",
+    "description": "Customer self-service Pay (POST /bookings/:id/pay), the online-payments status read, duplicate-booking pet-conflicts read, the reminder-offset notification-preferences PATCH, and Admin cage CRUD. The Boarding Checklist Kanban, downpayment lock-in UI, hotel check-in routed page, and catalog/settings cleanups are client-only and covered by the sibling .md's manual steps instead.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "customer_email",
+      "value": "",
+      "description": "e.g. customer1@goldenfur.com"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "", "description": "Any active branch id" },
+    {
+      "key": "unpaid_booking_id",
+      "value": "",
+      "description": "An existing booking owned by the login'd customer with payment_stage Unpaid"
+    },
+    { "key": "new_cage_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Online payments status for a branch (enabled by seed default)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/online-payments-status?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "online-payments-status"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('enabled by default', () => pm.expect(body.online_payments_enabled).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. A customer cannot read another customer's pet conflicts (403)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/pet-conflicts?customer_id=00000000-0000-4000-a000-000000000000",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "pet-conflicts"],
+          "query": [
+            {
+              "key": "customer_id",
+              "value": "00000000-0000-4000-a000-000000000000"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Customer sets a 1-hour reminder offset",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"appointment_reminder\",\n  \"reminder_offset_minutes\": 60\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('offset saved', () => pm.expect(body.notification_preferences.appointment_reminder.reminder_offset_minutes).to.eql(60));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. An out-of-range reminder offset is rejected (400)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_type\": \"appointment_reminder\",\n  \"reminder_offset_minutes\": 9999\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/notification-preferences",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "notification-preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Customer initiates a GCash downpayment on an unpaid booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"GCash\",\n  \"pay_in_full\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{unpaid_booking_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{unpaid_booking_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('returns a PayMongo checkout url', () => pm.expect(body.checkout_url).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. A Receptionist cannot create a cage (403)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cage_label\": \"Postman Test Cage\",\n  \"size\": \"M\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('forbidden (customer token has no staff role)', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Admin creates a cage",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cage_label\": \"Postman Test Cage\",\n  \"size\": \"M\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/cages",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cages"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "if (body.cage && body.cage.id) pm.collectionVariables.set('new_cage_id', body.cage.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Admin renames the test cage",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cage_label\": \"Postman Test Cage (Renamed)\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotel/cage/{{new_cage_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cage", "{{new_cage_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('ok', () => pm.response.to.have.status(200));",
+              "pm.test('renamed', () => pm.expect(body.cage.cage_label).to.eql('Postman Test Cage (Renamed)'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Admin deletes the test cage (cleanup)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/hotel/cage/{{new_cage_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["hotel", "cage", "{{new_cage_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('deleted', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

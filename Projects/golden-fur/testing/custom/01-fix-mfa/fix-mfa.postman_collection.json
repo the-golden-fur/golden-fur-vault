@@ -1,0 +1,655 @@
+{
+  "info": {
+    "name": "Fix MFA - Enroll, Verify, and Login Enforcement",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "lower_priv_identifier", "value": "" },
+    { "key": "lower_priv_password", "value": "" },
+    { "key": "lower_priv_access_token", "value": "" },
+    { "key": "customer_email", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "fresh_identifier", "value": "" },
+    { "key": "fresh_password", "value": "" },
+    { "key": "fresh_access_token", "value": "" },
+    { "key": "totp_code", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Staff Admin - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Admin - MFA Status (before enroll)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('role is Admin or Superadmin', () => pm.expect(['Admin', 'Superadmin']).to.include(body.role));",
+              "pm.test('mfa_enrolled reflects current state', () => pm.expect(typeof body.mfa_enrolled).to.eql('boolean'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Admin - MFA Enroll",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/enroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "enroll"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with a totp secret/uri', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.totp && (body.totp.qr_code || body.totp.uri || body.totp.secret)).to.be.ok;",
+              "});",
+              "console.log('Scan body.totp.qr_code, or manually enter body.totp.secret into your authenticator app (this is exactly what the Settings/popup manual-key option shows), then set the totp_code variable to the 6-digit code it shows before running the next request.');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Admin - MFA Enroll (repeat, verifies race/conflict cleanup)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/enroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "enroll"]
+        },
+        "description": "Run this a second time (or a third) before verifying. It re-enrolls a fresh factor and, per this fix, unenrolls any prior *unverified* factor first - so auth.mfa_factors never accumulates orphaned unverified rows for this user. If a race ever slips through (e.g. two enroll calls fired close together, which is what originally happened with React StrictMode's double-invoked mount effect), the server retries once by cleaning up again - see enrollTotpFactor in supabaseAuth.api.ts. Check the factor count with fix-mfa.sql after the collection run. Scan the NEW QR/secret from this response - the one from the previous request is no longer valid."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Admin - MFA Verify",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{totp_code}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "verify"]
+        },
+        "description": "Set totp_code to the current 6-digit code from the authenticator entry created by the MOST RECENT Enroll request above, then run this immediately - TOTP codes rotate every 30 seconds."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with a refreshed aal2 session', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Admin - MFA Status (after enroll)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('mfa_enrolled is now true', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().mfa_enrolled).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{lower_priv_identifier}}\",\n  \"password\": \"{{lower_priv_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('lower_priv_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - MFA Status (before enroll, optional role)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lower_priv_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with a role outside the mandatory list', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(['Admin', 'Superadmin']).to.not.include(pm.response.json().role);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - MFA Enroll (Settings flow)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lower_priv_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/enroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "enroll"]
+        },
+        "description": "Mirrors what the client's Settings page MFA section calls for a lower-privilege staff role choosing to opt in."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - MFA Verify",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lower_priv_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{totp_code}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "verify"]
+        },
+        "description": "Set totp_code from the Enroll request immediately above before running this."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('lower_priv_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - MFA Unenroll (Disable MFA)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lower_priv_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/unenroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "unenroll"]
+        },
+        "description": "Mirrors the Settings page 'Disable MFA' button. Requires the caller's session to be aal2 already - it is here, because MFA Verify immediately above refreshed the session to aal2 on success. Removes every TOTP factor for the caller."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with the removed factor id(s)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.removed.length).to.be.greaterThan(0);",
+              "  pm.expect(body.failed).to.eql([]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Lower-Priv - MFA Status (after unenroll)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{lower_priv_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('mfa_enrolled is false again after unenroll', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().mfa_enrolled).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - MFA Status (before enroll)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with mfa_enrolled false', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().mfa_enrolled).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - MFA Enroll (Settings flow)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/enroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "enroll"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - MFA Verify",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{totp_code}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "verify"]
+        },
+        "description": "Set totp_code from the Enroll request immediately above before running this."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - MFA Status (after enroll)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/status",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "status"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('mfa_enrolled is now true', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().mfa_enrolled).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer - MFA Unenroll (Disable MFA)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/customers/mfa/unenroll",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "mfa", "unenroll"]
+        },
+        "description": "Mirrors the Settings page 'Disable MFA' button for a customer."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200 with the removed factor id(s)', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.removed.length).to.be.greaterThan(0);",
+              "  pm.expect(body.failed).to.eql([]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regression - Fresh Admin Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{fresh_identifier}}\",\n  \"password\": \"{{fresh_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        },
+        "description": "Use a staff account (Admin or Superadmin) that has never enrolled MFA to reproduce the original bug report on purpose."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login succeeds', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  if (body.access_token) pm.collectionVariables.set('fresh_access_token', body.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regression - Verify Without Enrolling First (expected 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{fresh_access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"000000\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/mfa/verify",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "mfa", "verify"]
+        },
+        "description": "This is the exact call that used to be reported as 'MFA verify fails with TOTP factor not found'. It is EXPECTED to 400 here, on purpose, because Verify was called before Enroll for this account - that is what the mandatory setup popup (Admin/Superadmin) and the Settings enrollment flow (everyone else) now exist to prevent. If you ever see this same error on an account that HAS completed Enroll+Verify, that is the real bug - check fix-mfa.sql for orphaned unverified factors first, and use the Unenroll requests above as a self-service recovery if one is found."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 No TOTP factor found (expected - never enrolled)', () => {",
+              "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json().error).to.eql('No TOTP factor found');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

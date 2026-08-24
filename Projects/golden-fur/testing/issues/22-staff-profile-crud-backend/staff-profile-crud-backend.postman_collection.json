@@ -1,0 +1,452 @@
+{
+  "info": {
+    "name": "Issue 22 - Staff Profile CRUD Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_id", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "peer_staff_id", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "admin_same_branch_staff_id", "value": "" },
+    { "key": "admin_other_branch_staff_id", "value": "" },
+    { "key": "superadmin_identifier", "value": "" },
+    { "key": "superadmin_password", "value": "" },
+    { "key": "superadmin_access_token", "value": "" },
+    { "key": "any_other_branch_staff_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as self (regular staff)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login returns 200 with an access token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().access_token).to.be.a('string');",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('staff_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. AC-1: GET own profile succeeds",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-1: returns 200 with the caller\\'s own profile', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.id).to.eql(pm.collectionVariables.get('staff_id'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AC-2: GET a different staff_id as non-admin is forbidden",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{peer_staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{peer_staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: returns 403 for a different staff_id when caller is not Admin/Superadmin', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. AC-4: PATCH own profile with a valid payload",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"display_name\": \"Postman Verified Name\",\n  \"phone_number\": \"09171234567\",\n  \"emergency_contact_name\": \"Emergency Contact\",\n  \"emergency_contact_number\": \"09179876543\",\n  \"preferred_communication_channel\": \"Viber\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-4: returns 200 and persists the change', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().staff.display_name).to.eql('Postman Verified Name');",
+              "  pm.expect(pm.response.json().staff.preferred_communication_channel).to.eql('Viber');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. AC-5: PATCH rejects an attempt to set role",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"Superadmin\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: rejects role field with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. AC-5: PATCH rejects an attempt to set branch_id",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"00000000-0000-0000-0000-000000000000\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/staff/{{staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-5: rejects branch_id field with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. AC-3: GET /staff list as non-Superadmin is branch-scoped",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: returns 200 with only one distinct branch_id', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const staff = pm.response.json().staff;",
+              "  const branchIds = new Set(staff.map((s) => s.branch_id));",
+              "  pm.expect(branchIds.size).to.eql(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('admin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('admin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AC-2: Admin GET a staff_id in their own branch succeeds",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{admin_same_branch_staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{admin_same_branch_staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: Admin can view a staff member in their own branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Dev notes: Admin GET a staff_id outside their branch is forbidden",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{admin_other_branch_staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{admin_other_branch_staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin is branch-scoped: viewing a staff member outside their branch returns 403', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. AC-3: GET /staff list as Admin is branch-scoped",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: Admin sees only their own branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const staff = pm.response.json().staff;",
+              "  const branchIds = new Set(staff.map((s) => s.branch_id));",
+              "  pm.expect(branchIds.size).to.eql(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Login as Superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{superadmin_identifier}}\",\n  \"password\": \"{{superadmin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('superadmin login returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('superadmin_access_token', pm.response.json().access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. AC-3: GET /staff list as Superadmin returns all branches",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff",
+          "host": ["{{base_url}}"],
+          "path": ["staff"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-3: Superadmin sees more than one distinct branch_id', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const staff = pm.response.json().staff;",
+              "  const branchIds = new Set(staff.map((s) => s.branch_id));",
+              "  pm.expect(branchIds.size).to.be.greaterThan(1);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. AC-2: Superadmin GET any staff_id in any branch succeeds",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{superadmin_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/staff/{{any_other_branch_staff_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "{{any_other_branch_staff_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('AC-2: Superadmin can view a staff member in any branch', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
