@@ -1,0 +1,7 @@
+description = "Document a golden-fur workflow as a human-readable + machine-readable pair"
+prompt = """
+Read and follow the instructions in .agent/skills/workflow-documentation.md in
+this repo, then document the following workflow accordingly:
+
+{{args}}
+"""

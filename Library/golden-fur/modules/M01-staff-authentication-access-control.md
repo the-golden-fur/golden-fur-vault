@@ -81,6 +81,11 @@ and Packages, Pricing Configuration, Promos, Breed Management, Product
 Catalog, Discounts, Miscellaneous Sales, Policies, Cages, and (Superadmin
 only) System Configuration.
 
+## Workflows
+
+- [[M01-01-staff-account-creation|Staff Account Creation]]
+- [[M01-02-unavailability-block-request-review|Unavailability Block Request & Review]]
+
 ## Relationship to other modules
 
 Feeds staff identity/role into [[M03-appointment-booking|M03]] (Staff Picker), [[M04-grooming-management|M04]]

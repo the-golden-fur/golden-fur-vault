@@ -25,9 +25,15 @@ without a database trigger or a change to booking creation.
   Grooming-only "Add-ons" step.
 - A Pending/In Progress booking that still needs an unpaid downpayment
   is excluded from the queue until paid ([[M03-appointment-booking|M03]]).
-- "No preference" staff auto-assignment picks **randomly** among
-  eligible available staff (previously deterministic, first
-  alphabetically) — spreads bookings more evenly.
+
+"No preference" staff auto-assignment (random among eligible available
+staff) happens at booking creation, not in this feature's own code — see
+[[M03-appointment-booking|M03]]'s Merged Date/Time + Staff step.
+
+## Workflows
+
+- [[M04-01-grooming-queue-population|Grooming Queue Population & Visibility]]
+- [[M04-02-grooming-session-execution|Grooming Session Execution & Billing Handoff]]
 
 ## Relationship to other modules
 

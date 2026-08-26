@@ -48,8 +48,11 @@ preference — `notification_preferences.care_log_completed` (see
 
 ## Cage management
 
-Check-in cage assignment (suggest-then-override by weight class, or the
-customer's Cage Picker preference from [[M03-appointment-booking|M03]]) is unchanged.
+Check-in cage assignment is suggest-then-override by weight class.
+`checkInHotelStay` never reads `bookings.preferred_cage_id` — the
+customer's Cage Picker preference from [[M03-appointment-booking|M03]] does not
+automatically carry into check-in; front-desk staff must look it up and
+re-enter it manually as the override if they want to honor it.
 Admin/Superadmin can fully create/edit/delete cages from a dedicated
 Cages admin page — previously seed-data-only. Admin write access is
 branch-scoped; Superadmin unrestricted. A cage that's Occupied or
@@ -71,6 +74,12 @@ the originally booked period; a late checkout triggers a calculated
 extension fee. The system reconciles total stay cost against the
 downpayment already collected (plus any extension fee); the remainder
 passes to [[M08-sales-billing|M08]]. The cage releases back to Available.
+
+## Workflows
+
+- [[M05-01-hotel-check-in|Hotel Check-In]]
+- [[M05-02-boarding-checklist-task-lifecycle|Boarding Checklist Task Lifecycle]]
+- [[M05-03-hotel-checkout|Hotel Checkout]]
 
 ## Relationship to other modules
 

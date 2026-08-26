@@ -129,6 +129,11 @@ Service Types, and Packages share a single tabbed "Services and
 Packages" page. A Cages tile ([[M05-pet-hotel-boarding-management|M05]]) sits alongside them under
 Settings > Config.
 
+## Workflows
+
+- [[M13-01-package-creation-bundled-pricing|Package Creation & Bundled-Price Derivation]]
+- [[M13-02-promo-creation-cap-evaluation|Promo Creation, Branch Availability & Per-Transaction Cap Evaluation]]
+
 ## Relationship to other modules
 
 Service/package definitions, downpayment rules, and Service Types are

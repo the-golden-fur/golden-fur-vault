@@ -34,6 +34,12 @@ A Pending/In Progress booking that still needs an unpaid downpayment —
 Dental Cleaning, Surgery, and Emergency Consultation ship pre-flagged at
 50% ([[M13-maintenance-packages-services-promos|M13]]) — is excluded from the console until paid ([[M03-appointment-booking|M03]]).
 
+## Workflows
+
+- [[M07-01-consultation-visit-flow|Consultation Visit Flow (Check-in to Completion)]]
+- [[M07-02-follow-up-visit-scheduling|Follow-Up Visit Scheduling]]
+- [[M07-03-pet-health-conditions-recording|Pet Health Conditions Recording]]
+
 ## Relationship to other modules
 
 Depends on [[M02-customer-portal-pet-management|M02]] and [[M03-appointment-booking|M03]]. Feeds M02 (read-only health flags),

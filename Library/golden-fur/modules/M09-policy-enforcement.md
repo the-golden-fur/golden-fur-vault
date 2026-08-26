@@ -51,9 +51,15 @@ second, global per-service-type layer on the Service Types page
 
 ## Cancellation policy
 
-A cancelled Hotel booking's downpayment converts to a credit balance if
-the notice period was met; otherwise it's forfeited without credit
-issuance. A cancellation log is created regardless.
+A cancelled booking's downpayment converts to a credit balance if the
+notice period was met; otherwise it's forfeited without credit issuance.
+This applies to any item flagged `requires_downpayment` in the catalog
+([[M13-maintenance-packages-services-promos|M13]]), not just Hotel — the
+check is a generalized `downpayment_amount > 0` test, with no
+category-specific logic. A cancellation log is created regardless, and
+if that log write itself fails, credit issuance is skipped even for an
+otherwise-qualifying cancellation — see
+[[M09-01-cancellation-notice-credit-decision|M09-01]]'s Notes for detail.
 
 ## Rescheduling policy
 
@@ -78,6 +84,11 @@ visible on Admin/Supervisor dashboards regardless of outcome. This
 table, [[M10-credit-balance-management|M10]], and [[M11-notification|M11]] did not actually exist in the database
 before 2026-08-05 — earlier design docs described them as already
 "Merged" ahead of the schema actually shipping.
+
+## Workflows
+
+- [[M09-01-cancellation-notice-credit-decision|Cancellation Notice-Period Check & Credit Conversion]]
+- [[M09-02-reschedule-notice-fee-decision|Reschedule Notice-Period Enforcement & Fee Calculation]]
 
 ## Relationship to other modules
 

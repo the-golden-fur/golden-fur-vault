@@ -8,14 +8,16 @@ project: golden-fur
 # M11 · Notification
 
 **Layer:** Back-office
-**Code:** `features/notifications` (dispatch, preferences), `features/messaging` (provider integration) — client + server
+**Code:** `features/notifications` (dispatch, preferences) — client + server; email delivery via `shared/email/` (Resend). `features/messaging` is a _consumer_ of this module (in-app DMs/announcements, source of `message_received`), not the provider integration.
 **Part of:** [[Architecture|Golden Fur — System Architecture]]
 
-Purely reactive: 8 event types — `account_created`, `password_reset`,
+Purely reactive: 10 event types — `account_created`, `password_reset`,
 `booking_confirmed`, `booking_rescheduled`, `payment_confirmed`,
-`appointment_reminder`, `booking_cancelled`, `care_log_completed` —
-across email and in-app, delivered non-blockingly via an external
-provider. `booking_confirmed` fires at booking creation (Pending).
+`appointment_reminder`, `booking_cancelled`, `care_log_completed`,
+`message_received`, and `staff_assigned` — across email and in-app,
+delivered non-blockingly via an external provider. The last two were
+added later (migrations `20260814124`, `20260819137`) after the
+original 8-value enum. `booking_confirmed` fires at booking creation (Pending).
 `payment_confirmed` fires specifically from the cashier checkout flow —
 a customer's own self-service online payment ([[M08-sales-billing|M08]]) doesn't
 currently trigger it the same way a cashier-recorded payment does. This
@@ -40,6 +42,11 @@ sweep over a 3-day lookahead, firing each booking's reminder at
 fixed behavior). `bookings.reminder_sent_at` is a dedupe marker, claimed
 with a single-writer conditional update so a reminder is never sent
 twice.
+
+## Workflows
+
+- [[M11-01-event-triggered-notification-dispatch|Event-Triggered Notification Dispatch]]
+- [[M11-02-appointment-reminder-polling-sweep|Appointment-Reminder Polling Sweep]]
 
 ## Relationship to other modules
 

@@ -82,6 +82,12 @@ category. Distinct from the _Misc_ `service_category` (Initial
 Assessment/Reassessment — [[M13-maintenance-packages-services-promos|M13]]), which does have a booking record and
 flows through the Payments Queue normally.
 
+## Workflows
+
+- [[M08-01-cashier-checkout|Cashier Checkout]]
+- [[M08-02-customer-self-service-online-payment|Customer Self-Service Online Payment]]
+- [[M08-03-miscellaneous-sale-entry|Miscellaneous Sale Entry]]
+
 ## Relationship to other modules
 
 Receives transaction data from [[M03-appointment-booking|M03]]–[[M07-health-veterinary-management|M07]] (`booking_items`).
