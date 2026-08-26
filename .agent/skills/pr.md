@@ -11,7 +11,7 @@ branch — target `main` for all work.
 4. Open it directly with all of it set in one call — title, body, label(s),
    and assignee — not left for manual follow-up:
    `gh pr create --base main --head <branch> --title "..." --body "..."
-   --label <label>[,<label>...] --assignee @me`.
+--label <label>[,<label>...] --assignee @me`.
 5. If anyone else has write access to the repo, also add
    `--reviewer <user>` per the reviewer rule below.
 
