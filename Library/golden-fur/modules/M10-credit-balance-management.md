@@ -44,6 +44,12 @@ DSR's credit-usage figures ([[M14-report-management|M14]]) read zero until that 
 path ships. This module did not exist in the database at all before
 2026-08-05.
 
+## Workflows
+
+- [[M10-01-cancellation-to-credit-conversion|Cancellation-to-Credit Conversion]]
+- [[M10-02-credit-expiry-sweep|Credit Expiry Sweep]]
+- [[M10-03-credit-balance-and-history-access|Credit Balance & History Access]]
+
 ## Relationship to other modules
 
 Issued by [[M09-policy-enforcement|M09]] on a qualifying cancellation. Intended to be consumed

@@ -30,7 +30,12 @@ A hybrid text/dropdown time input (constrained to branch operating
 hours, can't commit a time in the past) is followed immediately by the
 available-staff list, which re-fetches on date/time change. Hotel and
 Daycare have no staff assignment — they show the time input plus a Cage
-Picker instead.
+Picker instead. Choosing "No preference" auto-assigns **randomly** among
+eligible available staff (`staffPicker.service.ts` —
+`pickRandomAvailableStaff`/`autoAssignStaff`, previously deterministic
+first-alphabetically) — shared by Grooming ([[M04-grooming-management|M04]]) and
+Veterinary ([[M07-health-veterinary-management|M07]]) staff assignment, resolved here at booking
+creation rather than in either execution feature's own code.
 
 ## Cage Picker
 
@@ -127,6 +132,11 @@ Customers see available time slots only (no staff names/schedule
 detail). A slot is available only if it's within operating hours,
 outside the lunch break, at least one eligible staff member is free, and
 capacity isn't exhausted.
+
+## Workflows
+
+- [[M03-01-new-appointment-booking|New Appointment Booking]]
+- [[M03-02-multi-item-booking-pricing|Multi-Item Booking Selection & Pricing]]
 
 ## Relationship to other modules
 

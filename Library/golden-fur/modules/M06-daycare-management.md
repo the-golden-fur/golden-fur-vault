@@ -38,6 +38,11 @@ unified status in sync separately.
 The Boarding Checklist ([[M05-pet-hotel-boarding-management|M05]]) covers Daycare on the same Kanban board
 as Hotel.
 
+## Workflows
+
+- [[M06-01-daycare-check-in|Daycare Check-In]]
+- [[M06-02-daycare-checkout-billing|Daycare Checkout & Billing]]
+
 ## Relationship to other modules
 
 Bookings come from [[M03-appointment-booking|M03]] (advance) or are created directly by a

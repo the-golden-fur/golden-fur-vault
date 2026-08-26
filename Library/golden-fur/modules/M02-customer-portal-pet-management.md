@@ -52,6 +52,12 @@ time). "My Pets" is its own Pet Manager page, separate from Profile.
 Customer sessions have **no inactivity timeout** — a customer stays
 logged in until they manually log out (unlike staff, see [[M01-staff-authentication-access-control|M01]]).
 
+## Workflows
+
+- [[M02-01-customer-registration-and-account-merge|Customer Registration, Login & OAuth Account Merge]]
+- [[M02-02-pet-profile-creation-and-staff-assessment|Pet Profile Creation & Staff Physical Assessment]]
+- [[M02-03-customer-pet-deactivation-archive-lifecycle|Customer & Pet Deactivate → Archive → Hard-Delete Lifecycle]]
+
 ## Relationship to other modules
 
 Pet weight class/coat type drive the pricing matrix in [[M03-appointment-booking|M03]] and

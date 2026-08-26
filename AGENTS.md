@@ -68,6 +68,9 @@ instructions for this vault's reusable AI workflows:
   default handling of raw working notes.
 - `skill-agent-auditor` — read-only review of a third-party skill/agent
   file for prompt-injection/scope-creep risk before it's adopted.
+- `workflow-documenter` — the one deliberate exception to "vault-only":
+  reads the sibling `../golden-fur` code repo to ground workflow docs in
+  real behavior, but only ever writes within this vault.
 
 **Skills** (auto-invoked reference material):
 
@@ -80,6 +83,10 @@ instructions for this vault's reusable AI workflows:
 - `agents-md-maintenance` — keeps this file canonical and every tool's
   root context file (e.g. `.claude/CLAUDE.md`) a thin pointer to it.
 - `skill-security-audit` — the checklist `skill-agent-auditor` runs.
+- `workflow-documentation` — the paired human-readable
+  (`Library/golden-fur/workflows/`) + machine-readable
+  (`Projects/golden-fur/docs/workflows/`) format `workflow-documenter`
+  writes to, grouped by module (M01–M14).
 
 Plus this repo's git workflow: `branch-naming` (name and create a branch),
 `commit` (write and create a conventional commit — performs the commit

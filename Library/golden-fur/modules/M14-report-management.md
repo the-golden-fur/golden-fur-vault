@@ -20,10 +20,12 @@ and `get_analytics_summary()` didn't exist in the database until
 ## Daily Sales Report
 
 `get_daily_sales_report(branch, date)` returns a breakdown by service
-category and payment method, individual transaction line items, and a
-credit-usage section (from `credit_transactions` redemption rows) plus
-a Miscellaneous Sales total. Passing no branch returns a Superadmin
-combined-branches view. The credit-usage section reads zero until
+category and payment method, totals, a credit-usage section (from
+`credit_transactions` redemption rows), and a Miscellaneous Sales
+total/row list — no individual transaction line-item array (the
+`DailySalesReport` TS type has no such field; that granularity is only
+available via the separate Transaction History report below). Passing
+no branch returns a Superadmin combined-branches view. The credit-usage section reads zero until
 checkout's credit-redemption stub ([[M08-sales-billing|M08]]/[[M10-credit-balance-management|M10]]) is replaced with
 the real thing.
 
@@ -54,6 +56,13 @@ Status-based breakdowns anywhere in this module reflect the current
 five-value booking status (Pending/In Progress/Completed/Cancelled/
 No-show) plus the independent `payment_stage` (Unpaid/Paid in
 Advance/Paid) — see [[M03-appointment-booking|M03]].
+
+## Workflows
+
+- [[M14-01-daily-sales-report-generation|Daily Sales Report Generation]]
+- [[M14-02-cage-occupancy-report-generation|Cage Occupancy Report Generation]]
+- [[M14-03-transaction-history-search|Transaction History Search]]
+- [[M14-04-analytics-dashboard-summary|Analytics Dashboard Summary]]
 
 ## Relationship to other modules
 
