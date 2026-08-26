@@ -16,4 +16,3 @@ Thumbs.db
 
 # Node dependencies (Prettier tooling)
 node_modules/
-package-lock.json
