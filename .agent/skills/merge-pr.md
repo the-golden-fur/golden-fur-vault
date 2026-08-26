@@ -7,7 +7,7 @@ this", "merge it". Only run when explicitly asked to merge; opening a PR
 ## Process
 
 1. Check merge readiness: `gh pr view <PR> --json title,number,mergeable,
-   mergeStateStatus,reviewDecision,statusCheckRollup,headRefName`. Surface
+mergeStateStatus,reviewDecision,statusCheckRollup,headRefName`. Surface
    anything that isn't clean — conflicts, pending required reviews, failing
    checks — before proceeding; don't merge through a red state without the
    user saying so explicitly.
@@ -23,7 +23,7 @@ this", "merge it". Only run when explicitly asked to merge; opening a PR
      commit log if the PR body is thin). Omit if the title is already
      fully self-explanatory.
 4. Merge directly: `gh pr merge <PR> --merge --subject "<title>" --body
-   "<description>"`.
+"<description>"`.
 5. Confirm it landed: `gh pr view <PR> --json state,mergedAt` and report the
    resulting merge commit back to the user.
 
