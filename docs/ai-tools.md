@@ -24,12 +24,12 @@ discovery metadata (name/description/tool permissions) changes.
 
 ## Per-tool adapters
 
-| Tool | Where it reads from | How it's invoked |
-| --- | --- | --- |
-| Claude Code | `.claude/skills/<name>/SKILL.md` (skills), `.claude/agents/<name>.md` (subagents, restricted tools) | Skills auto-invoke when relevant; agents are spawned |
-| Gemini CLI | `.gemini/commands/<name>.toml` | Manual: `/<name>` |
-| Codex CLI | `.codex/prompts/<name>.md` | Manual: `/<name>` (verify your Codex version reads project-scoped prompts) |
-| Other tools (e.g. Antigravity) | `AGENTS.md` (root context) or `.agent/` directly | Depends on the tool |
+| Tool                           | Where it reads from                                                                                 | How it's invoked                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Claude Code                    | `.claude/skills/<name>/SKILL.md` (skills), `.claude/agents/<name>.md` (subagents, restricted tools) | Skills auto-invoke when relevant; agents are spawned                       |
+| Gemini CLI                     | `.gemini/commands/<name>.toml`                                                                      | Manual: `/<name>`                                                          |
+| Codex CLI                      | `.codex/prompts/<name>.md`                                                                          | Manual: `/<name>` (verify your Codex version reads project-scoped prompts) |
+| Other tools (e.g. Antigravity) | `AGENTS.md` (root context) or `.agent/` directly                                                    | Depends on the tool                                                        |
 
 Every adapter file is thin — it just points back at the matching `.agent/`
 file rather than duplicating the instructions.
