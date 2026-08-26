@@ -6,16 +6,19 @@ just print a message to paste. Only commit when explicitly asked.
 
 ## Process
 
-1. Look at `git status --short` and `git diff` (staged and unstaged) to
+1. **Run `.agent/skills/pre-commit-checks.md` first** — Prettier format,
+   fix then check. Resolve or surface anything it flags before moving on;
+   don't skip straight to staging.
+2. Look at `git status --short` and `git diff` (staged and unstaged) to
    see what changed, and `git log --oneline -10` to match this repo's
    style.
-2. Stage the relevant files. Review what a broad `git add` would pick up
+3. Stage the relevant files. Review what a broad `git add` would pick up
    rather than blindly using `git add -A` — this vault holds a
    `Credentials.docx` and other sensitive material under
    `Projects/golden-fur/context/`, so double-check nothing sensitive is
    swept in unintentionally.
-3. Write the commit message following the format below.
-4. Create the commit directly (pass multi-line messages via a heredoc so
+4. Write the commit message following the format below.
+5. Create the commit directly (pass multi-line messages via a heredoc so
    formatting survives), then run `git status` to confirm it succeeded.
 
 ## Message format

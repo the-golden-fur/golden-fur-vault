@@ -84,12 +84,14 @@ instructions for this vault's reusable AI workflows:
 Plus this repo's git workflow: `branch-naming` (name and create a branch),
 `commit` (write and create a conventional commit — performs the commit
 itself, not just a drafted message), `pr` (open a PR targeting `main`,
-merge commit only — this repo has a single `main` branch, no `dev`), and
+merge commit only — this repo has a single `main` branch, no `dev`),
 `merge-pr` (confirm readiness and get explicit go-ahead, then merge a PR
-with a crafted merge-commit title/description). Any AI coding tool working
-in this repo should read the relevant file under `.agent/` before doing
-that kind of task. They operate only within this repo — never on
-`../golden-fur`.
+with a crafted merge-commit title/description), and `pre-commit-checks`
+(run the `(check)`/`(fix)`-labeled VS Code task — Prettier format — auto-
+fixing what it can; always runs as `commit`'s first step, also invocable
+standalone). Any AI coding tool working in this repo should read the
+relevant file under `.agent/` before doing that kind of task. They
+operate only within this repo — never on `../golden-fur`.
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:
