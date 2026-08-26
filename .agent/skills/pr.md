@@ -7,9 +7,13 @@ branch — target `main` for all work.
 
 1. Make sure the compare branch is pushed and up to date with its remote.
 2. Fill in the PR body using the sections below.
-3. Open it directly: `gh pr create --base main --head <branch> --title
-"..." --body "..."`.
-4. Recommend the appropriate label(s).
+3. Determine the title, label(s), and assignee (see Rules below).
+4. Open it directly with all of it set in one call — title, body, label(s),
+   and assignee — not left for manual follow-up:
+   `gh pr create --base main --head <branch> --title "..." --body "..."
+   --label <label>[,<label>...] --assignee @me`.
+5. If anyone else has write access to the repo, also add
+   `--reviewer <user>` per the reviewer rule below.
 
 ## Merge strategy: merge commit
 
@@ -27,9 +31,15 @@ characters, imperative mood, no trailing period.
 
 ### Labels
 
-`filing` (new notes filed), `fix` (correction to an existing note),
-`chore` (reorganizing/housekeeping), `refactor` (restructuring, no content
-change).
+Apply one via `--label` at creation time (create the label first with
+`gh label create` if it doesn't exist yet in the repo): `filing` (new notes
+filed), `fix` (correction to an existing note), `chore`
+(reorganizing/housekeeping), `refactor` (restructuring, no content change).
+
+### Assignee
+
+Always set an assignee at creation time — default to `--assignee @me`
+(the person opening the PR is responsible for seeing it through).
 
 ### Body sections
 
@@ -44,7 +54,8 @@ change).
 ## General rules
 
 - PRs must be atomic — one concern per PR.
-- Request at least one reviewer before merging if anyone else has write
-  access; otherwise self-merge is fine (this is a private notes vault).
+- Request at least one reviewer at creation time (step 5 above) if anyone
+  else has write access; otherwise self-merge is fine (this is a private
+  notes vault).
 - Never merge without being explicitly asked to — see
   [merge-pr.md](merge-pr.md) for the merge process itself.
