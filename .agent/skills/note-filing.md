@@ -33,7 +33,8 @@ capture — as opposed to acting on it as a code change.
      — never automatic.
 
 3. **Cross-link related notes.** Skim filenames/topics in the destination
-   folder for anything obviously related and add a short "See also" link.
+   folder for anything obviously related and add a short "See also" link —
+   see `.agent/skills/cross-linking.md` for the full when/how rules.
 
 4. **Never overwrite an existing note.** If a matching dated file already
    exists, append a new section to it instead. Otherwise create a new file

@@ -1,0 +1,7 @@
+description = "Show the canonical frontmatter fields used across this vault"
+prompt = """
+Read and follow the instructions in .agent/skills/frontmatter-schema.md in
+this repo.
+
+{{args}}
+"""

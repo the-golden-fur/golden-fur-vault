@@ -1,0 +1,7 @@
+description = "Insert [[wikilinks]] between related notes and flag orphaned notes in golden-fur-vault"
+prompt = """
+Read and follow the role/process in .agent/agents/backlink-curator.md in this
+repo. Only read/write paths within this repo.
+
+{{args}}
+"""

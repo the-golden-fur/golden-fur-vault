@@ -1,0 +1,7 @@
+description = "Show the weekly review note format"
+prompt = """
+Read and follow the instructions in .agent/skills/weekly-review-format.md in
+this repo.
+
+{{args}}
+"""
