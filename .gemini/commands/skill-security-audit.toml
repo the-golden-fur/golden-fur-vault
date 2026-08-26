@@ -1,0 +1,7 @@
+description = "Run the security-audit checklist against a third-party skill/agent file"
+prompt = """
+Read and follow the instructions in .agent/skills/skill-security-audit.md in
+this repo.
+
+{{args}}
+"""

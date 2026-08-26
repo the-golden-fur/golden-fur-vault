@@ -55,18 +55,43 @@ veterinary — see `../golden-fur/README.md` and `../golden-fur/docs/`).
 ## Reusable skills/agents (multi-tool)
 
 `.agent/skills/` and `.agent/agents/` hold the canonical, tool-agnostic
-instructions for this vault's reusable AI workflows: `note-filing` (file a
-raw capture), `vault-librarian` (file input and promote notes into
-`Library/`), `weekly-reviewer` (summarize the last 7 days into
-`Areas/Reviews/`), plus this repo's git workflow: `branch-naming` (name
-and create a branch), `commit` (write and create a conventional commit —
-performs the commit itself, not just a drafted message), `pr` (open a PR
-targeting `main`, merge commit only — this repo has a single `main` branch,
-no `dev`), and `merge-pr` (confirm readiness and get explicit go-ahead,
-then merge a PR with a crafted merge-commit title/description). Any AI
-coding tool working in this repo should read the relevant file under
-`.agent/` before doing that kind of task. They operate only within this
-repo — never on `../golden-fur`.
+instructions for this vault's reusable AI workflows:
+
+**Agents** (spawnable subagents with restricted tools):
+
+- `vault-librarian` — files raw input and promotes notes into `Library/`.
+- `weekly-reviewer` — summarizes the last 7 days into `Areas/Reviews/`.
+- `backlink-curator` — inserts `[[wikilinks]]` between related notes and
+  flags orphaned ones (read-mostly: `Read`, `Grep`, `Glob`, `Edit`).
+- `research-capture-agent` — files literature/interview sources into
+  `Resources/` with citation metadata, distinct from `note-filing`'s
+  default handling of raw working notes.
+- `skill-agent-auditor` — read-only review of a third-party skill/agent
+  file for prompt-injection/scope-creep risk before it's adopted.
+
+**Skills** (auto-invoked reference material):
+
+- `note-filing` — file a raw capture: destination folder, frontmatter,
+  never overwrite.
+- `frontmatter-schema` — canonical YAML fields (`title`, `date`, `tags`,
+  `project`, plus optional `type`/`source`/`status`).
+- `cross-linking` — when/how to add wikilinks; powers `backlink-curator`.
+- `weekly-review-format` — the structure `weekly-reviewer` writes.
+- `agents-md-maintenance` — keeps this file canonical and every tool's
+  root context file (e.g. `.claude/CLAUDE.md`) a thin pointer to it.
+- `skill-security-audit` — the checklist `skill-agent-auditor` runs.
+
+Plus this repo's git workflow: `branch-naming` (name and create a branch),
+`commit` (write and create a conventional commit — performs the commit
+itself, not just a drafted message), `pr` (open a PR targeting `main`,
+merge commit only — this repo has a single `main` branch, no `dev`),
+`merge-pr` (confirm readiness and get explicit go-ahead, then merge a PR
+with a crafted merge-commit title/description), and `pre-commit-checks`
+(run the `(check)`/`(fix)`-labeled VS Code task — Prettier format — auto-
+fixing what it can; always runs as `commit`'s first step, also invocable
+standalone). Any AI coding tool working in this repo should read the
+relevant file under `.agent/` before doing that kind of task. They
+operate only within this repo — never on `../golden-fur`.
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:

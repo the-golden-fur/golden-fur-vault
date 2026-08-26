@@ -1,0 +1,7 @@
+description = "Review a third-party skill/agent file for prompt-injection risk before adoption"
+prompt = """
+Read and follow the role/process in .agent/agents/skill-agent-auditor.md in
+this repo. Read-only — report findings, do not install anything.
+
+{{args}}
+"""

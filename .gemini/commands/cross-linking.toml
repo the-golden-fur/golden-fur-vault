@@ -1,0 +1,7 @@
+description = "Apply this vault's cross-linking rules to a note or set of notes"
+prompt = """
+Read and follow the instructions in .agent/skills/cross-linking.md in this
+repo.
+
+{{args}}
+"""

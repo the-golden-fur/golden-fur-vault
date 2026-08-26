@@ -1,0 +1,7 @@
+description = "Check AGENTS.md and this repo's tool pointer files are in sync"
+prompt = """
+Read and follow the instructions in .agent/skills/agents-md-maintenance.md
+in this repo.
+
+{{args}}
+"""
