@@ -39,12 +39,10 @@ flowchart TD
     K -- "No" --> L(["END: Blocked — pet does not\nbelong to this customer"])
     K -- "Yes" --> M{"Veterinary AND branch\nis not a vet branch?"}
     M -- "Yes" --> N(["END: Blocked — Veterinary is\nMakati-branch only"])
-    M -- "No" --> O["Resolve every selected item's\nprice/duration/downpayment snapshot\n(see M03-02)"]
+    M -- "No" --> O["Resolve every selected item's\nprice/duration snapshot, and the\nbranch's effective downpayment policy\n(see M03-02, M09)"]
     O --> P{"Every item active,\ncategory-matched, and pet\nassessed where required?"}
     P -- "No" --> Q(["END: Blocked — inactive item,\ncategory mismatch, or unassessed pet"])
-    P -- "Yes" --> R{"More than one item\nAND any requires a\ndownpayment?"}
-    R -- "Yes" --> S(["END: Blocked — a downpayment item\nmust be booked alone"])
-    R -- "No" --> T["Grooming/Veterinary: resolve staff\nvia get_staff_availability()\n(re-verify preference, or auto-assign)"]
+    P -- "Yes" --> T["Grooming/Veterinary: resolve staff\nvia get_staff_availability()\n(re-verify preference, or auto-assign)"]
     T --> U{"Staff required and\nnone eligible?"}
     U -- "Yes" --> V(["END: Blocked — no eligible staff\nfor the requested time"])
     U -- "No" --> W["Hotel: verify cage preference\n(advisory — degrades to null silently)"]
@@ -94,9 +92,10 @@ flowchart TD
 ## Relationship to other modules
 
 Depends on [[M01-staff-authentication-access-control|M01]] (staff
-availability, operating hours, lunch break) and
-[[M13-maintenance-packages-services-promos|M13]] (catalog pricing,
-downpayment flags — see [[M03-02-multi-item-booking-pricing|M03-02]]).
+availability, operating hours, lunch break),
+[[M13-maintenance-packages-services-promos|M13]] (catalog pricing — see
+[[M03-02-multi-item-booking-pricing|M03-02]]), and
+[[M09-policy-enforcement|M09]] (the per-transaction downpayment policy).
 Notifies via [[M11-notification|M11]]. Feeds the Hotel check-in cage claim
 ([[M05-pet-hotel-boarding-management|M05]]) and the Daycare session flow
 ([[M06-daycare-management|M06]]).

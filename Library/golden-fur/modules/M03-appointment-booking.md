@@ -20,9 +20,9 @@ A single booking can hold several services/packages from one merged,
 checkbox-based selection step open to every service category. Each line
 is its own `booking_items` row (service _or_ package, never both),
 snapshotting `price_at_booking`/`duration_minutes_at_booking` so later
-catalog price changes never retroactively touch an existing booking. A
-downpayment-flagged item must be the _only_ item on the booking — the
-server rejects mixing one into a multi-item booking.
+catalog price changes never retroactively touch an existing booking.
+Downpayment (see below) is resolved once per transaction against the
+whole booking, so it no longer restricts which items can be combined.
 
 ## Merged Date/Time + Staff step
 
@@ -68,11 +68,13 @@ Hotel = cage-count-based. Daycare = session-count-based per branch
 based. Veterinary = staff-count-based (Makati only). Overbooking is
 blocked system-wide with no manual override.
 
-## Downpayment (generalized)
+## Downpayment (per-transaction)
 
-No longer Hotel-only/branch-wide. It's a catalog-level flag on
-individual services/packages ([[M13-maintenance-packages-services-promos|M13]]): `requires_downpayment`,
-`downpayment_type` (Flat/Percentage), `downpayment_amount`. When paid
+A single policy field per branch (or system-wide default), owned by
+[[M09-policy-enforcement|M09]]: `downpayment_enabled`, `downpayment_type`
+(Flat/Percentage), `downpayment_amount`. Resolved once at booking
+creation against the whole transaction's `total_price` — not a
+per-catalog-item flag, and not restricted to any category. When paid
 online, the payer chooses downpayment-only or pay-in-full, setting
 `payment_stage` accordingly. A Pending/In Progress booking that still
 needs its downpayment and is Unpaid is excluded from the operational
@@ -141,8 +143,8 @@ capacity isn't exhausted.
 ## Relationship to other modules
 
 Depends on [[M01-staff-authentication-access-control|M01]] (availability, hours, lunch break), [[M02-customer-portal-pet-management|M02]] (customer/pet
-data), and [[M13-maintenance-packages-services-promos|M13]] (catalog, promos, downpayment flags, Service Types).
-Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, payment-stage),
+data), [[M13-maintenance-packages-services-promos|M13]] (catalog, promos, Service Types), and [[M09-policy-enforcement|M09]]
+(downpayment policy). Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, payment-stage),
 [[M09-policy-enforcement|M09]] (policy evaluation on change), [[M10-credit-balance-management|M10]] (credit on qualifying
 cancellation), and [[M11-notification|M11]].
 

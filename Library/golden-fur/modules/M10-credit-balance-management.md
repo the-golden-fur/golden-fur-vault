@@ -12,8 +12,9 @@ project: golden-fur
 **Part of:** [[Architecture|Golden Fur — System Architecture]]
 
 Tracks customer credit balances from cancelled Hotel downpayments — and,
-since downpayment is now catalog-wide ([[M03-appointment-booking|M03]]/[[M13-maintenance-packages-services-promos|M13]]), from any
-qualifying cancelled booking whose item required one. Credits are
+since downpayment is now a per-transaction policy applying to any
+category ([[M03-appointment-booking|M03]]/[[M09-policy-enforcement|M09]]), from any qualifying cancelled
+booking that had one applied. Credits are
 **branch-specific** (`credit_balances` is unique per customer + branch),
 **non-transferable** between branches, and **non-refundable as cash**,
 with a 30-day expiry from issuance by default (configurable —

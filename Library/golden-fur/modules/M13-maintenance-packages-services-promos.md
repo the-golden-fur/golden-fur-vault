@@ -11,16 +11,17 @@ project: golden-fur
 **Code:** `features/maintenance` (client + server)
 **Part of:** [[Architecture|Golden Fur — System Architecture]]
 
-The configuration layer: services, packages, derived pricing,
-downpayment rules, Service Types, and time-limited promos.
+The configuration layer: services, packages, derived pricing, Service
+Types, and time-limited promos. Downpayment configuration moved to
+[[M09-policy-enforcement|M09]] (a per-transaction policy field, not a
+catalog attribute) - see that module's Downpayment entry.
 
 ## Services
 
 The atomic offerings across all five `service_category` values —
 Grooming, Hotel, Daycare, Veterinary, and Misc (pet-assessment
 services). Each has a base price, a branch availability toggle, an
-active/inactive status, and its own downpayment and pricing-matrix
-flags.
+active/inactive status, and its own pricing-matrix flag.
 
 ## Optional pricing matrix
 
@@ -39,8 +40,8 @@ enabled/disabled via the same status toggle as services. The bundled
 price derives from the included services' prices via an
 admin-configurable calculation on the Pricing Configuration page,
 recalculating as services are added/removed and shown as a read-only
-preview before saving. Packages carry the same `use_pricing_matrix` and
-downpayment flags as services.
+preview before saving. Packages carry the same `use_pricing_matrix` flag
+as services.
 
 ## Pricing Configuration
 
@@ -48,15 +49,6 @@ Each size (S/M/L/XL) and Long Coat independently configures its own
 rule type — Multiplier, Flat, or Percentage — rather than one fixed
 shape for the whole matrix; Percentage is always computed against the
 item's own base price, never a running total.
-
-## Downpayment (per item)
-
-`requires_downpayment`, `downpayment_type` (Flat/Percentage), and
-`downpayment_amount` are configurable on any individual service or
-package. Seeded pre-flagged at 50%: Hotel's "Overnight Stay (Aircon
-Room)" service, and three high-price Veterinary services (Dental
-Cleaning, Surgery, Emergency Consultation). A downpayment-flagged item
-can't combine with any other item on the same booking ([[M03-appointment-booking|M03]]).
 
 ## Hotel fixed pricing
 
@@ -136,10 +128,11 @@ Settings > Config.
 
 ## Relationship to other modules
 
-Service/package definitions, downpayment rules, and Service Types are
-consumed in [[M03-appointment-booking|M03]] (booking selection, Cage Picker), [[M04-grooming-management|M04]]
+Service/package definitions and Service Types are consumed in
+[[M03-appointment-booking|M03]] (booking selection, Cage Picker), [[M04-grooming-management|M04]]
 (execution), [[M05-pet-hotel-boarding-management|M05]] (cage CRUD, Hotel fixed pricing), [[M06-daycare-management|M06]] (fee schedules),
-[[M08-sales-billing|M08]] (billing, downpayment netting), and [[M09-policy-enforcement|M09]] (policy fields).
+and [[M08-sales-billing|M08]] (billing, downpayment netting). Downpayment rules now live in
+[[M09-policy-enforcement|M09]] as a per-transaction policy field, not here.
 Misc-category services feed [[M02-customer-portal-pet-management|M02]]'s pet-assessment flow.
 
 ## Open items

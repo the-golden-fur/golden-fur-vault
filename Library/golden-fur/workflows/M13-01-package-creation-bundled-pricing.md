@@ -23,8 +23,8 @@ accepting either as manual input.
 
 ```mermaid
 flowchart TD
-    A(["START: Admin / Superadmin creates a package"]) --> B["Enter name, service_ids (2+),\nbranch_ids (1+), optional\nuse_pricing_matrix / downpayment fields"]
-    B --> C{"Payload valid?\n(>=2 service_ids, >=1 branch_id,\ndownpayment amount+type present\nif requires_downpayment)"}
+    A(["START: Admin / Superadmin creates a package"]) --> B["Enter name, service_ids (2+),\nbranch_ids (1+), optional\nuse_pricing_matrix"]
+    B --> C{"Payload valid?\n(>=2 service_ids, >=1 branch_id)"}
     C -- "No" --> C1["Show validation error"] --> B
     C -- "Yes" --> D{"Every service_id exists\nand is_active = true?"}
     D -- "No" --> D1["Show error: unknown or\ninactive service id(s)"] --> B
@@ -76,4 +76,6 @@ flowchart TD
 
 Packages and their derived pricing are consumed at booking time by
 [[M03-appointment-booking|M03]]'s `resolvePackagePrice`, and in
-[[M08-sales-billing|M08]] billing/downpayment netting.
+[[M08-sales-billing|M08]] billing/downpayment netting. Downpayment itself
+is a per-transaction [[M09-policy-enforcement|M09]] policy field now, not
+a package attribute.

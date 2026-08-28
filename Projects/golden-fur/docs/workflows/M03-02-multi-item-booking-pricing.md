@@ -12,7 +12,6 @@ outcome_failure:
     package_wrong_branch,
     package_member_category_mismatch,
     pet_not_assessed,
-    downpayment_item_must_be_alone,
     discount_role_forbidden,
     discount_cash_only,
     discount_branch_unavailable,
@@ -23,16 +22,17 @@ outcome_failure:
     promo_branch_unavailable,
     promo_scope_mismatch,
   ]
-related_modules: [M13]
+related_modules: [M13, M09]
 source:
   - server/src/features/booking/services/booking.service.ts
+  - server/src/features/booking/services/staffPicker.service.ts
   - server/src/features/booking/booking.types.ts
   - server/src/features/booking/modules/validators/booking.validator.ts
   - supabase/migrations/20260803077_m03_multi_item_bookings.sql
   - supabase/migrations/20260803078_m03_m08_booking_discount_promo.sql
   - supabase/migrations/20260803082_m08_booking_payment_stage.sql
-  - supabase/migrations/20260808111_m03_m08_bookings_downpayment_generalize.sql
-  - supabase/migrations/20260808112_m03_m09_m13_downpayment_flat_or_percentage.sql
+  - supabase/migrations/20260828143_m09_policy_configurations_downpayment.sql
+  - supabase/migrations/20260828144_m13_services_packages_downpayment_removal.sql
 steps:
   - id: start
     type: start
@@ -76,7 +76,7 @@ steps:
     label: This pet must be assessed by staff before booking this service/any package (403)
   - id: action_price_service
     type: action
-    label: "Compute price: resolveServicePrice (Grooming matrix tier for a dog if use_pricing_matrix, else base_price) x quantity (Hotel nights via resolveQuantity, else 1); copy downpayment fields from the catalog row"
+    label: "Compute price: resolveServicePrice (Grooming matrix tier for a dog if use_pricing_matrix, else base_price) x quantity (Hotel nights via resolveQuantity, else 1)"
     next: collect_item
   - id: decision_pet_assessed_package
     type: decision
@@ -100,24 +100,12 @@ steps:
         next: action_price_package
   - id: action_price_package
     type: action
-    label: "Compute price: resolvePackagePrice (matrix cell of bundled_price if package.use_pricing_matrix and pet is not a Cat, else flat bundled_price) x quantity; copy downpayment fields from the catalog row"
+    label: "Compute price: resolvePackagePrice (matrix cell of bundled_price if package.use_pricing_matrix and pet is not a Cat, else flat bundled_price) x quantity"
     next: collect_item
   - id: collect_item
     type: action
-    label: Add the resolved item (price_at_booking, duration_minutes_at_booking, downpayment fields) to the booking's item list
-    next: decision_downpayment_mix
-  - id: decision_downpayment_mix
-    type: decision
-    label: More than one item selected overall AND any item requires a downpayment?
-    branches:
-      - condition: "yes"
-        next: end_blocked_downpayment_mix
-      - condition: "no"
-        next: decision_hotel_free_package
-  - id: end_blocked_downpayment_mix
-    type: end
-    result: blocked
-    label: A downpayment-required service/package must be booked on its own (400)
+    label: Add the resolved item (price_at_booking, duration_minutes_at_booking) to the booking's item list
+    next: decision_hotel_free_package
   - id: decision_hotel_free_package
     type: decision
     label: "Hotel only: does the selected Hotel service's own min_nights_for_free_package threshold get met by the computed nights?"
@@ -136,7 +124,7 @@ steps:
     next: action_compute_downpayment
   - id: action_compute_downpayment
     type: action
-    label: "catalogDownpaymentAmount = sum of each requires_downpayment item's contribution (flat PHP downpayment_amount, or that percentage of the item's own price_at_booking); downpayment_required = amount > 0"
+    label: "Resolve the effective downpayment policy for this branch (M09, default-row-plus-per-branch-override); if downpayment_enabled, downpayment_amount = Flat amount, or Percentage x total_price; downpayment_required = downpayment_enabled"
     next: decision_discount
   - id: decision_discount
     type: decision

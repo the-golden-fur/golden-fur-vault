@@ -68,10 +68,11 @@ cashier can't yet actually apply credit to reduce a transaction total.
 
 ## Downpayment netting
 
-For a booking whose item required a downpayment, checkout automatically
-nets out what was already collected: a "Downpayment already collected"
-negative line item for Grooming/Misc/Daycare/Veterinary; Hotel has its
-own downpayment-netting logic based on the stay record ([[M05-pet-hotel-boarding-management|M05]]).
+For a booking whose per-transaction downpayment policy was in effect
+([[M09-policy-enforcement|M09]]), checkout automatically nets out what
+was already collected: a "Downpayment already collected" negative line
+item for Grooming/Misc/Daycare/Veterinary; Hotel has its own
+downpayment-netting logic based on the stay record ([[M05-pet-hotel-boarding-management|M05]]).
 
 ## Miscellaneous Sale Entry
 
@@ -93,7 +94,7 @@ flows through the Payments Queue normally.
 Receives transaction data from [[M03-appointment-booking|M03]]–[[M07-health-veterinary-management|M07]] (`booking_items`).
 Applies credits from [[M10-credit-balance-management|M10]] (issuance side only — see stub above) and
 discounts/promos from [[M12-discount-management|M12]]/[[M13-maintenance-packages-services-promos|M13]]. Reads the online-payments toggle and
-downpayment rules from [[M09-policy-enforcement|M09]]/M13. Feeds [[M14-report-management|M14]]. Cashier-facing;
+downpayment policy from [[M09-policy-enforcement|M09]]. Feeds [[M14-report-management|M14]]. Cashier-facing;
 also visible to Admins and Supervisors.
 
 ## Open items

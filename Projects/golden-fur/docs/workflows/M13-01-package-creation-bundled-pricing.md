@@ -6,7 +6,7 @@ actors: [Admin, Superadmin]
 trigger: Admin or Superadmin creates a package bundling 2+ existing services across one or more branches
 outcome_success: packages row + package_services links + package_branch_availability rows created; bundled_price/total_duration_minutes derived on every subsequent read
 outcome_failure: [validation_error, unknown_or_inactive_service_id]
-related_modules: [M03, M08]
+related_modules: [M03, M08, M09]
 source:
   - server/src/features/maintenance/services/packages.service.ts
   - server/src/features/maintenance/services/packagePricing.service.ts
@@ -26,11 +26,11 @@ steps:
   - id: input_details
     type: input
     actor: [Admin, Superadmin]
-    label: Enter name, service_ids (2+), branch_ids (1+), optional use_pricing_matrix/downpayment fields
+    label: Enter name, service_ids (2+), branch_ids (1+), optional use_pricing_matrix
     next: check_payload
   - id: check_payload
     type: decision
-    label: Payload valid? (>=2 service_ids, >=1 branch_id, downpayment amount+type present if requires_downpayment)
+    label: Payload valid? (>=2 service_ids, >=1 branch_id)
     branches:
       - condition: "no"
         next: error_validation

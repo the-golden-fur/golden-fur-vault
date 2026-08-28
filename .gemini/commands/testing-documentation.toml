@@ -1,0 +1,8 @@
+description = "Document the verification record for a golden-fur change just implemented"
+prompt = """
+Read and follow the instructions in .agent/skills/testing-documentation.md in
+this repo, then write the testing doc for the following golden-fur change
+accordingly:
+
+{{args}}
+"""
