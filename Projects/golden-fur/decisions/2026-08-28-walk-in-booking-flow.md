@@ -42,7 +42,7 @@ Add `bookings.booking_source` — `'Online' | 'Walk-in'`, `NOT NULL DEFAULT
 'Online'`. Backward compatible; every existing row backfills to `'Online'`.
 
 - `'Online'`: today's behavior, unchanged — future or same-day appointment,
-  booked by a customer (or a receptionist phoning/booking *on behalf of* a
+  booked by a customer (or a receptionist phoning/booking _on behalf of_ a
   customer for a later time), goes through the down payment policy.
 - `'Walk-in'`: the pet/owner is physically at the branch right now.
   Receptionist-only. Skips the down payment policy entirely and starts
@@ -75,7 +75,7 @@ stateDiagram-v2
   already largely in place from `5170388` and is out of scope here except
   where it intersects walk-ins.
 - **Walk-in**: `status = 'In Progress'` at creation, `booking_source =
-  'Walk-in'`, `downpayment_required` forced to `false` regardless of
+'Walk-in'`, `downpayment_required` forced to `false` regardless of
   `policy_configurations` (there is no slot-holding risk — the
   customer/pet is already present), and `payment_stage` is set from
   whatever the receptionist collects at the counter (paid in full → mark
@@ -178,7 +178,7 @@ In `booking.service.ts`'s `createBooking` (currently lines 702–991):
   check at lines 706–730).
 - If `'Walk-in'`: skip the `resolveDownpaymentPolicy` call (lines 787–795)
   entirely, force `downpayment_required = false`, `downpayment_amount =
-  0`, and set `status = 'In Progress'` instead of the hardcoded `'Pending'`
+0`, and set `status = 'In Progress'` instead of the hardcoded `'Pending'`
   at lines 800–811.
 - If `'Online'`: no behavior change.
 
@@ -190,7 +190,7 @@ In `booking.service.ts`'s `createBooking` (currently lines 702–991):
 - Not changing the down payment policy engine (`resolveDownpaymentPolicy`,
   `policy_configurations`) — walk-ins simply bypass it, per §5.
 - Not re-adding a bookingless walk-in path for Daycare (`stays.booking_id
-  IS NULL`) — this doc's walk-in bookings always create a real `bookings`
+IS NULL`) — this doc's walk-in bookings always create a real `bookings`
   row, which is what makes them show up uniformly in Grooming/Vet/Bookings/
   Payments queues without a separate mechanism per category.
 - Multi-pet walk-ins, receptionist creating a brand-new (not-yet-existing)
