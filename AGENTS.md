@@ -71,6 +71,10 @@ instructions for this vault's reusable AI workflows:
 - `workflow-documenter` — the one deliberate exception to "vault-only":
   reads the sibling `../golden-fur` code repo to ground workflow docs in
   real behavior, but only ever writes within this vault.
+- `testing-documenter` — another deliberate "vault-only" exception: reads
+  `../golden-fur`'s diff/log and runs its test suites to write the
+  verification record for a change just implemented, but only ever writes
+  within this vault.
 
 **Skills** (auto-invoked reference material):
 
@@ -87,6 +91,11 @@ instructions for this vault's reusable AI workflows:
   (`Library/golden-fur/workflows/`) + machine-readable
   (`Projects/golden-fur/docs/workflows/`) format `workflow-documenter`
   writes to, grouped by module (M01–M14).
+- `testing-documentation` — the `Projects/golden-fur/testing/<issues|custom>/NN-slug/`
+  format (`.md` + optional `.postman_collection.json`/`.sql`)
+  `testing-documenter` writes to for every golden-fur change. Replaces the
+  old in-repo `golden-fur/testing/docs/` convention (see
+  `Projects/golden-fur/testing/custom/53-remove-testing-docs/`).
 
 Plus this repo's git workflow: `branch-naming` (name and create a branch),
 `commit` (write and create a conventional commit — performs the commit

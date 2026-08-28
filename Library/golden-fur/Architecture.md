@@ -167,9 +167,10 @@ Completed`, plus `Cancelled` and a lazy, read-time `No-show`.
   status- and payment-advancing action lives on category-specific
   execution queues ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]]) or the
   dedicated Payments Queue ([[M08-sales-billing|M08]]).
-- **Downpayment is a catalog-level flag**, not a branch setting — set
-  per service/package in [[M13-maintenance-packages-services-promos|M13]], evaluated at booking time in
-  [[M03-appointment-booking|M03]].
+- **Downpayment is a per-transaction policy field**, not a catalog
+  attribute — configured system-wide or per branch in
+  [[M09-policy-enforcement|M09]], resolved against the whole booking's
+  total at creation time in [[M03-appointment-booking|M03]].
 - **`get_staff_availability()`** (a Postgres function) is the single
   source of truth for staff availability, consumed by the Slot/Staff
   Picker in [[M03-appointment-booking|M03]].

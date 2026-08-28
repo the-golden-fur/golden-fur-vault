@@ -58,8 +58,10 @@ flowchart TD
   is only ever called with a real `cancellation_logs.id` to attach the
   transaction to. The booking still cancels successfully; only the credit
   issuance is silently dropped for that one event.
-- **The downpayment check is not Hotel-specific**, despite how the module
-  note frames it — see the discrepancy note below.
+- **The downpayment check is not Hotel-specific** — it reads the booking's
+  own `downpayment_amount` snapshot, set at creation from the effective
+  per-transaction policy ([[M09-policy-enforcement|M09]]), regardless of
+  category.
 - `notice_enforcement_enabled = false` short-circuits the whole check to
   "met" (`evaluateNoticePeriod` returns `{ enforced: false, met: true }`),
   so a disabled policy always qualifies for credit if a downpayment exists.

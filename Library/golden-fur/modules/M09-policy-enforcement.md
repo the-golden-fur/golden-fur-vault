@@ -24,9 +24,18 @@ Configurable per branch (or system-wide as a default row):
   cancellation/reschedule qualifies for credit (default 3 days).
   Strict (blocks the action) or Soft (allows it, flags the violation,
   withholds credit); can be disabled entirely.
-- **Downpayment** — no longer configured here; it's a per-item catalog
-  flag ([[M13-maintenance-packages-services-promos|M13]]). The old branch-level `downpayment_percentage`
-  column was dropped.
+- **Downpayment** — `downpayment_enabled`/`downpayment_type`
+  (`'Flat'`/`'Percentage'`)/`downpayment_amount`, resolved the same
+  default-row-plus-per-branch-override way as every other policy field.
+  Applies once to the whole booking transaction (every selected
+  service/package together, any category) at creation time — not a
+  per-catalog-item flag. This replaced an earlier per-service/package
+  `requires_downpayment` mechanism ([[M13-maintenance-packages-services-promos|M13]]
+  used to own this), which itself had replaced the original branch-level
+  `downpayment_percentage` column (dropped for being unwired dead code).
+  A downpayment-flagged booking is no longer restricted to a single
+  service/package — that restriction only ever existed because the old
+  mechanism computed the amount per item.
 - **Reschedule fee** — flat or percentage, with a configurable
   free-reschedule allowance (unlimited by default). Calculated and
   stored on the booking at reschedule time, logged on
@@ -53,12 +62,12 @@ second, global per-service-type layer on the Service Types page
 
 A cancelled booking's downpayment converts to a credit balance if the
 notice period was met; otherwise it's forfeited without credit issuance.
-This applies to any item flagged `requires_downpayment` in the catalog
-([[M13-maintenance-packages-services-promos|M13]]), not just Hotel — the
-check is a generalized `downpayment_amount > 0` test, with no
-category-specific logic. A cancellation log is created regardless, and
-if that log write itself fails, credit issuance is skipped even for an
-otherwise-qualifying cancellation — see
+This reads the booking's own snapshotted `downpayment_amount` (set at
+creation time from the effective per-transaction downpayment policy
+above), not just Hotel — the check is a generalized "positive
+downpayment_amount" test, with no category-specific logic. A cancellation
+log is created regardless, and if that log write itself fails, credit
+issuance is skipped even for an otherwise-qualifying cancellation — see
 [[M09-01-cancellation-notice-credit-decision|M09-01]]'s Notes for detail.
 
 ## Rescheduling policy
@@ -95,5 +104,5 @@ before 2026-08-05 — earlier design docs described them as already
 Triggered by cancellation/reschedule events in [[M03-appointment-booking|M03]]. Posts credit
 records to [[M10-credit-balance-management|M10]]. Reschedule fee amounts are logged here but not yet
 posted to [[M08-sales-billing|M08]]. Policy Configuration (including lunch break, online
-payments) is read by [[M01-staff-authentication-access-control|M01]], M03, and M08. Downpayment rules now live in
-[[M13-maintenance-packages-services-promos|M13]].
+payments, and downpayment) is read by [[M01-staff-authentication-access-control|M01]], M03, and M08 — downpayment specifically by
+`createBooking` ([[M03-appointment-booking|M03]]) and the customer booking flow's amount preview.

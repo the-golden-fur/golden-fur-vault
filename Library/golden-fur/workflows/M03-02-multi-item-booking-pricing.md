@@ -18,8 +18,9 @@ Within a single booking submission (see [[M03-01-new-appointment-booking|M03-01]
 one or more services and/or packages have been checkbox-selected for one pet
 in one service category. This workflow validates and prices each selected
 item, snapshots those values onto `booking_items`, then rolls them up into
-the booking's totals — including the downpayment-mix rule, an optional
-Hotel free-package award, and an optional discount and/or promo.
+the booking's totals — including the per-transaction downpayment
+resolution ([[M09-policy-enforcement|M09]]), an optional Hotel
+free-package award, and an optional discount and/or promo.
 
 ```mermaid
 flowchart TD
@@ -29,22 +30,20 @@ flowchart TD
     D -- "Yes" --> E(["END: Blocked — inactive service/package,\nwrong branch, or member-category mismatch (400)"])
     D -- "No" --> F{"service.requires_assessed_pet\nAND pet not yet assessed\n(weight_class/coat_type NULL)?"}
     F -- "Yes" --> G(["END: Blocked — pet must be assessed\nbefore this service/any package (403)"])
-    F -- "No" --> H["Compute price: resolveServicePrice\n(matrix tier for a dog if use_pricing_matrix,\nelse base_price) x quantity\n(Hotel nights via resolveQuantity, else 1);\ncopy downpayment fields from catalog row"]
-    H --> M["Add resolved item\n(price, duration, downpayment fields)\nto the booking's item list"]
+    F -- "No" --> H["Compute price: resolveServicePrice\n(matrix tier for a dog if use_pricing_matrix,\nelse base_price) x quantity\n(Hotel nights via resolveQuantity, else 1)"]
+    H --> M["Add resolved item\n(price, duration)\nto the booking's item list"]
     B -- "package" --> I{"Pet not yet assessed?\n(every package requires\nan assessed pet)"}
     I -- "Yes" --> G
     I -- "No" --> J["Verify package is active, available\nat this branch, and every member service\nbelongs to the booking's category"]
     J --> K{"Package inactive, wrong branch,\nor a member service outside\nthe booking's category?"}
     K -- "Yes" --> E
-    K -- "No" --> L["Compute price: resolvePackagePrice\n(matrix cell of bundled_price if\nuse_pricing_matrix and pet is not a Cat,\nelse flat bundled_price) x quantity;\ncopy downpayment fields from catalog row"]
+    K -- "No" --> L["Compute price: resolvePackagePrice\n(matrix cell of bundled_price if\nuse_pricing_matrix and pet is not a Cat,\nelse flat bundled_price) x quantity"]
     L --> M
-    M --> N{"More than one item overall\nAND any item requires\na downpayment?"}
-    N -- "Yes" --> O(["END: Blocked — a downpayment-required\nitem must be booked on its own (400)"])
-    N -- "No" --> P{"Hotel only: does the selected\nHotel service's min_nights_for_free_package\nthreshold get met by computed nights?"}
+    M --> P{"Hotel only: does the selected\nHotel service's min_nights_for_free_package\nthreshold get met by computed nights?"}
     P -- "Yes" --> Q["Append a zero-priced booking_items row\nfor the matching free package\n(resolved by name, filtered to one\navailable at this branch);\nnotify customer + branch Receptionists"]
     Q --> R
     P -- "No" --> R["total_price = sum of every item's\nprice_at_booking (pre-discount;\nfree-package award contributes 0)"]
-    R --> S["catalogDownpaymentAmount = sum of each\nrequires_downpayment item's contribution\n(flat PHP, or % of that item's own price);\ndownpayment_required = amount > 0"]
+    R --> S["Resolve effective downpayment policy for\nthis branch (M09); if downpayment_enabled,\ndownpayment_amount = Flat amount, or\nPercentage x total_price; else null"]
     S --> T{"discount_id\nsupplied?"}
     T -- "Yes" --> U["Verify requester is a money-handling\nstaff role, payment_method = Cash,\ndiscount available at this branch,\nand its scope matches a selected item"]
     U --> V{"Any discount\ncheck failed?"}
@@ -65,10 +64,12 @@ flowchart TD
 - A package always requires an assessed pet, even if none of its member
   services individually set `requires_assessed_pet` — the check is on the
   package itself, not delegated to its members.
-- The downpayment-mix rule (only one item allowed on a booking that includes
-  a downpayment-required item) is checked **after** every item has already
-  been priced and collected, not per-item as each is validated — it looks at
-  the whole selected set at once.
+- Downpayment is resolved once against the whole booking's `total_price`
+  after every item has already been priced and collected, via the
+  branch's effective [[M09-policy-enforcement|M09]] policy — it is no
+  longer a per-item catalog flag, and a booking is never restricted to a
+  single item because of it (that restriction only existed under the old
+  per-item mechanism).
 - The Hotel free-package award is evaluated per Hotel service against that
   service's own `min_nights_for_free_package`, not a branch- or system-wide
   threshold; the awarded package is looked up by name and filtered to one
@@ -88,7 +89,8 @@ flowchart TD
 
 ## Relationship to other modules
 
-Reads catalog data (services, packages, discounts, promos, downpayment
-flags) owned by [[M13-maintenance-packages-services-promos|M13]]. Feeds into
+Reads catalog data (services, packages, discounts, promos) owned by
+[[M13-maintenance-packages-services-promos|M13]], and the effective
+downpayment policy owned by [[M09-policy-enforcement|M09]]. Feeds into
 [[M03-01-new-appointment-booking|M03-01]] as the pricing/validation step run
 during booking submission.

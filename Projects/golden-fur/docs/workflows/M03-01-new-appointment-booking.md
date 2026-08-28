@@ -14,7 +14,6 @@ outcome_failure:
     veterinary_branch_ineligible,
     item_invalid,
     pet_not_assessed,
-    downpayment_item_must_be_alone,
     staff_preference_unavailable,
     no_eligible_staff,
     capacity_unavailable,
@@ -40,6 +39,7 @@ source:
   - supabase/migrations/20260804092_m03_get_staff_availability_lunch_break.sql
   - supabase/migrations/20260808109_m03_get_staff_availability_fix_paid_status.sql
   - supabase/migrations/20260803077_m03_multi_item_bookings.sql
+  - supabase/migrations/20260828143_m09_policy_configurations_downpayment.sql
 steps:
   - id: start
     type: start
@@ -129,7 +129,7 @@ steps:
     label: Veterinary bookings are exclusive to the Makati branch (422)
   - id: action_resolve_items
     type: action
-    label: Resolve every selected item's price/duration/downpayment snapshot and validate active/category/assessment (see M03-02 for the item-level detail)
+    label: Resolve every selected item's price/duration snapshot and validate active/category/assessment; resolve the branch's effective downpayment policy (see M03-02 for the item-level detail, M09 for the policy)
     next: decision_items_valid
   - id: decision_items_valid
     type: decision
@@ -138,23 +138,11 @@ steps:
       - condition: "no"
         next: end_blocked_item_invalid
       - condition: "yes"
-        next: decision_downpayment_mix
+        next: action_resolve_staff
   - id: end_blocked_item_invalid
     type: end
     result: blocked
     label: Inactive service/package, category mismatch, or unassessed pet blocked from a package/assessed-only service (400/403)
-  - id: decision_downpayment_mix
-    type: decision
-    label: More than one item selected AND any item requires a downpayment?
-    branches:
-      - condition: "yes"
-        next: end_blocked_downpayment_mix
-      - condition: "no"
-        next: action_resolve_staff
-  - id: end_blocked_downpayment_mix
-    type: end
-    result: blocked
-    label: A downpayment-required service/package must be booked on its own (400)
   - id: action_resolve_staff
     type: action
     label: "Grooming/Veterinary only: resolve staff assignment via get_staff_availability() - re-verify a specific preference, or auto-assign a random eligible staff member for 'no preference' (Hotel/Daycare/Misc skip this step - no staff assignment)"

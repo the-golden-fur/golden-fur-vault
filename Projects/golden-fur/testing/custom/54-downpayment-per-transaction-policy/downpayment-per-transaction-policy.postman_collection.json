@@ -1,0 +1,262 @@
+{
+  "info": {
+    "name": "Downpayment Per-Transaction Policy (#54)",
+    "description": "Verifies #54: downpayment moved from a per-catalog-item flag (services/packages.requires_downpayment, now removed) to a single per-transaction policy_configurations config. Enables a system-wide 50% Percentage downpayment, confirms GET /bookings/downpayment-status reflects it, then creates a MULTI-item Grooming booking (two plain services with no downpayment flag of their own - that concept no longer exists) and confirms the booking's downpayment_amount is 50% of the combined total_price, not per-item, and that the booking is NOT rejected for combining items (the old per-item mechanism used to reject this). Fill in the variables below before running. Run requests in order, top to bottom. Request 8 resets the policy back to disabled as cleanup.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "service_a_id", "value": "" },
+    { "key": "service_b_id", "value": "" },
+    { "key": "booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Enable a system-wide 50% Percentage downpayment",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"downpayment_enabled\": true,\n  \"downpayment_type\": \"Percentage\",\n  \"downpayment_amount\": 50\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('policy updated', () => pm.response.to.have.status(200));",
+              "pm.test('downpayment_enabled is true', () => pm.expect(body.downpayment_enabled).to.eql(true));",
+              "pm.test('downpayment_type is Percentage', () => pm.expect(body.downpayment_type).to.eql('Percentage'));",
+              "pm.test('downpayment_amount is 50', () => pm.expect(Number(body.downpayment_amount)).to.eql(50));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET downpayment-status reflects the new policy (customer-readable endpoint)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/downpayment-status?branch_id={{branch_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "downpayment-status"],
+          "query": [{ "key": "branch_id", "value": "{{branch_id}}" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('downpayment_enabled is true', () => pm.expect(body.downpayment_enabled).to.eql(true));",
+              "pm.test('downpayment_type is Percentage', () => pm.expect(body.downpayment_type).to.eql('Percentage'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create Grooming service A (PHP 300, no downpayment flag - field no longer exists)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Downpayment per-transaction regression test A\",\n  \"category\": \"Grooming\",\n  \"base_price\": 300,\n  \"requires_assessed_pet\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('service created', () => pm.response.to.have.status(201));",
+              "pm.test('no requires_downpayment field on the response', () => pm.expect(body.service.requires_downpayment).to.be.undefined);",
+              "if (body.service && body.service.id) pm.collectionVariables.set('service_a_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Create Grooming service B (PHP 200)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Downpayment per-transaction regression test B\",\n  \"category\": \"Grooming\",\n  \"base_price\": 200,\n  \"requires_assessed_pet\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/services",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "services"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('service created', () => pm.response.to.have.status(201));",
+              "if (body.service && body.service.id) pm.collectionVariables.set('service_b_id', body.service.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Create a multi-item Grooming booking (pre-#54: a downpayment-flagged item would've had to be booked alone)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [\n    { \"service_id\": \"{{service_a_id}}\" },\n    { \"service_id\": \"{{service_b_id}}\" }\n  ],\n  \"scheduled_start\": \"2026-09-01T02:00:00+00:00\",\n  \"scheduled_end\": \"2026-09-01T03:00:00+00:00\",\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('multi-item booking NOT rejected (no more \"must be booked alone\" rule)', () => pm.response.to.have.status(201));",
+              "pm.test('total_price is the combined sum (300 + 200 = 500)', () => pm.expect(Number(body.total_price)).to.eql(500));",
+              "pm.test('downpayment_required is true', () => pm.expect(body.downpayment_required).to.eql(true));",
+              "pm.test('downpayment_amount is 50% of the WHOLE transaction (250), not a per-item sum', () => pm.expect(Number(body.downpayment_amount)).to.eql(250));",
+              "if (body.id) pm.collectionVariables.set('booking_id', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GET the booking back - confirm the snapshot persisted",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('downpayment_amount is still 250', () => pm.expect(Number(body.downpayment_amount)).to.eql(250));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cleanup: reset the policy back to disabled",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"downpayment_enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('policy reset', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
