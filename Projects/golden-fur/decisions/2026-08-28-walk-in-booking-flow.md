@@ -5,11 +5,22 @@ tags: [decision, booking, queue, walk-in]
 project: golden-fur
 ---
 
-Source request: `Projects/golden-fur/docs/Architectural-Change-Suggestions.docx`
-(Matthew's task row, "Not Started") + the advisor-session addendum items
-J16–J19 (walk-in workflow) and A1–A5 (down payment must never lock a slot
-with zero payment). Not yet implemented — this is the design to build
-against.
+Source request: `Projects/golden-fur/context/Architectural-Change-Suggestions.docx`
+(Matthew's task row) + the advisor-session addendum items J16–J19 (walk-in
+workflow) and A1–A5 (down payment must never lock a slot with zero
+payment). The A1–A5 down-payment / slot-reservation work is its own
+follow-up — see [[2026-08-29-online-payment-gate-and-downpayment-holds]].
+
+> **Status: implemented.** Shipped in golden-fur #122 (`feat(booking): add
+dedicated walk-in booking flow`), on top of #121 which moved the down
+> payment to a per-transaction policy. The `booking_source` column, the
+> `'Walk-in'` down-payment skip, the `In Progress`-at-creation status, and
+> the `ReceptionistBookingsQueuePage` "Check In" action all landed as
+> described here. Verified 2026-08-29 — see the note at the end of this
+> file. The `## Open questions` below were resolved as: (1) queue gating is
+> on `status = 'In Progress'`, so checked-in online appointments still
+> show; (2) the "Check In" control was added to `ReceptionistBookingsQueuePage`;
+> (3) Hotel/Daycare check-in guards accept an already-`In Progress` booking.
 
 ## Problem
 
