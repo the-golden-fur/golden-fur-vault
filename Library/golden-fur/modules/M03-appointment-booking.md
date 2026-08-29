@@ -1,6 +1,6 @@
 ---
 title: "M03 · Appointment & Booking"
-date: 2026-08-26
+date: 2026-08-29
 tags: [architecture, golden-fur, module]
 project: golden-fur
 ---
@@ -68,24 +68,61 @@ Hotel = cage-count-based. Daycare = session-count-based per branch
 based. Veterinary = staff-count-based (Makati only). Overbooking is
 blocked system-wide with no manual override.
 
-## Downpayment (per-transaction)
+## Online vs. walk-in booking (`booking_source`)
+
+`bookings.booking_source` (`'Online'` | `'Walk-in'`, default `'Online'`,
+added in #122) is an explicit flag — **not** a same-day-vs-future time
+comparison. `'Online'` is the only value a customer can send; `'Walk-in'`
+is receptionist-only (403 otherwise) and is chosen via an Online/Walk-in
+toggle on the booking wizard's availability step. A walk-in locks the slot
+to the next available time today, **skips the down payment policy entirely**
+(see below), and is created straight at `In Progress` with `started_at` set;
+an online booking is created `Pending` and a receptionist hits **Check In**
+on the Bookings Queue when the customer arrives. The Grooming/Veterinary
+execution queues vivify only `In Progress` bookings, so a checked-in online
+appointment and a fresh walk-in look identical there.
+
+## Downpayment (per-transaction, online only)
 
 A single policy field per branch (or system-wide default), owned by
 [[M09-policy-enforcement|M09]]: `downpayment_enabled`, `downpayment_type`
-(Flat/Percentage), `downpayment_amount`. Resolved once at booking
-creation against the whole transaction's `total_price` — not a
-per-catalog-item flag, and not restricted to any category. When paid
-online, the payer chooses downpayment-only or pay-in-full, setting
-`payment_stage` accordingly. A Pending/In Progress booking that still
-needs its downpayment and is Unpaid is excluded from the operational
-queues ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]]) until paid, but stays visible in the
+(Flat/Percentage), `downpayment_amount`, `downpayment_hold_hours`. Resolved
+once at booking creation against the whole transaction's **discounted net
+total** (after any discount/promo — advisor fix) — not a per-catalog-item
+flag, and not restricted to any category. **It applies to `booking_source
+= 'Online'` bookings only** — `createBooking` guards the whole resolution
+with `if (bookingSource === 'Online')`, so a walk-in never calls
+`resolveDownpaymentPolicy` and `downpayment_required` stays `false` (the
+customer/pet is already at the counter, paying in full).
+
+### Down-payment slot gate (advisor addendum A1–A4)
+
+When the down payment is enabled, an Online booking that hasn't paid any
+of it is a **"pencil booking"**: created `Pending`, `payment_stage =
+'Unpaid'`, but it **reserves no capacity/staff-time slot** — the capacity
+queries and `get_staff_availability()`'s Check 2 exclude
+`downpayment_required AND payment_stage = 'Unpaid'` rows, so the slot
+stays bookable by other customers. `createBooking` skips the pre/post-
+insert capacity checks for it. It also carries a `downpayment_due_at`
+(`now + downpayment_hold_hours`, default 24h); once that passes,
+`applyDownpaymentExpiry` (a lazy read-time sweep, No-show precedent) flips
+it to `Cancelled`. `payment_confirmed` at creation is trusted only for a
+**staff-created** booking (a receptionist at the counter) — a customer's
+self-service booking is never created pre-paid. Paying (Pay flow / cashier
+Mark as Paid) turns it into a real reservation; `advancePaymentStage`
+re-checks capacity at that moment and 409s if the slot filled while it
+sat unpaid. A still-unpaid pencil booking is also excluded from the
+operational queues ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]]) but stays visible in the
 customer's booking list, the Bookings Queue, and the Payments Queue
-([[M08-sales-billing|M08]]).
+([[M08-sales-billing|M08]]) — where `payment_stage = 'Paid in Advance'`
+now reads as **"Partially Paid"** and each row's `…` menu has a
+**View payments** drill-down (date/amount/method per `transactions` row).
 
 ## Booking status lifecycle
 
 `bookings.status` is a five-value enum, fully automatic — no manual
-"staff confirms" step:
+"staff confirms" step. An `'Online'` booking starts `Pending`; a
+`'Walk-in'` starts `In Progress` (see "Online vs. walk-in booking" above):
 
 ```
 Pending → In Progress → Completed
