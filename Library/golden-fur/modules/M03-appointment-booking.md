@@ -172,6 +172,15 @@ detail). A slot is available only if it's within operating hours,
 outside the lunch break, at least one eligible staff member is free, and
 capacity isn't exhausted.
 
+The browsable date range starts at the branch's **minimum-notice
+lead time** (`policy_configurations.notice_period_days`, default 3),
+not today: `getDaySlots` returns nothing for any date inside the notice
+window and the picker floors its calendar to `min_notice_days` (reported
+on `GET /bookings/availability`), auto-advancing past the window on
+first load. The same floor is asserted by `createBooking` and by
+`rescheduleBooking` for the new slot (422). Walk-ins bypass it. See
+[[M09-policy-enforcement|M09]].
+
 ## Workflows
 
 - [[M03-01-new-appointment-booking|New Appointment Booking]]
@@ -181,7 +190,7 @@ capacity isn't exhausted.
 
 Depends on [[M01-staff-authentication-access-control|M01]] (availability, hours, lunch break), [[M02-customer-portal-pet-management|M02]] (customer/pet
 data), [[M13-maintenance-packages-services-promos|M13]] (catalog, promos, Service Types), and [[M09-policy-enforcement|M09]]
-(downpayment policy). Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, payment-stage),
+(downpayment policy, minimum-notice lead-time floor). Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, payment-stage),
 [[M09-policy-enforcement|M09]] (policy evaluation on change), [[M10-credit-balance-management|M10]] (credit on qualifying
 cancellation), and [[M11-notification|M11]].
 

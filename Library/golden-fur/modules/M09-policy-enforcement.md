@@ -11,8 +11,9 @@ project: golden-fur
 **Code:** lives inside `features/booking` (client + server) — `GET`/`PATCH /bookings/policy`, `cancellation_logs`
 **Part of:** [[Architecture|Golden Fur — System Architecture]]
 
-The system's rules engine: evaluates whether business policies are
-followed at a booking-change event (cancellation, reschedule) and
+The system's rules engine: gates when a booking may be made or moved
+(the minimum-notice lead-time floor), evaluates whether business policies
+are followed at a booking-change event (cancellation, reschedule), and
 determines the consequence. Exposes a Policy Configuration panel to
 Admin/Superadmin.
 
@@ -20,10 +21,24 @@ Admin/Superadmin.
 
 Configurable per branch (or system-wide as a default row):
 
-- **Notice period enforcement** — minimum notice before a
-  cancellation/reschedule qualifies for credit (default 3 days).
-  Strict (blocks the action) or Soft (allows it, flags the violation,
-  withholds credit); can be disabled entirely.
+- **Notice period enforcement** — `notice_period_days` (default 3),
+  `notice_enforcement_mode` (Strict/Soft), `notice_enforcement_enabled`.
+  Now feeds two distinct checks:
+  1. **Change consequence** — how far ahead of a booking's _current_
+     appointment a cancellation/reschedule is made. Strict blocks the
+     reschedule; Soft allows it and flags the violation; both decide
+     whether a cancelled downpayment converts to credit
+     (`evaluateNoticePeriod`).
+  2. **Booking lead-time floor** — a _new_ Online booking, and the _new_
+     slot of a reschedule, must sit at least `notice_period_days` out.
+     The Slot Picker floors its calendar to that date range (reading
+     `min_notice_days` off `GET /bookings/availability`), `getDaySlots`
+     returns nothing inside the window, and `createBooking` /
+     `rescheduleBooking` assert it server-side
+     (`assertMeetsNoticeLeadTime`, 422). Walk-ins are exempt. Added
+     because the config previously did nothing to the date picker and
+     read as a pinned calendar — see
+     `Projects/golden-fur/testing/custom/59-booking-notice-lead-time/`.
 - **Downpayment** — `downpayment_enabled`/`downpayment_type`
   (`'Flat'`/`'Percentage'`)/`downpayment_amount`, resolved the same
   default-row-plus-per-branch-override way as every other policy field.
@@ -72,10 +87,12 @@ issuance is skipped even for an otherwise-qualifying cancellation — see
 
 ## Rescheduling policy
 
-The configured notice period is validated on reschedule and, depending
-on enforcement mode, blocks or flags the request; a reschedule fee is
-calculated/stored if enabled and the free allowance is exhausted. The
-Bookings Queue's Reschedule button mirrors this evaluation
+The configured notice period is validated on reschedule two ways: the
+_current_ appointment must be far enough ahead (Strict blocks, Soft
+flags), **and** the _new_ slot must clear the same lead-time floor as a
+fresh booking (422 otherwise). A reschedule fee is calculated/stored if
+enabled and the free allowance is exhausted. The Bookings Queue's
+Reschedule button mirrors the current-appointment evaluation
 (`evaluateNoticePeriod`) rather than always rendering ([[M03-appointment-booking|M03]]).
 
 ## No-show handling
@@ -104,5 +121,8 @@ before 2026-08-05 — earlier design docs described them as already
 Triggered by cancellation/reschedule events in [[M03-appointment-booking|M03]]. Posts credit
 records to [[M10-credit-balance-management|M10]]. Reschedule fee amounts are logged here but not yet
 posted to [[M08-sales-billing|M08]]. Policy Configuration (including lunch break, online
-payments, and downpayment) is read by [[M01-staff-authentication-access-control|M01]], M03, and M08 — downpayment specifically by
-`createBooking` ([[M03-appointment-booking|M03]]) and the customer booking flow's amount preview.
+payments, downpayment, and the minimum-notice lead time) is read by
+[[M01-staff-authentication-access-control|M01]], M03, and M08 — `createBooking`
+([[M03-appointment-booking|M03]]) resolves the effective policy once for both the
+downpayment amount and the lead-time gate; `getDaySlots` and the Slot
+Picker apply the lead-time floor to the browsable date range.

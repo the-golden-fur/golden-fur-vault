@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "Booking notice-period lead-time floor (custom #59)",
+    "description": "Verifies that policy_configurations.notice_period_days now acts as a booking date-range floor, not just a reschedule/cancellation penalty. Run top to bottom. Request 2 sets a 3-day minimum; request 3 (slot tomorrow) must be rejected 422; request 4 (slot 10 days out) must succeed 201; request 5 shows the availability endpoint reporting min_notice_days so the Slot Picker can floor its own calendar; request 6 restores the config. Fill the variables first. Uses an Admin/Superadmin staff token throughout (also creates the booking on a customer's behalf, so customer_id is required).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "grooming_service_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Set the system-wide minimum notice to 3 days (enforcement on)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_period_days\": 3,\n  \"notice_enforcement_enabled\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('policy updated', () => pm.response.to.have.status(200));",
+              "pm.test('notice_period_days is 3', () => pm.expect(body.policy.notice_period_days).to.eql(3));",
+              "pm.test('enforcement on', () => pm.expect(body.policy.notice_enforcement_enabled).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create a booking for tomorrow - rejected 422 (inside the notice window)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{grooming_service_id}}\" }],\n  \"scheduled_start\": \"{{soon_start}}\",\n  \"scheduled_end\": \"{{soon_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const start = new Date(Date.now() + 24 * 60 * 60 * 1000);",
+              "start.setUTCHours(3, 0, 0, 0);",
+              "const end = new Date(start.getTime() + 60 * 60 * 1000);",
+              "pm.collectionVariables.set('soon_start', start.toISOString());",
+              "pm.collectionVariables.set('soon_end', end.toISOString());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 422', () => pm.response.to.have.status(422));",
+              "pm.test('names the notice requirement', () => pm.expect(pm.response.json().error).to.match(/notice/i));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create the same booking 10 days out - succeeds 201",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"items\": [{ \"service_id\": \"{{grooming_service_id}}\" }],\n  \"scheduled_start\": \"{{far_start}}\",\n  \"scheduled_end\": \"{{far_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const start = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);",
+              "start.setUTCHours(3, 0, 0, 0);",
+              "const end = new Date(start.getTime() + 60 * 60 * 1000);",
+              "pm.collectionVariables.set('far_start', start.toISOString());",
+              "pm.collectionVariables.set('far_end', end.toISOString());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created 201', () => pm.response.to.have.status(201));",
+              "pm.test('status Pending', () => pm.expect(pm.response.json().booking.status).to.eql('Pending'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Availability endpoint reports min_notice_days (drives the Slot Picker floor)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{today}}&slot_duration_minutes=60",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{today}}" },
+            { "key": "slot_duration_minutes", "value": "60" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('min_notice_days is 3', () => pm.expect(body.min_notice_days).to.eql(3));",
+              "pm.test('today (inside the window) has no slots', () => pm.expect(body.slots).to.be.an('array').that.is.empty);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Restore: disable notice enforcement",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"notice_enforcement_enabled\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('restored', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
