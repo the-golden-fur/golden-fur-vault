@@ -1,0 +1,220 @@
+{
+  "info": {
+    "name": "Transactions page filters + Check-In down-payment gate (custom #55)",
+    "description": "Covers the API-observable half of the 'transactions page & confirmation status' change on branch feat/receptionist-confirmation-status. No new routes - two existing endpoints gained query params and one gained a validation branch:\n\n1. GET /reports/transaction-history - new transaction_type and payment_choice filters.\n2. GET /reports/my-transaction-history - new payment_choice filter (customer-scoped).\n3. POST /bookings/:id/start - now 409s when the booking still owes a required down payment (downpayment_required && payment_stage === 'Unpaid'), instead of checking an unpaid pencil booking into a dead-end 'In Progress'.\n\nFill in the variables before running. Requests run top to bottom. staff_identifier must be a money-role staff account (Cashier / Supervisor / Admin / Superadmin - TRANSACTION_HISTORY_READ_ROLES). unpaid_downpayment_booking_id must be a Pending, downpayment_required, payment_stage = 'Unpaid' Online booking; confirmed_booking_id a Pending booking that owes nothing (walk-in, no down payment, or down payment already paid).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "unpaid_downpayment_booking_id", "value": "" },
+    { "key": "confirmed_booking_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as money-role staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. transaction-history filtered to booking_payment + downpayment",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/transaction-history?transaction_type=booking_payment&payment_choice=downpayment",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "transaction-history"],
+          "query": [
+            { "key": "transaction_type", "value": "booking_payment" },
+            { "key": "payment_choice", "value": "downpayment" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('response has a transactions array', () => pm.expect(body.transactions).to.be.an('array'));",
+              "pm.test('every row is a booking_payment', () => body.transactions.forEach((t) => pm.expect(t.transaction_type).to.eql('booking_payment')));",
+              "pm.test('every row is a down payment', () => body.transactions.forEach((t) => pm.expect(t.payment_choice).to.eql('downpayment')));",
+              "pm.test('every booking_payment row carries a booking_id (booking <-> transaction link)', () => body.transactions.forEach((t) => pm.expect(t.booking_id).to.not.eql(null)));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. transaction-history filtered to payment_choice=full",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/transaction-history?payment_choice=full",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "transaction-history"],
+          "query": [{ "key": "payment_choice", "value": "full" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('every row is a full payment (no downpayment / null rows leak through)', () => body.transactions.forEach((t) => pm.expect(t.payment_choice).to.eql('full')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. my-transaction-history filtered to payment_choice=downpayment",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/my-transaction-history?payment_choice=downpayment",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "my-transaction-history"],
+          "query": [{ "key": "payment_choice", "value": "downpayment" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('response has a transactions array', () => pm.expect(body.transactions).to.be.an('array'));",
+              "pm.test('every returned row is a down payment', () => body.transactions.forEach((t) => pm.expect(t.payment_choice).to.eql('downpayment')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Check In an unpaid down-payment booking -> 409 (the gate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{unpaid_downpayment_booking_id}}/start",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{unpaid_downpayment_booking_id}}", "start"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 409 (down payment not in)', () => pm.response.to.have.status(409));",
+              "pm.test('error message names the down payment', () => pm.expect((pm.response.json().error || '').toLowerCase()).to.include('down payment'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Check In a confirmed booking -> 200, status In Progress",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{confirmed_booking_id}}/start",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{confirmed_booking_id}}", "start"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('booking is now In Progress', () => pm.expect(body.booking.status).to.eql('In Progress'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
