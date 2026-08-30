@@ -13,7 +13,10 @@ repo.
   For golden-fur:
   - `testing/` — verification docs, Postman collections, and SQL fixtures
     for each GitHub issue or ad-hoc request, subfoldered as
-    `testing/issues/NN-summary/` and `testing/custom/NN-summary/`.
+    `testing/issues/NN-summary/` and `testing/custom/NN-summary/`. Plus
+    `testing/reviews/<branch>/` — reports from the `code-reviewer` subagent
+    that lives in the `../golden-fur` repo, one file per pre-commit /
+    pre-publish / pre-PR review pass (see `testing/reviews/README.md`).
   - `docs/` — working docs, meeting notes, drafts, and
     `docs/changelog/<date>-<slug>.md` entries.
   - `decisions/` — ADRs / "why we did X" notes.
@@ -76,6 +79,21 @@ instructions for this vault's reusable AI workflows:
   verification record for a change just implemented, but only ever writes
   within this vault.
 
+Two more agents are defined in `../golden-fur` but also act here — both
+read-only, both wired into this repo's `commit` / `pr` skills:
+
+- `code-reviewer` (`../golden-fur/.agent/agents/code-reviewer.md`) — files
+  its pre-commit / pre-PR review reports under
+  `Projects/golden-fur/testing/reviews/<branch>/`. Read-only on the
+  golden-fur code, never writes there. See
+  `Projects/golden-fur/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`.
+- `ci-verifier` (canonical in `../golden-fur`; `.agent/agents/ci-verifier.md`
+  here is a pointer) — runs the `✅ CI: Verify All` VS Code task across
+  **both** repos (this vault's `format:check`, golden-fur's
+  tests/lint/format/build) and reports one pass/fail. Runs checks only —
+  never fixes, stages, commits, or pushes in either repo — and skips a repo
+  that is already clean and pushed.
+
 **Skills** (auto-invoked reference material):
 
 - `note-filing` — file a raw capture: destination folder, frontmatter,
@@ -106,8 +124,11 @@ with a crafted merge-commit title/description), and `pre-commit-checks`
 (run the `(check)`/`(fix)`-labeled VS Code task — Prettier format — auto-
 fixing what it can; always runs as `commit`'s first step, also invocable
 standalone). Any AI coding tool working in this repo should read the
-relevant file under `.agent/` before doing that kind of task. They
-operate only within this repo — never on `../golden-fur`.
+relevant file under `.agent/` before doing that kind of task. These skills
+operate only within this repo — the one cross-repo step they invoke is the
+shared `ci-verifier` agent (above), which `commit` and `pr` both spawn to
+confirm the `✅ CI: Verify All` task is green here **and** in
+`../golden-fur` before proceeding.
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:

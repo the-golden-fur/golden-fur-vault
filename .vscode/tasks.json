@@ -34,6 +34,17 @@
       }
     },
 
+    // ── CI Verify (mirrors the CI workflow locally) ───────────
+    {
+      "label": "✅ CI: Verify All",
+      "dependsOn": ["🎨 Format: Check"],
+      "dependsOrder": "parallel",
+      "detail": "Runs every check CI runs for this repo. Currently just Prettier format:check; kept as a composite task so it stays the single 'is this repo green' entry point and matches golden-fur's task of the same name.",
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+
     // ── Git ────────────────────────────────────────────────────
     {
       "label": "📋 Git: Status",

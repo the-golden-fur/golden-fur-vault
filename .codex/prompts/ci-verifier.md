@@ -1,0 +1,6 @@
+Read and follow the role/process in the canonical file
+`../golden-fur/.agent/agents/ci-verifier.md` (pointer:
+`.agent/agents/ci-verifier.md`). Run the check-side commands only — never
+fix, stage, commit, push, or run the mutating format/lint:fix tasks, in
+either repo. Report one pass/fail block with the captured output of
+anything red.

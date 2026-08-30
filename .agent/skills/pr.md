@@ -6,13 +6,18 @@ branch — target `main` for all work.
 ## Process
 
 1. Make sure the compare branch is pushed and up to date with its remote.
-2. Fill in the PR body using the sections below.
-3. Determine the title, label(s), and assignee (see Rules below).
-4. Open it directly with all of it set in one call — title, body, label(s),
+2. **Verify CI parity across both repos** — spawn the `ci-verifier`
+   subagent (`.agent/agents/ci-verifier.md`, canonical file in
+   `../golden-fur`); the `✅ CI: Verify All` task must be green here and in
+   `golden-fur` before the PR is opened. A green pass from earlier this
+   session with nothing changed since counts.
+3. Fill in the PR body using the sections below.
+4. Determine the title, label(s), and assignee (see Rules below).
+5. Open it directly with all of it set in one call — title, body, label(s),
    and assignee — not left for manual follow-up:
    `gh pr create --base main --head <branch> --title "..." --body "..."
 --label <label>[,<label>...] --assignee @me`.
-5. If anyone else has write access to the repo, also add
+6. If anyone else has write access to the repo, also add
    `--reviewer <user>` per the reviewer rule below.
 
 ## Merge strategy: merge commit
