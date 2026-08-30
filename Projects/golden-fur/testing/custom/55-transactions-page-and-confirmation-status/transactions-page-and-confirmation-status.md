@@ -8,19 +8,19 @@ changes staged, working tree otherwise clean).
 From the **"Not Started"** task row assigned to Matthew in
 `Inbox/Architectural-Change-History.docx`:
 
-> * Add a dedicated transactions page (I think it's already there) to search, filter and
+> - Add a dedicated transactions page (I think it's already there) to search, filter and
 >   sort all customer transactions (e.g. downpayment, full, etc.), where each transaction is
 >   linked to a booking
-> * Online bookings of status pending payment will appear here for cashiers to mark as paid
-> * Make other queues pull bookings from payments queue (fully paid or partially paid),
+> - Online bookings of status pending payment will appear here for cashiers to mark as paid
+> - Make other queues pull bookings from payments queue (fully paid or partially paid),
 >   instead of relying on bookings queue (status IS NOT pending)
-> * Or perhaps just add an extra status in bookings queue before pending (e.g. unconfirmed),
+> - Or perhaps just add an extra status in bookings queue before pending (e.g. unconfirmed),
 >   that specifies that an online booking is still not paid
-> * Perhaps revamp entire bookings queue status to something like:
+> - Perhaps revamp entire bookings queue status to something like:
 >   unconfirmed > confirmed > no show > cancelled
-> * While all the other queues will use the standard status: pending > in progress > completed
+> - While all the other queues will use the standard status: pending > in progress > completed
 
-Then, after a ranked advisory: *"implement all your recommendations to the golden-fur repo"*.
+Then, after a ranked advisory: _"implement all your recommendations to the golden-fur repo"_.
 
 **Clarification the user gave on the `unconfirmed` idea:** it is NOT a manual step — an
 online booking that hasn't been paid isn't secure, holds no slot, shouldn't register in the
@@ -45,7 +45,7 @@ concluded:
   #105/#102) and a customer one (`/portal/transactions`).
 - **Real gap:** `startBooking` only checked `status === 'Pending'` — a receptionist could
   hit "Check In" on an unpaid pencil booking, moving it to `In Progress`, where it is
-  excluded from the module queues (payment filter) *and* no longer swept by down-payment
+  excluded from the module queues (payment filter) _and_ no longer swept by down-payment
   expiry (which only targets `Pending`). Dead-end state.
 
 Decision: implement bullets 4/5 as a **derived display label**, NOT a `booking_status` enum
@@ -234,7 +234,7 @@ three related gaps:
 
 - **`bookingConfirmation.ts` `deriveBookingConfirmationState`** — a `Pending` booking is now
   `Unconfirmed` iff `booking_source === 'Online' && service_category !== 'Veterinary' &&
-  payment_stage === 'Unpaid'`. `downpayment_required` no longer participates. Veterinary is
+payment_stage === 'Unpaid'`. `downpayment_required` no longer participates. Veterinary is
   exempt (priced during the visit); walk-ins are `Confirmed` (customer is present). Badge
   prop + spec updated.
 - **`booking.service.ts` `createBooking`** — `payment_stage` is now set to `'Paid'` (or
@@ -308,7 +308,7 @@ Server **906/906**, client **730/730 (142 files)**, both `tsc` clean, `eslint` 0
 - No `booking_status` enum migration (bullet 5's literal reading) — deliberately not done,
   per the advisory. The derived label carries the full receptionist-legibility benefit.
 - "Unconfirmed" only exists while the branch down-payment policy is enabled. Treating
-  *every* unpaid Online booking as Unconfirmed reopens the deferred "require payment on
+  _every_ unpaid Online booking as Unconfirmed reopens the deferred "require payment on
   every online booking" work — deliberately out of scope here.
 - Bullets 2, 3 and 6 needed no code — cashiers already mark paid on the Payments Queue
   (`payment_stage = Unpaid` filter), and the module queues already exclude unpaid-downpayment

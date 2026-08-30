@@ -137,7 +137,10 @@
       "request": {
         "method": "GET",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{customer_access_token}}" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
         ],
         "url": {
           "raw": "{{base_url}}/reports/my-transaction-history?payment_choice=downpayment",

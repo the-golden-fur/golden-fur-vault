@@ -9,7 +9,7 @@ Source request: the **"Not Started"** row assigned to Matthew in
 `Inbox/Architectural-Change-History.docx` (which supersedes the now-removed
 `Projects/golden-fur/context/Architectural-Change-Suggestions.docx`). Verbatim:
 
-1. Add a dedicated transactions page (*"I think it's already there"*) to search, filter and
+1. Add a dedicated transactions page (_"I think it's already there"_) to search, filter and
    sort all customer transactions (e.g. downpayment, full, etc.), where each transaction is
    linked to a booking.
 2. Online bookings of status pending payment will appear here for cashiers to mark as paid.
@@ -21,7 +21,7 @@ Source request: the **"Not Started"** row assigned to Matthew in
    `unconfirmed > confirmed > no show > cancelled`.
 6. While all the other queues use the standard status: `pending > in progress > completed`.
 
-**Clarification (Matthew, on bullets 4/5):** `unconfirmed` is *not* a manual step. An online
+**Clarification (Matthew, on bullets 4/5):** `unconfirmed` is _not_ a manual step. An online
 booking that hasn't been paid is not secure, holds no slot, and shouldn't really register in
 the queue as a real appointment — hence `unconfirmed`. It becomes `confirmed` once paid, then
 `completed` once its counterpart in a module queue (vet / grooming / hotel / daycare) is also
@@ -40,11 +40,11 @@ The recent status unification (migrations `20260728058`, `20260803083`), the wal
 (#122), and the down-payment slot gate (#123) already established **three orthogonal axes**
 on a booking:
 
-| Axis | Values | Notes |
-| --- | --- | --- |
-| `status` | `Pending → In Progress → Completed`, plus `Cancelled`, `No-show` | `Confirmed` **and** `Paid` were deliberately retired. `No-show` is a lazy read-time flip. `completeBooking` is shared — hotel checkout / grooming complete / vet complete all set `status = 'Completed'`. |
-| `payment_stage` | `Unpaid → Paid in Advance → Paid` | Independent of `status`. `PaymentStageBadge` already display-maps `Paid in Advance → "Partially Paid"`. Cashier advances it via `/staff/billing/payments-queue` "Mark as Paid". |
-| `booking_source` | `Online` (born `Pending`) / `Walk-in` (born `In Progress`, skips the down payment) | `20260828145`, #122. |
+| Axis             | Values                                                                             | Notes                                                                                                                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`         | `Pending → In Progress → Completed`, plus `Cancelled`, `No-show`                   | `Confirmed` **and** `Paid` were deliberately retired. `No-show` is a lazy read-time flip. `completeBooking` is shared — hotel checkout / grooming complete / vet complete all set `status = 'Completed'`. |
+| `payment_stage`  | `Unpaid → Paid in Advance → Paid`                                                  | Independent of `status`. `PaymentStageBadge` already display-maps `Paid in Advance → "Partially Paid"`. Cashier advances it via `/staff/billing/payments-queue` "Mark as Paid".                           |
+| `booking_source` | `Online` (born `Pending`) / `Walk-in` (born `In Progress`, skips the down payment) | `20260828145`, #122.                                                                                                                                                                                      |
 
 Key facts:
 
@@ -71,11 +71,11 @@ Key facts:
   `payment_reference`, `processed_by_staff_id`.
 - **Per-booking payment detail already exists**: `GET /billing/booking/:id/transactions`
   plus the "View payments" panel on `PaymentsQueuePage` (shipped with #123).
-- **Real gap:** `ReceptionistBookingsQueuePage` renders a `Check In` button for *any*
+- **Real gap:** `ReceptionistBookingsQueuePage` renders a `Check In` button for _any_
   `Pending` booking (line ~1036), and server `startBooking` (`booking.service.ts:1448`) only
   checks `status === 'Pending'` — **no payment gate**. A receptionist can therefore check in
   an unpaid pencil booking, moving it to `In Progress`, where it is excluded from the module
-  queues (payment filter) *and* no longer subject to down-payment expiry (which only targets
+  queues (payment filter) _and_ no longer subject to down-payment expiry (which only targets
   `Pending`). Dead-end state.
 
 ## Ranked assessment
@@ -86,13 +86,13 @@ Implement bullets 4/5 as a **display mapping over the fields that already exist*
 schema/enum change. The receptionist queue (and its status filter) speaks a 4-stage
 vocabulary:
 
-| Shown as | Derived from | Check In offered? |
-| --- | --- | --- |
-| **Unconfirmed** | `status = Pending` AND `downpayment_required` AND `payment_stage = 'Unpaid'` (the pencil booking — no slot held). Show the `downpayment_due_at` countdown. | No |
-| **Confirmed** | `status = Pending` AND not the above (paid, walk-in, or no down payment required) | Yes |
-| **In service** | `status = 'In Progress'` (counterpart is live in a module queue) | — |
-| **Completed** | `status = 'Completed'` (module-queue counterpart finished) | — |
-| **No-show / Cancelled / Expired** | `status` in `No-show` / `Cancelled`; relabel the `downpayment_expired` cancellation reason as "Expired" for this view | — |
+| Shown as                          | Derived from                                                                                                                                               | Check In offered? |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Unconfirmed**                   | `status = Pending` AND `downpayment_required` AND `payment_stage = 'Unpaid'` (the pencil booking — no slot held). Show the `downpayment_due_at` countdown. | No                |
+| **Confirmed**                     | `status = Pending` AND not the above (paid, walk-in, or no down payment required)                                                                          | Yes               |
+| **In service**                    | `status = 'In Progress'` (counterpart is live in a module queue)                                                                                           | —                 |
+| **Completed**                     | `status = 'Completed'` (module-queue counterpart finished)                                                                                                 | —                 |
+| **No-show / Cancelled / Expired** | `status` in `No-show` / `Cancelled`; relabel the `downpayment_expired` cancellation reason as "Expired" for this view                                      | —                 |
 
 - A `BookingConfirmationBadge` component + a `deriveConfirmationState(booking)` helper —
   mirrors the existing `PaymentStageBadge` display-map precedent. No migration, no RPC
@@ -101,7 +101,7 @@ vocabulary:
   server guard in `startBooking` (reject when `downpayment_required && payment_stage === 'Unpaid'`).
   This closes the dead-end above.
 - **Scope boundary (open question):** "Unconfirmed" as defined here only exists when the
-  down-payment policy is switched on. Treating *every* unpaid online booking as "Unconfirmed"
+  down-payment policy is switched on. Treating _every_ unpaid online booking as "Unconfirmed"
   (and not holding its slot) means reopening the deferred "require payment on every online
   booking" work (`online_payments_enabled` fallback, PayMongo KYC — see
   [[2026-08-29-online-payment-gate-and-downpayment-holds]] "still open"). Recommend keeping

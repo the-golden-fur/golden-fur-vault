@@ -24,15 +24,16 @@ Across several chat messages while iterating on the receptionist booking wizard
 
 Clarification (AskUserQuestion): the down-payment line already rendered as small grey
 helper text — the ask is to **promote it to a prominent breakdown** ("Downpayment due now"
-+ "Balance due later" as their own rows), for every online booking.
+
+- "Balance due later" as their own rows), for every online booking.
 
 ## Context
 
 - **Walk-in slot.** `SlotPicker`'s `lockToNow` mode (walk-in flow, #122) previously ran the
   normal `getDayAvailability` fetch and auto-selected `slots.find(s => s.available)` — the
-  *next available* slot, e.g. 10:00–11:00 when the branch's seeded Sunday hours open at
+  _next available_ slot, e.g. 10:00–11:00 when the branch's seeded Sunday hours open at
   10:00 and it's currently 07:51. A walk-in means "the customer is physically here now", so
-  the slot should be *now*.
+  the slot should be _now_.
 - **Booking Type step** (receptionist-only, step 5): two big text cards (Online Booking /
   Walk-in) with no icon and a paragraph of explanation each.
 - **Down payment on Review & Pay**: shown as one dim `<p>` — "Downpayment required now: PHP
@@ -47,14 +48,14 @@ _Client only — no server change, no migration, no API-route change._
 
 - `lockToNow` no longer fetches `getDayAvailability` at all (`useEffect` returns early).
 - New `nowSlot` memo: `start` = current time with seconds/ms zeroed, `end` = `start +
-  slotDurationMinutes`. Computed once per lock so it stays stable while the receptionist
+slotDurationMinutes`. Computed once per lock so it stays stable while the receptionist
   finishes the wizard.
 - The auto-select effect now selects `nowSlot` (was `earliestAvailableSlot`, now removed).
 - Banner: **"Walk-in — starting now"** + the current `HH:MM – HH:MM today` range (was
   "Walk-in — next available slot today" + the resolved slot, with a "no open slot today"
   fallback that no longer applies — a walk-in always books now).
 - **Staff picker is unchanged** and already keys off the selected slot's window, so
-  `StaffPickerList` / `get_staff_availability` now report who is free *right now*. If nobody
+  `StaffPickerList` / `get_staff_availability` now report who is free _right now_. If nobody
   is (e.g. before opening hours), `autoAssignStaff` still 409s at submit — correct: a
   Grooming/Vet walk-in genuinely needs a staff member present. (No server carve-out for
   out-of-hours walk-ins was added — that would be a separate, deliberate decision.)
@@ -85,7 +86,7 @@ _Client only — no server change, no migration, no API-route change._
 
 - New `client/src/features/booking/bookingErrors.ts` — `friendlyBookingError(raw)`
   (+ `bookingErrors.spec.ts`, 4 tests). The submit handler used to append a fixed
-  capacity/duration hint to *every* error, so a raw PostgREST error (e.g.
+  capacity/duration hint to _every_ error, so a raw PostgREST error (e.g.
   `Could not find the 'downpayment_due_at' column of 'bookings' in the schema cache`,
   seen locally when migrations `20260829146-148` haven't been applied) rendered verbatim
   plus a misleading "try a different time". Now: PostgREST/DB leakage (schema-cache,
