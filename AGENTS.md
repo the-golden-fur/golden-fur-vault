@@ -13,7 +13,10 @@ repo.
   For golden-fur:
   - `testing/` — verification docs, Postman collections, and SQL fixtures
     for each GitHub issue or ad-hoc request, subfoldered as
-    `testing/issues/NN-summary/` and `testing/custom/NN-summary/`.
+    `testing/issues/NN-summary/` and `testing/custom/NN-summary/`. Plus
+    `testing/reviews/<branch>/` — reports from the `code-reviewer` subagent
+    that lives in the `../golden-fur` repo, one file per pre-commit /
+    pre-publish / pre-PR review pass (see `testing/reviews/README.md`).
   - `docs/` — working docs, meeting notes, drafts, and
     `docs/changelog/<date>-<slug>.md` entries.
   - `decisions/` — ADRs / "why we did X" notes.
@@ -75,6 +78,13 @@ instructions for this vault's reusable AI workflows:
   `../golden-fur`'s diff/log and runs its test suites to write the
   verification record for a change just implemented, but only ever writes
   within this vault.
+
+One more agent writes into this vault from outside it: the `code-reviewer`
+subagent defined in `../golden-fur/.agent/agents/code-reviewer.md` (not
+here — it is a golden-fur git-workflow tool) files its pre-commit / pre-PR
+review reports under `Projects/golden-fur/testing/reviews/<branch>/`. It is
+read-only on the golden-fur code and never writes there. See
+`Projects/golden-fur/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`.
 
 **Skills** (auto-invoked reference material):
 
