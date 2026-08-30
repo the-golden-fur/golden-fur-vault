@@ -88,9 +88,12 @@ active/inactive toggle, and per-type `staff_picker_enabled`/
 `cage_picker_enabled` flags. Misc is intentionally excluded — never a
 customer-selectable booking category. **This is a display/toggle layer
 over the existing four hardcoded categories, not a new booking
-dimension** — a newly added fifth row has no real availability,
-capacity, or pricing logic behind it. `cage_picker_enabled` is currently
-only honored for Hotel regardless of its stored value elsewhere.
+dimension** — a newly added fifth row shows up as a selectable card in
+the [[M03-appointment-booking|M03]] Service Type step while it is active
+(with a generic icon and a "no services available" item list), but has
+no real availability, capacity, or pricing logic behind it until that is
+built in code. `cage_picker_enabled` is currently only honored for Hotel
+regardless of its stored value elsewhere.
 
 ## Misc service category
 
