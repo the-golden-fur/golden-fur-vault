@@ -18,8 +18,9 @@ _"nagpindot kasi matam— bilis. Nag-cancel kaagad."_
 Both cancel flows — `CustomerBookingsPage` (customer self-service) and
 `ReceptionistBookingsQueuePage` (staff on the customer's behalf) — already
 had a two-step confirm, but it was an **inline panel that replaced the
-row's action buttons in place**. The "Yes, cancel booking" button rendered
-at roughly the same screen position the "Cancel" button had just occupied,
+row's action buttons in place**. Its "Yes, cancel booking" confirm button
+rendered at roughly the same screen position the "Cancel" button had just
+occupied,
 so a fast double-click or a stray second click landed on it and cancelled
 immediately. It read as "just a checkbox", not a deliberate confirmation.
 
@@ -36,7 +37,7 @@ Client only — no server, schema, or API change.
     `inset: 0`) with a `role="dialog"`, `aria-modal` panel — it intercepts
     every click behind it, so the row's "Cancel" button cannot be
     re-triggered while it's open. Confirm button is `tone="danger"`
-    (red), labelled **"Yes, cancel booking"**; dismiss is **"Keep
+    (red), labelled **"Yes, cancel"**; dismiss is **"Keep
     booking"**.
   - Dialog body: **"Are you sure you want to cancel this booking?"**
     (customer wording adds "… and may forfeit your downpayment depending
@@ -57,11 +58,11 @@ The `ConfirmDialog` confirm button shows "Working..." while `isConfirming`
     16px/24px padding, pill radius, and inherited 16px text inside a 26rem
     modal whose 32px padding left only ~352px of content — so "Yes, cancel
     booking" wrapped to two lines and each button ballooned to ~90px tall.
-    Now: 22rem modal, 24px padding, 14px (`--text-sm`) button text, 8px/15px
+    Now: 24rem modal, 24px padding, 14px (`--text-sm`) button text, 8px/14px
     button padding, `--radius-md` instead of pill, `white-space: nowrap`,
-    and `flex-wrap` on the actions row so a cranked-up font scale stacks
-    the buttons instead of wrapping their text. Buttons end up ~150×35px on
-    one line. Applies to every `ConfirmDialog` caller (also the archive
+    and the confirm label shortened to **"Yes, cancel"** — the two buttons
+    stay content-width and side-by-side on one row (~120px × ~35px each),
+    aligned. Applies to every `ConfirmDialog` caller (also the archive
     hard-delete).
 
 ## Verification
@@ -70,11 +71,11 @@ The `ConfirmDialog` confirm button shows "Working..." while `isConfirming`
    **Cancel**.
    - A centred modal appears over a dimmed backdrop: title "Cancel this
      booking?", body "Are you sure you want to cancel this booking? …",
-     Reason field, red "Yes, cancel booking" + "Keep booking".
+     Reason field, red "Yes, cancel" + "Keep booking".
    - Click the dimmed backdrop / anywhere outside → nothing happens (no
      accidental dismiss into a cancel).
    - **Keep booking** → dialog closes, booking unchanged, no API call.
-   - Re-open, type a reason, **Yes, cancel booking** → booking flips to
+   - Re-open, type a reason, **Yes, cancel** → booking flips to
      Cancelled; `cancellation_reason` persisted; the
      "did not meet the notice period" banner shows when applicable.
    - Rapidly double-click the row's **Cancel** button → the dialog opens
@@ -90,7 +91,7 @@ The `ConfirmDialog` confirm button shows "Working..." while `isConfirming`
 - `client`: `npx vitest run` — **731/731 passing (142 files)**.
   - `CustomerBookingsPage.spec.ts` "AC-5" strengthened: asserts a
     `role="dialog"`, that "Keep booking" dismisses it without an API call,
-    then that "Yes, cancel booking" calls `cancelBooking`.
+    then that "Yes, cancel" calls `cancelBooking`.
   - `ReceptionistBookingsQueuePage.spec.ts`: new case for the full
     open → dismiss → re-open → confirm dialog flow (+1 test, 24 total).
   - `npx tsc --noEmit`, `npx eslint`, `npx prettier --check`,
