@@ -76,6 +76,12 @@ and the Receptionist Bookings Queue) route the action through an explicit
 want to cancel this booking?" prompt and the optional reason field. The
 `DELETE`/cancel call fires only from that dialog's confirm button, so a
 stray or double click on a row's "Cancel" button just opens the dialog.
+When the booking has actually been paid (`payment_stage` Paid / Paid in
+Advance), the dialog also discloses that the payment isn't refunded but,
+with enough notice, becomes account credit at that branch for a future
+visit (a late cancellation forfeits it); the customer's post-cancel banner
+then reports which of those outcomes applied, from the response's
+`credit_issued` flag.
 
 ## Rescheduling policy
 
