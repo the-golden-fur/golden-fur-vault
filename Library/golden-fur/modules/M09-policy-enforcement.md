@@ -70,6 +70,13 @@ log is created regardless, and if that log write itself fails, credit
 issuance is skipped even for an otherwise-qualifying cancellation — see
 [[M09-01-cancellation-notice-credit-decision|M09-01]]'s Notes for detail.
 
+Client-side, both cancel entry points (the customer's My Bookings list
+and the Receptionist Bookings Queue) route the action through an explicit
+`ConfirmDialog` modal — a full-screen backdrop with an "Are you sure you
+want to cancel this booking?" prompt and the optional reason field. The
+`DELETE`/cancel call fires only from that dialog's confirm button, so a
+stray or double click on a row's "Cancel" button just opens the dialog.
+
 ## Rescheduling policy
 
 The configured notice period is validated on reschedule and, depending
