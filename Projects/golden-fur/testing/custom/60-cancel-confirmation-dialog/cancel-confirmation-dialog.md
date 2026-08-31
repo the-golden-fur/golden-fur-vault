@@ -52,6 +52,18 @@ Client only — no server, schema, or API change.
 The `ConfirmDialog` confirm button shows "Working..." while `isConfirming`
 (the shared component's convention) rather than the old "Cancelling...".
 
+- `client/src/shared/components/ConfirmDialog/ConfirmDialog.module.css`
+  - Design polish (advisor: "the button's too big"). The buttons were
+    16px/24px padding, pill radius, and inherited 16px text inside a 26rem
+    modal whose 32px padding left only ~352px of content — so "Yes, cancel
+    booking" wrapped to two lines and each button ballooned to ~90px tall.
+    Now: 22rem modal, 24px padding, 14px (`--text-sm`) button text, 8px/15px
+    button padding, `--radius-md` instead of pill, `white-space: nowrap`,
+    and `flex-wrap` on the actions row so a cranked-up font scale stacks
+    the buttons instead of wrapping their text. Buttons end up ~150×35px on
+    one line. Applies to every `ConfirmDialog` caller (also the archive
+    hard-delete).
+
 ## Verification
 
 1. **Customer portal → My bookings**, a Pending/Confirmed booking →
