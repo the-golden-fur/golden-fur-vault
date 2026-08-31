@@ -4,19 +4,23 @@ module: M10
 title: Cancellation-to-Credit Conversion
 actors: [Customer, Staff]
 trigger: A customer or staff member cancels a booking in Pending or In Progress status
-outcome_success: booking cancelled; downpayment converted to credit_balances increment + issuance credit_transactions row when it qualifies, otherwise forfeited/not applicable
+outcome_success: booking cancelled; a configurable percentage (cancellation_credit_conversion_rate, default 100) of the amount the customer actually paid is converted to a credit_balances increment + issuance credit_transactions row when it qualifies, otherwise forfeited/not applicable
 outcome_failure: [not_cancellable_status, booking_update_failed]
-related_modules: [M09, M13, M14]
+related_modules: [M08, M09, M13, M14]
 source:
   - server/src/features/booking/services/cancellation.service.ts
   - server/src/features/booking/services/cancellationLog.service.ts
   - server/src/features/booking/services/reschedule.service.ts
+  - server/src/features/booking/services/staffPicker.service.ts
+  - server/src/features/booking/services/bookingNotifications.service.ts
   - server/src/features/booking/booking.types.ts
+  - server/src/features/booking/modules/validators/booking.validator.ts
   - server/src/features/credits/services/creditIssuance.service.ts
   - server/src/features/credits/services/creditIssuance.service.spec.ts
   - supabase/migrations/20260805096_m10_create_credit_balances_schema.sql
   - supabase/migrations/20260805097_m10_create_credit_transactions_schema.sql
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
+  - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
 steps:
   - id: start
     type: start
@@ -57,10 +61,18 @@ steps:
   - id: write_log
     type: action
     label: Write cancellation_logs row (credit_issued=false, credit_amount=null by default; best-effort, returns null on failure)
+    next: compute_paid
+  - id: compute_paid
+    type: action
+    label: "Compute amountPaid from bookings.payment_stage: Paid -> net total (total_price - discount_amount - promo_amount); Paid in Advance -> downpayment_amount; Unpaid/unset -> 0"
+    next: compute_credit
+  - id: compute_credit
+    type: action
+    label: "creditAmount = round2(amountPaid * policy.cancellation_credit_conversion_rate / 100)"
     next: check_qualifies
   - id: check_qualifies
     type: decision
-    label: Qualifies for credit? (notice period met AND downpayment_amount > 0 AND log write succeeded)
+    label: Qualifies for credit? (notice period met AND creditAmount > 0)
     branches:
       - condition: "no"
         next: skip_credit
@@ -68,7 +80,7 @@ steps:
         next: check_expiry_enabled
   - id: skip_credit
     type: action
-    label: No credit attempted (notice missed, no downpayment, or log write failed)
+    label: No credit attempted (notice missed and payment forfeited, nothing was paid, or rate is 0%)
     next: send_notification
   - id: check_expiry_enabled
     type: decision
@@ -88,7 +100,7 @@ steps:
     next: call_issue_credit
   - id: call_issue_credit
     type: action
-    label: "Call issue_credit() DB function (atomic: upsert credit_balances + insert issuance credit_transactions row)"
+    label: "Call issue_credit() DB function (atomic: upsert credit_balances + insert issuance credit_transactions row); cancellation_log_id is null when the log write failed (#117 - issuance is not gated on the log)"
     next: check_issue_result
   - id: check_issue_result
     type: decision
@@ -104,11 +116,11 @@ steps:
     next: send_notification
   - id: patch_log
     type: action
-    label: "Patch cancellation_logs: credit_issued = true, credit_amount = downpayment (best-effort)"
+    label: "If a cancellation_logs row exists, patch it: credit_issued = true, credit_amount = creditAmount (best-effort)"
     next: send_notification
   - id: send_notification
     type: action
-    label: Send booking-cancelled notification (reports credit amount if issued, else none)
+    label: Send booking-cancelled notification (reports the issued credit amount if any, else none)
     next: end_success
   - id: end_success
     type: end

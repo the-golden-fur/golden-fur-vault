@@ -4,9 +4,9 @@ module: M09
 title: Cancellation Notice-Period Check & Credit Conversion
 actors: [Customer, Staff]
 trigger: Customer or staff member cancels a Pending or In Progress booking (POST /bookings/:id/cancel)
-outcome_success: booking.status = Cancelled; a cancellation_logs row is always written; a qualifying downpayment converts to a credit_balances increment, otherwise it is forfeited
+outcome_success: booking.status = Cancelled; a cancellation_logs row is always written (best-effort); when it qualifies, a configurable share (cancellation_credit_conversion_rate, default 100%) of the amount the customer actually paid converts to a credit_balances increment, otherwise it is forfeited
 outcome_failure: [forbidden, booking_not_cancellable]
-related_modules: [M03, M10, M11]
+related_modules: [M03, M08, M10, M11]
 source:
   - server/src/features/booking/services/cancellation.service.ts
   - server/src/features/booking/services/cancellationLog.service.ts
@@ -22,6 +22,7 @@ source:
   - supabase/migrations/20260718037_m03_policy_configurations_stub.sql
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
   - supabase/migrations/20260808111_m03_m08_bookings_downpayment_generalize.sql
+  - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
 steps:
   - id: start
     type: start
@@ -78,19 +79,15 @@ steps:
     next: write_log
   - id: write_log
     type: action
-    label: Write cancellation_logs row (event_type=cancellation, notice_period_met, enforcement_mode_applied, policy_violation=enforced AND NOT met; credit_issued starts false) — best-effort, swallows its own failure
-    next: check_log_written
-  - id: check_log_written
-    type: decision
-    label: Did the cancellation_logs insert succeed? (writeCancellationLog returns the row, or null on failure)
-    branches:
-      - condition: "no"
-        next: send_notification
-      - condition: "yes"
-        next: check_credit_qualifies
+    label: Write cancellation_logs row (event_type=cancellation, notice_period_met, enforcement_mode_applied, policy_violation=enforced AND NOT met; credit_issued starts false) — best-effort, swallows its own failure and returns null
+    next: compute_credit_amount
+  - id: compute_credit_amount
+    type: action
+    label: "amountPaid from booking.payment_stage (Paid -> net total; Paid in Advance -> downpayment_amount; Unpaid -> 0); creditAmount = round2(amountPaid * policy.cancellation_credit_conversion_rate / 100)"
+    next: check_credit_qualifies
   - id: check_credit_qualifies
     type: decision
-    label: notice_period_met = true AND booking.downpayment_amount > 0?
+    label: notice_period_met = true AND creditAmount > 0? (NOT gated on the log write succeeding — #117)
     branches:
       - condition: "no"
         next: send_notification
@@ -98,7 +95,7 @@ steps:
         next: issue_credit
   - id: issue_credit
     type: action
-    label: Call issue_credit() Postgres RPC (atomic credit_balances increment + credit_transactions row), expires_at computed from credit_expiry_enabled/credit_expiry_days
+    label: Call issue_credit() Postgres RPC (atomic credit_balances increment + credit_transactions row); p_amount = creditAmount; p_cancellation_log_id may be null; expires_at computed from credit_expiry_enabled/credit_expiry_days
     next: check_credit_issued
   - id: check_credit_issued
     type: decision
@@ -110,7 +107,7 @@ steps:
         next: mark_log_credit_issued
   - id: mark_log_credit_issued
     type: action
-    label: Patch the cancellation_logs row (credit_issued=true, credit_amount=downpayment_amount)
+    label: If a cancellation_logs row exists, patch it (credit_issued=true, credit_amount=creditAmount)
     next: send_notification
   - id: send_notification
     type: action
