@@ -82,7 +82,7 @@ flowchart TD
   (migration `20260901150`). The three branches map straight across:
   `'Paid'` → `'Fully Paid'`, `'Paid in Advance'` → `'Partially Paid'`,
   `'Unpaid'` → `'Pending'`. The `'Partially Paid'` branch still bills the
-  *remaining balance* (`total_price − downpayment_amount`) regardless of
+  _remaining balance_ (`total_price − downpayment_amount`) regardless of
   what `pay_in_full` the client sent.
 - **Amount math uses `total_price`, not the discounted net total.**
   `payForBooking` computes `amount` from `booking.total_price` /
@@ -95,7 +95,7 @@ flowchart TD
 - **`recomputeBookingPaymentStatus` does three things** in order: (1)
   re-derive `payment_status` from the sum of the booking's non-`Pending`
   `booking_payment` transactions and write it (plus `paid_at` on `Fully
-  Paid`); (2) if this was the first payment on a still-`Pending`
+Paid`); (2) if this was the first payment on a still-`Pending`
   down-payment booking, run `confirmCapacityAfterInsert` — and if the slot
   filled while the booking sat unpaid, **revert `payment_status` to
   `Pending` and throw 409**; (3) otherwise, for a still-`Pending` Online

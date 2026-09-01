@@ -247,7 +247,12 @@
         "url": {
           "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay",
           "host": ["{{base_url}}"],
-          "path": ["billing", "transactions", "{{balance_transaction_id}}", "pay"]
+          "path": [
+            "billing",
+            "transactions",
+            "{{balance_transaction_id}}",
+            "pay"
+          ]
         }
       },
       "event": [
@@ -280,7 +285,12 @@
         "url": {
           "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay",
           "host": ["{{base_url}}"],
-          "path": ["billing", "transactions", "{{balance_transaction_id}}", "pay"]
+          "path": [
+            "billing",
+            "transactions",
+            "{{balance_transaction_id}}",
+            "pay"
+          ]
         }
       },
       "event": [
@@ -327,7 +337,10 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{customer_access_token}}" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
         ],
         "url": {
           "raw": "{{base_url}}/billing/transactions/{{transaction_id}}/pay-with-credit",
@@ -365,7 +378,10 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Authorization", "value": "Bearer {{customer_access_token}}" }
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
         ],
         "url": {
           "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay-with-credit",

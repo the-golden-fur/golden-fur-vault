@@ -42,7 +42,7 @@ The `booking_source` field splits the outcome:
 - **`'Online'`** (the default, and the only value a customer can send) — a
   future or same-day appointment. Runs the per-transaction down-payment
   policy and is created `Pending`. If a down payment is required and unpaid
-  it is a *pencil booking* that holds no slot (see Notes); otherwise it
+  it is a _pencil booking_ that holds no slot (see Notes); otherwise it
   holds its slot immediately and a receptionist later hits **Check In**.
 - **`'Walk-in'`** (receptionist-only — 403 from a customer caller) — the
   customer/pet is physically at the counter now. **Skips the down-payment
@@ -97,12 +97,12 @@ flowchart TD
 ## Notes
 
 - **No payment at booking time.** `createBooking` writes `payment_status =
-  'Pending'` and still sets the now-legacy `payment_method = null` /
+'Pending'` and still sets the now-legacy `payment_method = null` /
   `payment_confirmed = false` columns, but **nothing reads them** any more —
   a booking's payment state is purely the rollup of its `transactions`
   rows. The only payment-shaped input is `payment_scheme`, and it only
   changes how big the initial charge transaction is.
-- **The initial charge transaction** is emitted *after* the booking row,
+- **The initial charge transaction** is emitted _after_ the booking row,
   its items, the post-insert capacity re-check, and the confirmation
   notifications — and is **best-effort**: `createInitialBookingCharge`
   throwing is caught and logged, and never rolls back the booking (a
@@ -113,10 +113,10 @@ flowchart TD
   as a placeholder overwritten at settlement) plus one matching
   `transaction_line_items` row so `SUM(line_total) = total_amount`.
   Skipped entirely for Veterinary (`requiresUpfrontCharge = service_category
-  !== 'Veterinary'`) and when `initialChargeAmount` is 0 (e.g. a fully
+!== 'Veterinary'`) and when `initialChargeAmount` is 0 (e.g. a fully
   discounted booking).
 - **Down-payment slot gate.** When the down payment is enabled, an Online
-  booking that hasn't paid any of it is a *pencil booking* — it exists at
+  booking that hasn't paid any of it is a _pencil booking_ — it exists at
   `Pending` but **reserves no slot** (`holdsSlot = !downpayment_required`).
   `createBooking` skips both the pre-insert and post-insert capacity checks
   for it; the capacity queries and `get_staff_availability()`'s Check 2

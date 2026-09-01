@@ -66,7 +66,7 @@ flowchart TD
   gross by every uncollected charge.
 - **Rows are still bucketed by `created_at::date`, not settlement date.**
   A charge created one day and settled the next still lands in the
-  *creation* day's report once it flips to `Fully Paid` — there is no
+  _creation_ day's report once it flips to `Fully Paid` — there is no
   separate "settled_at" column to date against. Flagged: a payment
   collected across a day boundary can appear on a prior day's DSR the
   first time it's regenerated.

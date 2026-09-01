@@ -113,7 +113,7 @@ Payment]].
   `creditStub.service.ts` is **no longer a stub** — it wraps the atomic
   `redeem_credit()` RPC (`20260901155`).
 - **On a Pending booking-payment transaction**: a customer (or staff on
-  their behalf) can settle the *whole* charge from credit — full-cover
+  their behalf) can settle the _whole_ charge from credit — full-cover
   only, no partial — via `POST /billing/transactions/:id/pay-with-credit`,
   the **Pay with credit** button on the portal Transaction History page.
   See [[M10-04-paying-a-transaction-with-credit|M10-04]].
@@ -131,7 +131,7 @@ downpayment-netting logic based on the stay record ([[M05-pet-hotel-boarding-man
 A transaction type with no booking record (`booking_id` NULL,
 `transaction_type = miscellaneous_sale`), used mainly for credit
 redemption against non-inventory retail items, under a dedicated DSR
-category. Distinct from the *Misc* `service_category` (Initial
+category. Distinct from the _Misc_ `service_category` (Initial
 Assessment/Reassessment — [[M13-maintenance-packages-services-promos|M13]]), which does have a booking record and
 its own `booking_payment` transaction like any other category.
 

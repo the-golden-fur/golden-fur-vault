@@ -56,13 +56,13 @@ flowchart TD
 ## Notes
 
 - **Full-cover only, this round.** `checkout` (`applyCredit` in the same
-  `creditStub.service.ts`) supports *partial* credit application, but
+  `creditStub.service.ts`) supports _partial_ credit application, but
   `payTransactionWithCredit` deliberately does not — `amount < chargeAmount`
   is a hard 400 telling the caller to split the transaction. The two paths
   share `getAvailableCredit` and the `redeem_credit` RPC.
 - **`'Credit'` is a `payment_method` enum value** added by migration
   `20260901152` (kept in its own migration file because `ALTER TYPE … ADD
-  VALUE` can't be used in the same transaction that references it).
+VALUE` can't be used in the same transaction that references it).
   `settle_transaction` records it like any other method; the extra
   `credit_applied_amount` stamp is a separate `UPDATE` after the settle.
 - **`redeem_credit`** is the mirror of `issue_credit`: it locks the

@@ -19,9 +19,9 @@ module: M08
 **Part of:** [[M08-sales-billing|M08 · Sales & Billing]]
 
 The payment/transactions rework replaced the old Payments Queue (which
-marked *whole bookings* paid in one step) with the **Transactions page**
+marked _whole bookings_ paid in one step) with the **Transactions page**
 (`/staff/billing/transactions`), where a money-handling staff member settles
-*individual* `booking_payment` transactions. A booking can carry several —
+_individual_ `booking_payment` transactions. A booking can carry several —
 the initial charge from [[M03-01-new-appointment-booking|booking creation]]
 plus one or more balance payments — and each is settled with its own method.
 Settling a transaction atomically flips it to `Fully Paid` **and** recomputes
@@ -98,7 +98,7 @@ flowchart TD
 - **The rollup rule is shared** by `settle_transaction`,
   `add_booking_payment`, and the app-side `recomputeBookingPaymentStatus`:
   `net = total_price − discount_amount − promo_amount`; `paid = Σ
-  total_amount` over the booking's **non-`Pending`** `booking_payment`
+total_amount` over the booking's **non-`Pending`** `booking_payment`
   transactions. All three produce the same three-value `payment_status`.
 - **"Add a payment"** (`add_booking_payment`) creates the new row with
   `payment_choice = 'balance'` and a `'Cash'` placeholder method
@@ -108,7 +108,7 @@ flowchart TD
 - **First-payment side-effects.** `settle_transaction` does only the SQL
   `payment_status` rollup, so after it returns the service calls
   `applyFirstBookingPaymentSideEffects` (shared with the webhook path). When
-  the *first* payment on a down-payment pencil booking lands at the counter,
+  the _first_ payment on a down-payment pencil booking lands at the counter,
   that re-verifies the down-payment slot gate and fires the held-back
   `booking_confirmed` / `staff_assigned` notifications. The one difference
   from the webhook path: a capacity conflict here does **not** roll the

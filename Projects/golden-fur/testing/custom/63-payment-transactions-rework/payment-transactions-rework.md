@@ -17,7 +17,7 @@ Commits in scope (all since `4462451`):
 >
 > The 8 migrations `supabase/migrations/20260901150..157` HAVE NOW BEEN PUSHED
 > to the linked Supabase project (confirmed via `supabase migration list
-> --linked`). The local Docker stack was down, so they were applied straight
+--linked`). The local Docker stack was down, so they were applied straight
 > to the linked DB without a local dry-run — note that.
 >
 > What changed (a planned 4-phase rework):
@@ -27,7 +27,7 @@ Commits in scope (all since `4462451`):
 >    `transactions.payment_status` enum (Pending / Partially Paid / Fully
 >    Paid) — a stored rollup of the booking's settled `booking_payment`
 >    transactions vs `netTotal = total_price - discount_amount -
->    promo_amount`. Backfill: Unpaid→Pending, Paid in Advance→Partially Paid,
+promo_amount`. Backfill: Unpaid→Pending, Paid in Advance→Partially Paid,
 >    Paid→Fully Paid.
 > 2. Booking flow no longer collects a payment method. The booking step asks
 >    only a "payment scheme" (pay in full vs down payment) when a downpayment
@@ -40,9 +40,9 @@ Commits in scope (all since `4462451`):
 >    (`client/src/features/billing/pages/TransactionsPage/`). 3 new server
 >    endpoints (billing feature): `POST /billing/transactions/:id/pay`
 >    (recordTransactionPayment → `settle_transaction` RPC), `POST
->    /billing/bookings/:id/payments` (addBookingPayment → `add_booking_payment`
+/billing/bookings/:id/payments` (addBookingPayment → `add_booking_payment`
 >    RPC, unlimited balance payments), `POST
->    /billing/transactions/:id/pay-with-credit` (payTransactionWithCredit,
+/billing/transactions/:id/pay-with-credit` (payTransactionWithCredit,
 >    full-cover only, sets `payment_method='Credit'`). New
 >    `server/src/features/billing/services/transactionPayment.service.ts`.
 > 4. Payments Queue deleted. Its Misc-category Start/Complete + pet-assessment
@@ -62,7 +62,7 @@ Commits in scope (all since `4462451`):
 Before this rework a booking carried **two independent payment concepts**:
 
 - `bookings.payment_stage` (`payment_stage` enum: `Unpaid` / `Paid in
-  Advance` / `Paid`, added 20260803082) — a bespoke, manually-advanced track.
+Advance` / `Paid`, added 20260803082) — a bespoke, manually-advanced track.
   A cashier moved it forward with the Payments Queue's "Mark as Paid" action
   (`advancePaymentStage`), and Admin/Superadmin could override it
   (`overridePaymentStage`). `completeBooking` also auto-advanced it to `Paid`
@@ -99,7 +99,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
 
 - `20260901150_m08_bookings_replace_payment_stage_with_payment_status.sql` —
   adds `bookings.payment_status public.payment_status not null default
-  'Pending'`; backfills from `payment_stage` (Unpaid→Pending, Paid in
+'Pending'`; backfills from `payment_stage` (Unpaid→Pending, Paid in
   Advance→Partially Paid, Paid→Fully Paid); drops
   `bookings_payment_stage_idx` and `bookings_downpayment_gate_idx`, then the
   `payment_stage` column, then the `payment_stage` type; creates
@@ -111,43 +111,43 @@ went straight to the linked DB. Reference copies (verbatim) are in
   `initiated_by = 'customer'` coupling) and widens the value CHECK to
   `payment_choice in ('full', 'downpayment', 'balance')` (still NULL-able).
 - `20260901152_m08_payment_method_add_credit.sql` — `alter type
-  public.payment_method add value if not exists 'Credit'` (own file, no
+public.payment_method add value if not exists 'Credit'` (own file, no
   consumer in the same transaction).
 - `20260901153_m08_settle_transaction_rpc.sql` —
   `settle_transaction(p_transaction_id, p_payment_method, p_bank_name,
-  p_payment_reference, p_cash_tendered, p_processed_by) returns
-  public.bookings`. SECURITY DEFINER, `service_role`-only. Row-locks the
+p_payment_reference, p_cash_tendered, p_processed_by) returns
+public.bookings`. SECURITY DEFINER, `service_role`-only. Row-locks the
   transaction, raises if not found / already `Fully Paid`, flips it to `Fully
-  Paid` with the real method + `processed_by_staff_id`, then recomputes the
+Paid` with the real method + `processed_by_staff_id`, then recomputes the
   parent booking's rollup: `net = total_price - discount_amount -
-  promo_amount`; `paid = sum(total_amount)` over that booking's non-`Pending`
+promo_amount`; `paid = sum(total_amount)` over that booking's non-`Pending`
   `booking_payment` rows; status = `Pending` (paid ≤ 0) / `Fully Paid` (paid
   ≥ net) / `Partially Paid` otherwise; sets `bookings.paid_at` when it
   reaches `Fully Paid`. `p_cash_tendered` is accepted but **not persisted**
   (no column for it).
 - `20260901154_m08_add_booking_payment_rpc.sql` —
   `add_booking_payment(p_booking_id, p_amount, p_processed_by) returns
-  public.transactions`. SECURITY DEFINER, `service_role`-only. Validates
+public.transactions`. SECURITY DEFINER, `service_role`-only. Validates
   `p_amount > 0` and `p_amount <= net - already-settled`, then inserts one
   `Pending` `booking_payment` transaction (`payment_method 'Cash'`
   placeholder, `payment_choice 'balance'`) plus a matching `'service'` line
   item ("Additional payment").
 - `20260901155_m10_redeem_credit_rpc.sql` —
   `redeem_credit(p_customer_id, p_branch_id, p_amount, p_transaction_id)
-  returns public.credit_transactions`. Inverse of `issue_credit()`. SECURITY
+returns public.credit_transactions`. Inverse of `issue_credit()`. SECURITY
   DEFINER, `service_role`-only. Row-locks the `credit_balances` row, raises
   if missing or `balance < p_amount`, decrements the balance, inserts a
   `'redemption'` `credit_transactions` row with `amount = -p_amount` and
   `transaction_id = p_transaction_id`.
 - `20260901156_m03_get_staff_availability_payment_status.sql` — `CREATE OR
-  REPLACE` of `get_staff_availability` (identical signature); Check 2's
+REPLACE` of `get_staff_availability` (identical signature); Check 2's
   down-payment slot gate changes `bk.payment_stage = 'Unpaid'` →
   `bk.payment_status = 'Pending'`. Body otherwise verbatim from
   `20260829148`.
 - `20260901157_m14_reporting_functions_settled_only.sql` — `CREATE OR
-  REPLACE` of `get_daily_sales_report` and `get_analytics_summary` from
+REPLACE` of `get_daily_sales_report` and `get_analytics_summary` from
   `20260805101`; every `from public.transactions t` aggregation gains `and
-  t.payment_status = 'Fully Paid'` (a `Pending` charge now exists up front
+t.payment_status = 'Fully Paid'` (a `Pending` charge now exists up front
   and must not inflate gross). `get_cage_occupancy_report` intentionally
   untouched.
 
@@ -159,7 +159,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
     non-`booking_payment` (400) or non-`Pending` (409), runs
     `resolvePaymentConfirmation` to validate the cash tender / compute
     change, calls `settle_transaction`, returns `{ transaction, booking,
-    changeAmount }`.
+changeAmount }`.
   - `addBookingPayment` — thin wrapper over `add_booking_payment`.
   - `payTransactionWithCredit` — ownership check (a customer may only pay
     their own transaction → 403; `isStaff` may pay any), `Pending`-only
@@ -174,7 +174,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
   `payTransactionWithCreditController`. The credit one resolves
   `getStaffRoleOrNull` → `isStaff = BILLING_STAFF_ROLES.includes(role)`.
 - `features/billing/billing.routes.ts` — `POST
-  /billing/transactions/:id/pay` and `POST /billing/bookings/:id/payments`
+/billing/transactions/:id/pay` and `POST /billing/bookings/:id/payments`
   are `...staffAccess` (jwt + session + `requireRole(BILLING_STAFF_ROLES)` +
   `requireBranch`); `POST /billing/transactions/:id/pay-with-credit` is
   `jwtMiddleware` only (ownership enforced in the service so a customer can
@@ -185,7 +185,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
   `cash_tendered` required iff `Cash`; `.strict()`) and
   `addBookingPaymentValidator` (`{ amount: positive }`, `.strict()`).
 - `features/billing/billing.types.ts` — new `COUNTER_PAYMENT_METHODS =
-  ['Cash','Card','Bank Transfer','Grabmart','Pickaroo']` (GCash/Maya
+['Cash','Card','Bank Transfer','Grabmart','Pickaroo']` (GCash/Maya
   excluded — webhook/checkout only; Credit has its own path) +
   `CounterPaymentMethod`. `Transaction.payment_choice` type widened to
   `'full' | 'downpayment' | 'balance' | null`.
@@ -193,17 +193,17 @@ went straight to the linked DB. Reference copies (verbatim) are in
   `getAvailableCredit` reads the real `credit_balances.balance` for
   `(customer, branch)` (0 when no row). `applyCredit` gained an optional
   `transactionId` 4th arg, computes `appliedAmount = max(0, min(requested,
-  available))`, and calls `redeem_credit` when positive.
+available))`, and calls `redeem_credit` when positive.
 - `features/billing/services/webhookConfirmation.service.ts` — the
   customer-initiated PayMongo confirmation path swaps `advancePaymentStage({
-  choice })` for `recomputeBookingPaymentStatus(bookingId)`; stops selecting
+choice })` for `recomputeBookingPaymentStatus(bookingId)`; stops selecting
   `payment_choice` off the transaction. Still logs-not-throws so the webhook
   acks 200.
 - `features/booking/services/booking.service.ts`:
   - `createBooking` no longer accepts/writes `payment_method` /
     `payment_confirmed` / a `payment_stage`. It sizes an initial charge:
     `paymentScheme = 'downpayment'` only when `downpaymentRequired &&
-    input.payment_scheme === 'downpayment'`, else `'full'`;
+input.payment_scheme === 'downpayment'`, else `'full'`;
     `initialChargeAmount` = down-payment amount or `netTotal`. After the
     booking row is inserted and capacity re-confirmed, if
     `service_category !== 'Veterinary'` and the amount `> 0`, it calls the
@@ -222,7 +222,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
     Online booking" notifications that `createBooking` held back.
   - `advancePaymentStage` and `overridePaymentStage` **deleted** (+ their
     controllers, routes `POST /bookings/:id/payment-stage/advance` and `PATCH
-    /bookings/:id/payment-stage`, validators, `PAYMENT_STAGE_ADVANCE_ROLES`
+/bookings/:id/payment-stage`, validators, `PAYMENT_STAGE_ADVANCE_ROLES`
     usage). `completeBooking` no longer touches payment at all (dropped the
     `onlinePrepaid → payment_stage: 'Paid'` branch).
   - `listBookings` filter renamed `paymentStage` → `paymentStatus`
@@ -233,7 +233,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
 - `features/booking/modules/validators/booking.validator.ts` —
   `createBookingValidator` drops `payment_method` / `payment_confirmed` /
   `payment_choice`, adds `payment_scheme: z.enum(['downpayment','full'])
-  .optional()`. `listBookingsQueryValidator` `payment_stage` →
+.optional()`. `listBookingsQueryValidator` `payment_stage` →
   `payment_status` (∈ `PAYMENT_STATUSES`).
 - Small ripples: `grooming.service.ts` / `consultation.service.ts` queue
   filters, `cancellation.service.ts`, `lineItemSources.service.ts`,
@@ -272,11 +272,11 @@ went straight to the linked DB. Reference copies (verbatim) are in
   / "Fully Paid" with no "Payment:" prefix. Reuses the old stage colour
   tokens.
 - `features/booking/booking.types.ts` — `PaymentStage` type + `PAYMENT_STAGES`
-  + `OVERRIDABLE_PAYMENT_STAGES` replaced by `PaymentStatus` /
-  `PAYMENT_STATUSES`. `Booking.payment_stage` → `payment_status`.
-  `CreateBookingPayload` drops `payment_method` / `payment_confirmed` /
-  `payment_choice`, adds `payment_scheme`. `ListBookingsFilters.paymentStage`
-  → `paymentStatus`.
+  - `OVERRIDABLE_PAYMENT_STAGES` replaced by `PaymentStatus` /
+    `PAYMENT_STATUSES`. `Booking.payment_stage` → `payment_status`.
+    `CreateBookingPayload` drops `payment_method` / `payment_confirmed` /
+    `payment_choice`, adds `payment_scheme`. `ListBookingsFilters.paymentStage`
+    → `paymentStatus`.
 - `features/booking/api/booking.api.ts` — `advancePaymentStage` /
   `overridePaymentStage` deleted; `listBookings` sends `payment_status`.
 - `features/booking/bookingConfirmation.ts` — `deriveBookingConfirmationState`
@@ -307,7 +307,7 @@ went straight to the linked DB. Reference copies (verbatim) are in
 3. In the DB (or via `/reports/transaction-history`): the booking has exactly
    one `booking_payment` transaction, `payment_status = 'Pending'`,
    `payment_choice = 'full'`, plus one line item; `bookings.payment_status =
-   'Pending'`.
+'Pending'`.
 4. Repeat at a branch with the **down-payment policy on**: the payment step
    now shows the scheme choice. Pick "down payment". The initial charge row's
    amount = the down-payment amount and `payment_choice = 'downpayment'`.
@@ -388,11 +388,11 @@ Run on this branch (`feat/payment-transactions-rework`, worktree clean) on
 - `client`: `npx vitest run` — **733/734 passing (143 files)**. The one
   failure is
   `src/features/maintenance/pages/AdminPromoConfigPage/AdminPromoConfigPage.spec.ts
-  > AdminPromoConfigPage > the timing filter narrows to Ended promos` — a
-  pre-existing date-dependent flake (the `buildPromo()` default fixture's
-  fixed date range has now elapsed, so it too counts as "Ended" and the
-  filter assertion fails). Unrelated to this change; per the implementer it
-  fails on `dev` as well. `npx tsc -b` — clean.
+  > AdminPromoConfigPage > the timing filter narrows to Ended promos`— a
+pre-existing date-dependent flake (the`buildPromo()`default fixture's
+fixed date range has now elapsed, so it too counts as "Ended" and the
+filter assertion fails). Unrelated to this change; per the implementer it
+fails on`dev`as well.`npx tsc -b` — clean.
 - Per the implementer, both repos are also eslint + prettier clean (not
   re-run here).
 
