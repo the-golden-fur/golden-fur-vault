@@ -47,9 +47,24 @@ two never-paid ₱693 Grooming bookings. **Fix:** `confirmedAmountPaid()` now
 sums the booking's `booking_payment` `transactions` whose `payment_status`
 is not `'Pending'` (a cashier / the PayMongo webhook actually settled them —
 `'Partially Paid'` for a downpayment, `'Fully Paid'` for a full/remaining
-payment). No confirmed transaction → no credit. _(The `payment_stage = 'Paid'`
--without-payment behaviour itself is a separate pre-existing booking-flow
-bug, flagged for a later pass — this change just stops trusting it.)_
+payment). No confirmed transaction → no credit.
+
+**Fourth gap — why "I marked it paid and still no credit".** After the third
+fix, the user marked a booking paid via the Payments Queue and _still_ got
+no credit, because **the cashier "Mark as Paid" path had never written a
+`transactions` row**: `recordBookingPaymentTransaction` set `payment_choice`
+on a `initiated_by='staff'` row, violating the CHECK
+`transactions_payment_choice_requires_customer_initiated` (migration
+`20260809118`); `advancePaymentStage` swallows the throw. The `transactions`
+table had **zero rows** since Aug 9. Fixed by dropping `payment_choice` from
+that insert (commit `fix(billing): record booking-payment transactions on
+cashier mark-as-paid`).
+
+_(The `payment_stage = 'Paid'`-without-payment booking-flow bug and the
+whole "payment method at booking time" model are being reworked — see the
+approved plan: payment method moves to per-transaction pay time, the
+Payments Queue is deleted, `bookings.payment_stage` is dropped in favour of
+a `bookings.payment_status` rollup, and credit redemption is wired up.)_
 
 **Decision (from clarifying questions + live feedback):** the rate applies
 to the confirmed-paid amount, not the configured down payment. Navbar shows
@@ -77,6 +92,16 @@ initial "hidden at zero" design so customers discover the feature).
 - `modules/validators/booking.validator.ts` — `updatePolicyValidator` gains
   `cancellation_credit_conversion_rate: z.number().min(0).max(100).optional()`
   (the object is `.strict()`, so the field must be declared).
+- `services/booking.service.ts` — `recordBookingPaymentTransaction` (the
+  cashier "Mark as Paid" path) set `payment_choice` on a staff-initiated
+  row, which the CHECK
+  `transactions_payment_choice_requires_customer_initiated` (migration
+  `20260809118`) rejects. `advancePaymentStage` swallows the throw as
+  best-effort, so `payment_stage` advanced to `Paid` but **no `transactions`
+  row was ever persisted** — the table had zero rows since Aug 9, and
+  `confirmedAmountPaid` (below) therefore always saw 0. Fix: drop
+  `payment_choice` from the staff insert (the line-item `description` +
+  `payment_status` carry the same meaning). Verified against the linked DB.
 - `services/cancellation.service.ts` — core change:
   - new `confirmedAmountPaid(bookingId)` helper: `SUM(total_amount)` of the
     booking's `transactions` where `transaction_type = 'booking_payment'`
@@ -162,10 +187,13 @@ initial "hidden at zero" design so customers discover the feature).
 
 ## Test suites
 
-- `server`: `npx vitest run` — 917/917 passing (86 files); `npx tsc --noEmit` clean.
+- `server`: `npx vitest run` — all passing; `npx tsc --noEmit` clean.
   `cancellation.service.spec.ts` (13 cases): rate scaling, full settled-amount
   conversion, **`payment_stage: 'Paid'` with no confirmed transaction → no
   credit**, notice-not-met → no credit, #117 log-failure still issues.
+  `booking.service.spec.ts` — asserts `recordBookingPaymentTransaction`'s
+  insert carries **no `payment_choice`** (the constraint that was silently
+  failing) and the correct line-item description.
 - `client`: `npx vitest run` — 740/740 passing (143 files); `npx tsc --noEmit` clean.
   New `CreditBalanceIndicator.spec.ts` (3 cases, incl. renders `₱0.00` at zero);
   `CustomerBookingsPage.spec.ts` and `CustomerAuthGuard.spec.ts` updated for
@@ -178,20 +206,24 @@ initial "hidden at zero" design so customers discover the feature).
 
 ## Open items
 
-- **`payment_stage = 'Paid'` on an uncollected Online booking** is a
-  separate pre-existing booking-flow bug (a customer self-service Online
-  Grooming/Vet booking with no down-payment requirement reads `'Paid'` at
-  creation). This change stops the credit path trusting it, but the
-  mislabelled `payment_stage` itself is still there — the user plans to
-  revisit the payment-confirmation model (possibly folding the Payments
-  Queue into the Transactions page) in a later request.
-- **Stale test data:** Customer 1's `credit_balances` row (₱1386) and its
-  two ₱693 issuance `credit_transactions` were minted by the interim
-  `payment_stage`-based version against never-paid bookings — needs zeroing
-  / deleting on the linked project.
-- **Checkout redemption is still a stub** (unchanged) — issued credit still
-  can't be spent at checkout; DSR credit-usage still reads zero. Out of
-  scope here.
+- **Follow-on approved plan — payment/transactions rework.** Payment method
+  moves out of the booking step to per-transaction pay time; the Payments
+  Queue is deleted (its mark-as-paid moves to the Transactions page, per
+  transaction; Misc controls fold into the Bookings Queue);
+  `bookings.payment_stage` (and its "Paid in Advance" label) is **dropped**
+  in favour of a `bookings.payment_status` rollup reusing the
+  `transactions.payment_status` vocabulary; credit redemption ("pay with
+  credits") is wired up for real. Phased; Phase 0 (the constraint fix above)
+  shipped in this branch.
+- **`payment_stage = 'Paid'` on an uncollected Online booking** — the
+  receptionist-picks-GCash/Maya path sets `payment_confirmed: true` client
+  -side and the server trusts it. Removed by Phase 1 of the rework.
+- **Stale test data:** cleaned — Customer 1's bogus `credit_balances` /
+  `credit_transactions` rows and the two lying `cancellation_logs` rows were
+  deleted / corrected on the linked project.
+- **Checkout redemption is still a stub** — issued credit still can't be
+  spent; DSR credit-usage still reads zero. Addressed by Phase 3 of the
+  rework.
 - `CustomerPortalPage` keeps its own `listCreditBalances` fetch rather than
   reading the new context — a harmless second call on the portal home;
   deduping it was deliberately left out to keep the diff focused.
