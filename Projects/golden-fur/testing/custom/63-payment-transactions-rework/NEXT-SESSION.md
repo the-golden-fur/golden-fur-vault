@@ -19,9 +19,9 @@ branch **`fix/payment-rework-followups`** (off `dev`):
   `CreditBalanceProvider.spec.tsx`.
 - **B (done)** — customer-chosen partial balance payments. New
   `POST /bookings/:id/balance-payment` (jwt-only) →
-  `addCustomerBalancePayment` (ownership + `payment_status === 'Partially Paid'`
-  + no-pending-charge guard) → existing `add_booking_payment` RPC with
-  `p_processed_by: null`. `payForBooking` now pays an existing `balance` charge
+  `addCustomerBalancePayment` (checks ownership, `payment_status ===
+'Partially Paid'`, and no pending charge) → existing `add_booking_payment`
+  RPC with `p_processed_by: null`. `payForBooking` now pays an existing `balance` charge
   for its own amount instead of recomputing to the full remainder. Customer
   Transaction History page gained a "Pay part of … balance" affordance + amount
   modal; eligibility/remaining via new `reports/utils/payableBalances.ts`.
