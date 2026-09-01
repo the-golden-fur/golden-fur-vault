@@ -125,13 +125,15 @@ merge commit only — this repo has a single `main` branch, no `dev`),
 `merge-pr` (confirm readiness and get explicit go-ahead, then merge a PR
 with a crafted merge-commit title/description), and `pre-commit-checks`
 (run the `(check)`/`(fix)`-labeled VS Code task — Prettier format — auto-
-fixing what it can; always runs as `commit`'s first step, also invocable
-standalone). Any AI coding tool working in this repo should read the
-relevant file under `.agent/` before doing that kind of task. These skills
-operate only within this repo — the one cross-repo step they invoke is the
-shared `ci-verifier` agent (above), which `commit` and `pr` both spawn to
-confirm the `✅ CI: Verify All` task is green here **and** in
-`../golden-fur` before proceeding.
+fixing what it can; a step of `pr`, and invocable standalone, but **not**
+run on every commit). Any AI coding tool working in this repo should read
+the relevant file under `.agent/` before doing that kind of task. These
+skills operate only within this repo — the one cross-repo step they invoke
+is the shared `ci-verifier` agent (above), which **`pr`** spawns (not
+`commit`) to confirm the `✅ CI: Verify All` task is green here **and** in
+`../golden-fur` before opening the PR. **`commit` runs no gates** — not
+`pre-commit-checks`, not `ci-verifier`. Line endings are handled by
+`.gitattributes` (`* text=auto eol=lf`).
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:
