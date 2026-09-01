@@ -1,0 +1,394 @@
+{
+  "info": {
+    "name": "Payment / Transactions Rework (custom 63)",
+    "description": "Verifies the 3 new billing endpoints added by feat/payment-transactions-rework:\n\n  POST /billing/transactions/:id/pay            (recordTransactionPayment -> settle_transaction RPC)\n  POST /billing/bookings/:id/payments           (addBookingPayment -> add_booking_payment RPC)\n  POST /billing/transactions/:id/pay-with-credit (payTransactionWithCredit -> redeem_credit + settle_transaction)\n\nRun top to bottom. Requests 1-2 log in and pick a Pending booking_payment transaction out of the transaction-history feed; fill base_url and both credential pairs first. The pay-with-credit request needs the chosen transaction's customer to actually hold >= its total_amount in branch-locked credit - if they don't, request 9 asserts the documented 400 (\"doesn't cover this charge - split it first\") instead.\n\nExpects a freshly-created Online, non-Veterinary booking whose initial Pending charge has NOT yet been settled. Create one via the customer booking flow (or POST /bookings) if the history feed has none.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "staff_identifier", "value": "" },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "transaction_id", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "balance_transaction_id", "value": "" },
+    { "key": "amount_due", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as money-handling staff (Cashier/Receptionist/Admin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('staff_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Find a Pending booking_payment transaction",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/reports/transaction-history",
+          "host": ["{{base_url}}"],
+          "path": ["reports", "transaction-history"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('history returned', () => pm.response.to.have.status(200));",
+              "const rows = body.transactions || body.data || body;",
+              "const pending = (rows || []).find(t => t.transaction_type === 'booking_payment' && t.payment_status === 'Pending' && t.booking_id);",
+              "pm.test('a Pending booking_payment exists to settle', () => pm.expect(pending, 'create a fresh unpaid Online booking first').to.be.an('object'));",
+              "if (pending) {",
+              "  pm.collectionVariables.set('transaction_id', pending.id);",
+              "  pm.collectionVariables.set('booking_id', pending.booking_id);",
+              "  pm.collectionVariables.set('amount_due', String(pending.total_amount));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Pay: Cash with no cash_tendered -> 400 (validator)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{transaction_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{transaction_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - cash_tendered required for Cash', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Pay: GCash -> 400 (not a counter method)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"GCash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{transaction_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{transaction_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - GCash/Maya are not COUNTER_PAYMENT_METHODS', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Pay: Bank Transfer with no bank_name -> 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Bank Transfer\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{transaction_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{transaction_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - bank_name required for Bank Transfer', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Add balance payment: amount above remaining -> 400 (RPC guard)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 9999999\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/bookings/{{booking_id}}/payments",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "bookings", "{{booking_id}}", "payments"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - add_booking_payment: amount exceeds remaining balance', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Add balance payment: PHP 1 -> 201, new Pending transaction",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/bookings/{{booking_id}}/payments",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "bookings", "{{booking_id}}", "payments"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('created 201', () => pm.response.to.have.status(201));",
+              "pm.test('new row is a Pending booking_payment', () => {",
+              "  pm.expect(body.transaction.payment_status).to.eql('Pending');",
+              "  pm.expect(body.transaction.transaction_type).to.eql('booking_payment');",
+              "  pm.expect(Number(body.transaction.total_amount)).to.eql(1);",
+              "});",
+              "pm.expect(body.transaction.payment_choice).to.eql('balance');",
+              "pm.collectionVariables.set('balance_transaction_id', body.transaction.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Settle the balance transaction with Cash -> 200 + change",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{balance_transaction_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('settled 200', () => pm.response.to.have.status(200));",
+              "pm.test('transaction is now Fully Paid', () => pm.expect(body.transaction.payment_status).to.eql('Fully Paid'));",
+              "pm.test('change computed = 100 - 1 = 99', () => pm.expect(body.changeAmount).to.eql(99));",
+              "pm.test('booking rollup came back Partially Paid (down payment still owed)', () => pm.expect(body.booking.payment_status).to.eql('Partially Paid'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Re-settle the same transaction -> 409 (already Fully Paid)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{balance_transaction_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 409 - transaction already Fully Paid', () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Login as the booking's customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Customer pays the remaining down-payment charge with credit",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{transaction_id}}/pay-with-credit",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "transactions",
+            "{{transaction_id}}",
+            "pay-with-credit"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Full-cover only: 200 when the customer's branch credit >= amount_due,",
+              "// else the documented 400 'doesn't cover this charge - split it first'.",
+              "pm.test('200 (credit covered it) or 400 (partial cover rejected)', () => pm.expect([200, 400]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  pm.test('transaction settled as Credit', () => pm.expect(body.transaction.payment_method).to.eql('Credit'));",
+              "  pm.test('credit_applied_amount stamped', () => pm.expect(Number(body.transaction.credit_applied_amount)).to.be.above(0));",
+              "  pm.test('redemption credit_transaction returned (negative amount)', () => pm.expect(Number(body.creditTransaction.amount)).to.be.below(0));",
+              "  pm.test('booking rollup is now Fully Paid', () => pm.expect(body.booking.payment_status).to.eql('Fully Paid'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Another customer cannot pay this transaction with credit -> 403",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{balance_transaction_id}}/pay-with-credit",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "transactions",
+            "{{balance_transaction_id}}",
+            "pay-with-credit"
+          ]
+        },
+        "description": "balance_transaction_id is already Fully Paid, so this returns 409 for the owner. Point it at a Pending transaction belonging to a DIFFERENT customer to see the 403 ownership check; otherwise expect 409."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('403 (not your transaction) or 409 (already settled)', () => pm.expect([403, 409]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

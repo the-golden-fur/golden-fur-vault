@@ -36,24 +36,44 @@ A Credit Management page (Cashier/Admin) lists balances and history;
 customers see their own balance plus a 7-day expiry-approaching badge on
 the portal.
 
+## Redemption
+
+Since the 2026-09-01 payment/transactions rework, credit **redemption is
+live**. The atomic `redeem_credit()` RPC (`20260901155`) — the mirror of
+`issue_credit()` — locks the `credit_balances` row, re-checks
+`balance ≥ amount`, decrements it, and writes a signed-negative
+`redemption` `credit_transactions` row linked to the `transactions` row it
+paid. Two callers:
+
+- **Checkout** (`checkoutAggregation.service.ts` via `applyCredit`) —
+  partial application allowed, capped at the lesser of balance or total.
+- **Pay with credit** on a `Pending` `booking_payment` transaction
+  (`payTransactionWithCredit`) — **full-cover only**, from the portal
+  Transaction History page or staff on the customer's behalf. See
+  [[M10-04-paying-a-transaction-with-credit|M10-04]].
+
+`payment_method` gained a `'Credit'` value (`20260901152`) for the settled
+transaction. The DSR credit-usage section ([[M14-report-management|M14]])
+now reports real figures.
+
 ## Status
 
-Credit can be correctly issued, tracked, and expired end to end — but
-**applying it to reduce a transaction total at checkout is not wired
-up** on the billing side ([[M08-sales-billing|M08]] still reads a stub there), so the
-DSR's credit-usage figures ([[M14-report-management|M14]]) read zero until that redemption
-path ships. This module did not exist in the database at all before
-2026-08-05.
+Credit can be issued, tracked, redeemed, and expired end to end. This
+module did not exist in the database at all before 2026-08-05.
 
 ## Workflows
 
 - [[M10-01-cancellation-to-credit-conversion|Cancellation-to-Credit Conversion]]
 - [[M10-02-credit-expiry-sweep|Credit Expiry Sweep]]
 - [[M10-03-credit-balance-and-history-access|Credit Balance & History Access]]
+- [[M10-04-paying-a-transaction-with-credit|Paying a Transaction with Credit]]
 
 ## Relationship to other modules
 
-Issued by [[M09-policy-enforcement|M09]] on a qualifying cancellation. Intended to be consumed
-in [[M08-sales-billing|M08]] at checkout (not yet wired — see above). Visible in the
-customer portal ([[M02-customer-portal-pet-management|M02]]) and cashier/admin views. Feeds [[M14-report-management|M14]]'s DSR
-credit-usage section.
+Issued by [[M09-policy-enforcement|M09]] on a qualifying cancellation.
+Redeemed in [[M08-sales-billing|M08]] — at checkout and via the
+pay-with-credit path — through the same `settle_transaction` RPC that rolls
+up `bookings.payment_status` ([[M03-appointment-booking|M03]]). Visible in
+the customer portal ([[M02-customer-portal-pet-management|M02]]) and
+cashier/admin views. Feeds [[M14-report-management|M14]]'s DSR credit-usage
+section.

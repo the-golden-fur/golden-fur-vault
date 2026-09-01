@@ -3,8 +3,8 @@ id: M08-02-customer-self-service-online-payment
 module: M08
 title: Customer Self-Service Online Payment
 actors: [Customer]
-trigger: Customer taps Pay (full or downpayment) on their own booking in the customer portal
-outcome_success: transactions row Fully Paid via webhook confirmation; bookings.payment_stage advanced when initiated_by = customer and booking_id is present
+trigger: Customer taps Pay (full or down payment) on their own booking in the customer portal
+outcome_success: "transactions row Fully Paid via PayMongo webhook confirmation; when initiated_by = 'customer' and booking_id is present, recomputeBookingPaymentStatus rolls up bookings.payment_status, and (for a first payment on a still-Pending down-payment booking) re-checks slot capacity and sends the deferred booking_confirmed / staff_assigned notifications"
 outcome_failure:
   [
     not_own_booking,
@@ -14,8 +14,9 @@ outcome_failure:
     online_payments_disabled,
     paymongo_initiation_failed,
     invalid_webhook_signature,
+    slot_filled_while_unpaid,
   ]
-related_modules: [M03, M09]
+related_modules: [M03, M09, M10, M14]
 source:
   - server/src/features/billing/services/customerBookingPayment.service.ts
   - server/src/features/billing/services/webhookConfirmation.service.ts
@@ -24,9 +25,10 @@ source:
   - server/src/features/booking/booking.controller.ts
   - server/src/features/booking/modules/validators/booking.validator.ts
   - server/src/features/booking/services/booking.service.ts
-  - supabase/migrations/20260803082_m08_booking_payment_stage.sql
-  - supabase/migrations/20260803083_m03_m08_remove_paid_booking_status.sql
   - supabase/migrations/20260809118_custom_transactions_customer_initiated_payment.sql
+  - supabase/migrations/20260901150_m08_bookings_replace_payment_stage_with_payment_status.sql
+  - supabase/migrations/20260901151_m08_transactions_payment_choice_free_label.sql
+  - supabase/migrations/20260901153_m08_settle_transaction_rpc.sql
 steps:
   - id: start
     type: start
@@ -46,19 +48,19 @@ steps:
     label: Not this customer's booking (403)
   - id: check_already_paid
     type: decision
-    label: payment_stage = 'Paid'?
+    label: booking.payment_status = 'Fully Paid'?
     branches:
       - condition: "yes"
         next: end_blocked_already_paid
       - condition: "no"
-        next: check_paid_in_advance
+        next: check_partially_paid
   - id: end_blocked_already_paid
     type: end
     result: blocked
     label: Booking already fully paid (409)
-  - id: check_paid_in_advance
+  - id: check_partially_paid
     type: decision
-    label: payment_stage = 'Paid in Advance'?
+    label: booking.payment_status = 'Partially Paid'?
     branches:
       - condition: "yes"
         next: amount_remaining_balance
@@ -78,11 +80,11 @@ steps:
         next: check_downpayment_available
   - id: amount_full
     type: action
-    label: amount = total_price; payment_choice = 'full'
+    label: amount = total_price; payment_choice = 'full' (uses total_price, not the discounted net total - see human notes)
     next: check_amount_positive
   - id: check_downpayment_available
     type: decision
-    label: Booking requires a downpayment and downpayment_amount is set?
+    label: Booking requires a down payment and downpayment_amount is set?
     branches:
       - condition: "no"
         next: end_blocked_no_downpayment
@@ -91,7 +93,7 @@ steps:
   - id: end_blocked_no_downpayment
     type: end
     result: blocked
-    label: This booking does not require a downpayment (400)
+    label: This booking does not require a down payment (400)
   - id: amount_downpayment
     type: action
     label: amount = downpayment_amount; payment_choice = 'downpayment'
@@ -155,18 +157,14 @@ steps:
       - condition: "no"
         next: end_error_invalid_signature
       - condition: "yes"
-        next: parse_event
+        next: check_event_status
   - id: end_error_invalid_signature
     type: end
     result: error
     label: Invalid webhook signature (401), no state change
-  - id: parse_event
-    type: action
-    label: Parse event (id, source id, status)
-    next: check_event_status
   - id: check_event_status
     type: decision
-    label: event.status = paid (PayMongo 'chargeable' or 'paid')?
+    label: event.status = paid?
     branches:
       - condition: "no"
         next: end_blocked_failed_event
@@ -175,7 +173,7 @@ steps:
   - id: end_blocked_failed_event
     type: end
     result: blocked
-    label: Non-paid event logged; transaction stays Pending, customer may retry
+    label: Non-paid event logged; transaction stays Pending, customer may retry; webhook acks 200
   - id: conditional_update
     type: action
     label: "Conditional UPDATE: transactions SET payment_status=Fully Paid, webhook_confirmed_at=now() WHERE payment_reference=sourceId AND payment_status='Pending'"
@@ -197,21 +195,49 @@ steps:
     label: initiated_by = 'customer' AND booking_id present?
     branches:
       - condition: "no"
-        next: end_success_no_stage
+        next: end_success_no_rollup
       - condition: "yes"
-        next: advance_payment_stage
-  - id: end_success_no_stage
+        next: action_recompute
+  - id: end_success_no_rollup
     type: end
     result: success
-    label: Transaction Fully Paid (not a customer-initiated booking payment, e.g. cashier-portal or misc-sale)
-  - id: advance_payment_stage
+    label: Transaction Fully Paid (not a customer-initiated booking payment, e.g. cashier-portal or misc-sale) - no booking touched
+  - id: action_recompute
     type: action
-    label: "Best-effort: advancePaymentStage(bookingId, choice = payment_choice=='downpayment' ? 'advance' : 'onsite') - failure logged, not thrown"
-    next: end_success_stage_advanced
-  - id: end_success_stage_advanced
+    label: "Best-effort recomputeBookingPaymentStatus(booking_id): recompute payment_status from settled booking_payment transactions (net = total_price - discount_amount - promo_amount; paid = sum of non-Pending booking_payment total_amount); set paid_at when Fully Paid. Failure is logged, not rethrown - webhook still acks 200."
+    next: decision_capacity_recheck
+  - id: decision_capacity_recheck
+    type: decision
+    label: "Was this the first payment on a still-Pending, downpayment_required booking (status Pending/In Progress) - does confirmCapacityAfterInsert still win the slot?"
+    branches:
+      - condition: "no (slot filled)"
+        next: action_revert
+      - condition: "yes / not applicable"
+        next: decision_send_notifications
+  - id: action_revert
+    type: action
+    label: "Revert bookings.payment_status -> Pending; throw 409 'that time slot filled up before this payment' (caught + logged by the webhook handler)"
+    next: end_slot_filled
+  - id: end_slot_filled
+    type: end
+    result: error
+    label: "Transaction Fully Paid but booking reverted to Pending - the slot filled while the down payment was unpaid. Money is captured; no automatic refund/re-notify path (flagged edge case)."
+  - id: decision_send_notifications
+    type: decision
+    label: "Was Pending + status still Pending + booking_source = 'Online'?"
+    branches:
+      - condition: "yes"
+        next: action_send_notifications
+      - condition: "no"
+        next: end_success_rolled_up
+  - id: action_send_notifications
+    type: action
+    label: "Send the deferred booking_confirmed notification (+ staff_assigned when a specific staff preference was honored) - best-effort, logged on failure"
+    next: end_success_rolled_up
+  - id: end_success_rolled_up
     type: end
     result: success
-    label: Transaction Fully Paid; booking.payment_stage advanced
+    label: Transaction Fully Paid; bookings.payment_status rolled up (Partially Paid or Fully Paid); a first down payment additionally secures the slot and sends the confirmation alerts
 ---
 
 # M08 · Customer Self-Service Online Payment

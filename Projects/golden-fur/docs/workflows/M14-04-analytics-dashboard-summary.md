@@ -14,6 +14,7 @@ source:
   - server/src/features/reports/services/analytics.service.ts
   - server/src/features/auth/staff/middleware/requireRole/requireRole.middleware.ts
   - supabase/migrations/20260805101_m14_create_reporting_functions.sql
+  - supabase/migrations/20260901157_m14_reporting_functions_settled_only.sql
 steps:
   - id: start
     type: start
@@ -70,7 +71,7 @@ steps:
     next: compute_revenue
   - id: compute_revenue
     type: action
-    label: Sum transactions.total_amount since range_start (branch-scoped) -> total_revenue
+    label: "Sum transactions.total_amount WHERE payment_status = 'Fully Paid' AND created_at >= range_start (branch-scoped) -> total_revenue (migration 20260901157 - Pending/Partially Paid charges are no longer counted)"
     next: compute_booking_counts
   - id: compute_booking_counts
     type: action

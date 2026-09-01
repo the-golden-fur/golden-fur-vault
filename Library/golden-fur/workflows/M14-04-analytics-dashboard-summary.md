@@ -12,7 +12,8 @@ module: M14
 **Code:** `server/src/features/reports/reports.controller.ts`,
 `server/src/features/reports/reports.routes.ts`,
 `server/src/features/reports/services/analytics.service.ts`,
-`supabase/migrations/20260805101_m14_create_reporting_functions.sql`
+`supabase/migrations/20260805101_m14_create_reporting_functions.sql`,
+`supabase/migrations/20260901157_m14_reporting_functions_settled_only.sql`
 **Part of:** [[M14-report-management|M14 · Report Management]]
 
 A Superadmin picks a branch (or leaves it blank for a combined view) and a
@@ -32,7 +33,7 @@ flowchart TD
     G -- "No" --> H(["END: Blocked — invalid time_filter (400)"])
     G -- "Yes" --> I["Call get_analytics_summary(branch_id, time_filter)"]
     I --> J["DB function resolves range_start\n(day/week/month/year trunc of now(),\nor -infinity for All Time)"]
-    J --> K["Sum transactions.total_amount\nsince range_start (branch-scoped)\n-> total_revenue"]
+    J --> K["Sum transactions.total_amount\nWHERE payment_status = 'Fully Paid'\nsince range_start (branch-scoped)\n-> total_revenue"]
     K --> L["Count bookings with\nscheduled_start >= range_start\n(branch-scoped) -> booking_count,\nand count where status = Cancelled\n-> cancelled_count"]
     L --> M{"booking_count > 0?"}
     M -- "No" --> N["cancellation_rate = 0"]
@@ -62,6 +63,13 @@ flowchart TD
   `bookings.scheduled_start`, while `total_revenue` is computed from
   `transactions.created_at` — two different date columns feeding the
   same response, both filtered against the same `range_start`.
+- **`total_revenue` counts only `payment_status = 'Fully Paid'`
+  transactions** (migration `20260901157`). Since the payment/transactions
+  rework a `booking_payment` row is created `Pending` up front, so an
+  unqualified sum would count money not yet collected. `created_at` (not a
+  settlement timestamp) is still the date the row is filtered by, so a
+  charge created inside the window but settled later only enters
+  `total_revenue` once it flips to `Fully Paid`.
 - Cancellation-rate math treats a `booking_count` of zero as a `0` rate
   rather than dividing by zero.
 - This is the only report in M14 restricted to Superadmin; the DSR and

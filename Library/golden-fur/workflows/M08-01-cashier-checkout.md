@@ -19,10 +19,23 @@ module: M08
 
 A money-handling staff member checks out a booking whose underlying service
 has already completed: the system assembles service/discount/promo line
-items, applies any credit (currently a stub), resolves the payment method,
-and persists one `transactions` row plus its `transaction_line_items` —
-`total_amount` is always the server-computed `SUM(line_total)`, never a
-client-supplied figure.
+items, applies any credit, resolves the payment method, and persists one
+`transactions` row plus its `transaction_line_items` — `total_amount` is
+always the server-computed `SUM(line_total)`, never a client-supplied
+figure.
+
+> [!warning] Partially stale after the 2026-09-01 payment/transactions rework
+> This doc has **not** been fully re-verified against the reworked model.
+> Known drift: (1) credit application is **no longer a stub** —
+> `creditStub.service.ts` now wraps the atomic `redeem_credit()` RPC, so
+> the "always $0 applied" note below is wrong; (2) `payment_stage` was
+> dropped (`20260901150`) and replaced by the `payment_status` rollup;
+> (3) whether the cashier checkout screen is still reachable from the staff
+> console at all — given [[M08-04-recording-a-counter-payment|the
+> Transactions page]] now settles per-transaction and the Payments Queue
+> was removed — is **unconfirmed** (the `/billing/checkout` route and
+> `checkoutAggregation.service.ts` still exist server-side). Needs a
+> dedicated pass.
 
 ```mermaid
 flowchart TD
