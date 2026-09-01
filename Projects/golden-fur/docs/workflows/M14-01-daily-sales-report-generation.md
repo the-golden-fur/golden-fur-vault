@@ -4,7 +4,7 @@ module: M14
 title: Daily Sales Report Generation
 actors: [Admin, Supervisor, Superadmin]
 trigger: Admin/Supervisor/Superadmin requests the DSR for a single report_date, optionally overriding branch (Superadmin only)
-outcome_success: DSR JSON returned - breakdown (service_category x payment_method), totals, credit_usage, misc_sales, misc_sales_total
+outcome_success: DSR JSON returned - breakdown (service_category x payment_method), totals, credit_usage, misc_sales, misc_sales_total - all transaction aggregations count only payment_status = 'Fully Paid' rows
 outcome_failure: [unauthorized, forbidden, missing_report_date, rpc_error]
 related_modules: [M08, M10]
 source:
@@ -15,6 +15,7 @@ source:
   - server/src/features/auth/staff/middleware/requireRole/requireRole.middleware.ts
   - server/src/features/auth/staff/middleware/requireBranch/requireBranch.middleware.ts
   - supabase/migrations/20260805101_m14_create_reporting_functions.sql
+  - supabase/migrations/20260901157_m14_reporting_functions_settled_only.sql
 steps:
   - id: start
     type: start
@@ -83,15 +84,15 @@ steps:
     label: Report generation failed (400)
   - id: compute_breakdown
     type: action
-    label: DB function aggregates same-day booking_payment transactions into service_category x payment_method breakdown + totals
+    label: "DB function aggregates same-day (t.created_at::date = report_date), payment_status = 'Fully Paid' booking_payment transactions into a service_category x payment_method breakdown + totals (migration 20260901157 - Pending charges created up front at booking time are excluded so gross is not inflated)"
     next: compute_credit_usage
   - id: compute_credit_usage
     type: action
-    label: DB function computes credit_usage section from credit_transactions redemption rows (branch-scoped via credit_balances)
+    label: "DB function computes credit_usage section from credit_transactions redemption rows (branch-scoped via credit_balances) - now reports real figures since the redeem_credit path shipped (M10-04), no longer always zero"
     next: compute_misc_sales
   - id: compute_misc_sales
     type: action
-    label: DB function computes misc_sales (miscellaneous_sale transactions, grouped by payment_method) + misc_sales_total
+    label: "DB function computes misc_sales (miscellaneous_sale transactions, payment_status = 'Fully Paid', grouped by payment_method) + misc_sales_total"
     next: end_success
   - id: end_success
     type: end

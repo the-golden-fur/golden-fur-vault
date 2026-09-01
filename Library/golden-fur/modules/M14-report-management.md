@@ -25,9 +25,12 @@ category and payment method, totals, a credit-usage section (from
 total/row list — no individual transaction line-item array (the
 `DailySalesReport` TS type has no such field; that granularity is only
 available via the separate Transaction History report below). Passing
-no branch returns a Superadmin combined-branches view. The credit-usage section reads zero until
-checkout's credit-redemption stub ([[M08-sales-billing|M08]]/[[M10-credit-balance-management|M10]]) is replaced with
-the real thing.
+no branch returns a Superadmin combined-branches view. Since migration
+`20260901157` every `transactions` aggregation counts only
+`payment_status = 'Fully Paid'` rows (a `booking_payment` row is now
+created `Pending` up front at booking time — [[M08-sales-billing|M08]]) —
+and the credit-usage section reports real figures now that redemption is
+live ([[M10-credit-balance-management|M10]]).
 
 ## Cage Occupancy Report
 
@@ -50,12 +53,14 @@ server-side to the caller) lives at `/portal/transactions`.
 booking count, cancelled count, and cancellation rate, filterable by
 Today / This Week / This Month / This Year / All Time, per branch or
 combined. Gated to Superadmin at the route layer, distinct from the
-operational DSR ledger.
+operational DSR ledger. `total_revenue` counts only
+`payment_status = 'Fully Paid'` transactions (`20260901157`).
 
 Status-based breakdowns anywhere in this module reflect the current
 five-value booking status (Pending/In Progress/Completed/Cancelled/
-No-show) plus the independent `payment_stage` (Unpaid/Paid in
-Advance/Paid) — see [[M03-appointment-booking|M03]].
+No-show) plus the independent `payment_status` (Pending/Partially
+Paid/Fully Paid — the `payment_stage` enum was dropped in the 2026-09-01
+payment/transactions rework) — see [[M03-appointment-booking|M03]].
 
 ## Workflows
 
@@ -66,7 +71,9 @@ Advance/Paid) — see [[M03-appointment-booking|M03]].
 
 ## Relationship to other modules
 
-Depends on [[M08-sales-billing|M08]] (transaction data), [[M05-pet-hotel-boarding-management|M05]] (cage status), and
-[[M03-appointment-booking|M03]] (booking history, `booking_items`, `payment_stage`). A future Staff
-Utilization Report is anticipated to depend on [[M01-staff-authentication-access-control|M01]]'s branch
+Depends on [[M08-sales-billing|M08]] (transaction data, now filtered to
+`Fully Paid`), [[M05-pet-hotel-boarding-management|M05]] (cage status), and
+[[M03-appointment-booking|M03]] (booking history, `booking_items`,
+`payment_status`). A future Staff Utilization Report is anticipated to
+depend on [[M01-staff-authentication-access-control|M01]]'s branch
 operating-hours/lunch-break configuration.

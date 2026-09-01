@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "Configurable cancellation-to-credit conversion rate (custom #62, Refs #117)",
+    "description": "Verifies the new policy_configurations.cancellation_credit_conversion_rate field on GET/PATCH /bookings/policy (default 100, 0-100 validated) and the cancellation -> credit conversion that applies it. Requests 1-5 are self-contained (policy only). Requests 6-8 exercise POST /bookings/:id/cancel and need a real paid booking - fill booking_id / expected_paid_amount and the customer token first. Run top to bottom. Request 9 restores the rate to 100.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "expected_paid_amount", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /bookings/policy - default row exposes the new field at 100",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const def = body.policies.find(p => p.branch_id === null);",
+              "pm.test('default row has cancellation_credit_conversion_rate', () => pm.expect(def).to.have.property('cancellation_credit_conversion_rate'));",
+              "pm.test('defaults to 100', () => pm.expect(Number(def.cancellation_credit_conversion_rate)).to.eql(100));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. PATCH /bookings/policy - set the system-wide rate to 50",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_credit_conversion_rate\": 50\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('rate echoed as 50', () => pm.expect(Number(body.policy.cancellation_credit_conversion_rate)).to.eql(50));",
+              "pm.test('other fields untouched (credit_expiry_days still present)', () => pm.expect(body.policy).to.have.property('credit_expiry_days'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH /bookings/policy - 150 is rejected 400 (0-100 only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_credit_conversion_rate\": 150\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH /bookings/policy - -1 is rejected 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_credit_conversion_rate\": -1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customer/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customer", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Customer's credit balances BEFORE the cancellation",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/balances",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "balances"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const total = (body.balances || []).reduce((s, b) => s + Number(b.balance), 0);",
+              "pm.collectionVariables.set('credit_total_before', String(total));",
+              "console.log('credit total before:', total);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cancel a paid booking with notice - credit = paid x 50%",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_reason\": \"postman #62 verification\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id}}/cancel",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id}}", "cancel"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('status Cancelled', () => pm.expect(body.booking.status).to.eql('Cancelled'));",
+              "pm.test('credit_issued true (booking was paid, notice met)', () => pm.expect(body.credit_issued).to.eql(true));",
+              "// If you set expected_paid_amount, this asserts the 50% conversion.",
+              "const paid = Number(pm.collectionVariables.get('expected_paid_amount'));",
+              "if (paid) {",
+              "  pm.sendRequest({ url: pm.collectionVariables.get('base_url') + '/credits/balances', method: 'GET', header: { Authorization: 'Bearer ' + pm.collectionVariables.get('customer_access_token') } }, (err, res) => {",
+              "    const total = (res.json().balances || []).reduce((s, b) => s + Number(b.balance), 0);",
+              "    const before = Number(pm.collectionVariables.get('credit_total_before'));",
+              "    pm.test('balance rose by paid x 50%', () => pm.expect(Math.round((total - before) * 100) / 100).to.eql(Math.round(paid * 0.5 * 100) / 100));",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Restore: rate back to 100",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancellation_credit_conversion_rate\": 100\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('restored to 100', () => pm.expect(Number(pm.response.json().policy.cancellation_credit_conversion_rate)).to.eql(100));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

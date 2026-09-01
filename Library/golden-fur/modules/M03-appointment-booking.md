@@ -49,11 +49,14 @@ Hotel regardless of the Service Types config flag meant to govern it
 ## Booking-time discounts and promos
 
 A staff member can apply a standing discount (Senior/PWD/custom,
-cash-only, staff-verified ID) and any user can apply an eligible promo,
-with a live running total before either is confirmed. This is a
-lock-in: `selected_discount_id`/`selected_promo_id` and
-`discount_amount`/`promo_amount` snapshot the applied values.
-`total_price` stays the pre-discount sum of `booking_items`.
+restricted to money-handling roles who verify the ID onsite) and any user
+can apply an eligible promo, with a live running total before either is
+confirmed. This is a lock-in: `selected_discount_id`/`selected_promo_id`
+and `discount_amount`/`promo_amount` snapshot the applied values.
+`total_price` stays the pre-discount sum of `booking_items`. The old
+**Cash-only** restriction on the discount picker went away with the
+payment/transactions rework — no payment method is chosen at booking time
+any more, it's picked per transaction later.
 
 ## Lunch break
 
@@ -98,25 +101,26 @@ customer/pet is already at the counter, paying in full).
 ### Down-payment slot gate (advisor addendum A1–A4)
 
 When the down payment is enabled, an Online booking that hasn't paid any
-of it is a **"pencil booking"**: created `Pending`, `payment_stage =
-'Unpaid'`, but it **reserves no capacity/staff-time slot** — the capacity
+of it is a **"pencil booking"**: created `Pending`, `payment_status =
+'Pending'`, but it **reserves no capacity/staff-time slot** — the capacity
 queries and `get_staff_availability()`'s Check 2 exclude
-`downpayment_required AND payment_stage = 'Unpaid'` rows, so the slot
-stays bookable by other customers. `createBooking` skips the pre/post-
-insert capacity checks for it. It also carries a `downpayment_due_at`
+`downpayment_required AND payment_status = 'Pending'` rows (retargeted from
+`payment_stage = 'Unpaid'` by migration `20260901156`), so the slot stays
+bookable by other customers. `createBooking` skips the pre/post-insert
+capacity checks for it. It also carries a `downpayment_due_at`
 (`now + downpayment_hold_hours`, default 24h); once that passes,
 `applyDownpaymentExpiry` (a lazy read-time sweep, No-show precedent) flips
-it to `Cancelled`. `payment_confirmed` at creation is trusted only for a
-**staff-created** booking (a receptionist at the counter) — a customer's
-self-service booking is never created pre-paid. Paying (Pay flow / cashier
-Mark as Paid) turns it into a real reservation; `advancePaymentStage`
-re-checks capacity at that moment and 409s if the slot filled while it
-sat unpaid. A still-unpaid pencil booking is also excluded from the
-operational queues ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]]) but stays visible in the
-customer's booking list, the Bookings Queue, and the Payments Queue
-([[M08-sales-billing|M08]]) — where `payment_stage = 'Paid in Advance'`
-now reads as **"Partially Paid"** and each row's `…` menu has a
-**View payments** drill-down (date/amount/method per `transactions` row).
+it to `Cancelled`. Settling the first `booking_payment` transaction turns
+it into a real reservation. Both payment paths run
+`applyFirstBookingPaymentSideEffects`: it re-checks capacity and sends the
+deferred `booking_confirmed` / `staff_assigned` alerts. The customer webhook
+path 409s and rolls the payment back on a capacity conflict; the staff
+counter-payment path keeps the payment and leaves the booking overbooked for
+staff to reschedule (see [[M08-04-recording-a-counter-payment|M08-04]]). A still-unpaid pencil
+booking is excluded from the operational queues
+([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]])
+but stays visible in the customer's booking list, the Bookings Queue, and
+the Transactions page ([[M08-sales-billing|M08]]).
 
 ## Booking status lifecycle
 
@@ -131,14 +135,20 @@ Pending → In Progress → Completed
               └── No-show (automatic, lazy, read-time)
 ```
 
-"Paid" was retired from this enum on 2026-08-03. Payment now lives on
-an **independent** `bookings.payment_stage` field: `Unpaid → Paid in
-Advance → Paid`. Status and payment stage can sit at different points
-independently (e.g. Completed + Unpaid).
+"Paid" was retired from this enum on 2026-08-03. Payment lives on an
+**independent** `bookings.payment_status` field — `Pending → Partially
+Paid → Fully Paid`, the **same enum as `transactions.payment_status`**
+(the bespoke `payment_stage` enum was dropped in the 2026-09-01
+payment/transactions rework, migration `20260901150`). Status and payment
+status can sit at different points independently (e.g. Completed +
+Pending).
 
-- `payment_stage` advances via its own action (an "Advance" action),
-  restricted to money-handling roles: Superadmin, Admin, Supervisor,
-  Receptionist, Cashier.
+- `payment_status` is **not** advanced by a dedicated action any more —
+  it is a **rollup** of the booking's `booking_payment` transactions,
+  recomputed by `settle_transaction()` (SQL) / `recomputeBookingPaymentStatus`
+  (app) every time one settles. Payment is collected **per transaction**
+  on the Transactions page ([[M08-04-recording-a-counter-payment|M08-04]]);
+  no payment method is taken at booking creation.
 - No-show is a **lazy, read-time transition** — a Pending booking whose
   scheduled time has passed and was never Started flips to No-show the
   next time it's read (there's no scheduled-job infra).
@@ -147,16 +157,18 @@ independently (e.g. Completed + Unpaid).
 - Admin/Superadmin have a status-override action (forward or backward,
   both fields) to correct mistakes.
 
-## Bookings Queue / Payments Queue split
+## Bookings Queue (Payments Queue folded in)
 
-The Receptionist Bookings Queue (branch-wide, all-categories, current
-day) is **read-only** for status/payment: view, Reschedule, Cancel, New
-booking, nothing else. Every status/payment-advancing action moved to
-dedicated screens — Start/Complete on each category's own execution
-queue ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]]), and a Payments Queue ([[M08-sales-billing|M08]]) that owns
-payment-stage advancement, the Admin/Superadmin override for every
-category, and all actions for the Misc category (which has no execution
-queue of its own).
+The **Payments Queue was removed** in the 2026-09-01 rework. The
+Receptionist Bookings Queue (`ReceptionistBookingsQueuePage`, branch-wide,
+all-categories, current day) absorbed its non-payment responsibilities and
+is **no longer read-only for status**: it now owns Start/Complete, the
+Misc-category (Initial Assessment/Reassessment) Start/Complete plus
+pet-assessment capture, and the Admin/Superadmin status override.
+Recording a payment moved to the per-transaction **Transactions page**
+([[M08-04-recording-a-counter-payment|M08-04]]). Each category's own
+execution queue ([[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]])
+still offers Start/Complete too.
 
 ## Booking safeguards
 
@@ -190,13 +202,19 @@ first load. The same floor is asserted by `createBooking` and by
 
 Depends on [[M01-staff-authentication-access-control|M01]] (availability, hours, lunch break), [[M02-customer-portal-pet-management|M02]] (customer/pet
 data), [[M13-maintenance-packages-services-promos|M13]] (catalog, promos, Service Types), and [[M09-policy-enforcement|M09]]
-(downpayment policy, minimum-notice lead-time floor). Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, payment-stage),
+(downpayment policy, minimum-notice lead-time floor). Feeds [[M04-grooming-management|M04]]–[[M07-health-veterinary-management|M07]] (execution), [[M08-sales-billing|M08]] (billing, `payment_status` rollup),
 [[M09-policy-enforcement|M09]] (policy evaluation on change), [[M10-credit-balance-management|M10]] (credit on qualifying
-cancellation), and [[M11-notification|M11]].
+cancellation), and [[M11-notification|M11]]. `createBooking` also emits the
+first `booking_payment` transaction settled in
+[[M08-04-recording-a-counter-payment|M08-04]].
 
 ## Open items
 
-- Merging all five queue surfaces (Grooming/Hotel/Daycare/Veterinary +
-  Payments Queue + read-only Bookings Queue) into one is still an open
-  design question — not done.
+- Merging the remaining execution queue surfaces
+  (Grooming/Hotel/Daycare/Veterinary) into the Bookings Queue — which
+  already absorbed the Payments Queue — is still an open design question.
 - `cage_picker_enabled` on Service Types has no effect outside Hotel.
+- On a capacity conflict at first payment, the staff counter-payment /
+  pay-with-credit paths keep the payment and leave the booking overbooked
+  for staff to reschedule (unlike the webhook path, which 409s and rolls
+  back) — see [[M08-04-recording-a-counter-payment|M08-04]].
