@@ -40,8 +40,9 @@ The fix bases the credit on what was actually paid, derived from
 **Decision (from clarifying questions):** the rate applies to the _actual
 amount paid_ (`Paid` → net total, `Paid in Advance` → down payment, `Unpaid`
 → 0), not just the configured down payment. Navbar shows one summed peso
-total across branches with a wallet icon, hidden at zero, linking to
-`/portal`.
+total across branches with a wallet icon, linking to `/portal`. It is
+**always shown, including at a ₱0.00 balance** (changed on live feedback
+from an initial "hidden at zero" design, so customers discover the feature).
 
 ## What changed
 
@@ -90,8 +91,8 @@ total across branches with a wallet icon, hidden at zero, linking to
   `CreditBalanceProvider` (self-reads `listCreditBalances`, exposes
   `{ balances, total, isLoading, refresh }`), `useCreditBalance`.
 - `features/credits/components/CreditBalanceIndicator/` (new) — navbar pill:
-  `<Wallet>` + summed total, renders nothing while first-loading or at a
-  zero total, links to `/portal`.
+  `<Wallet>` icon + summed total, always rendered (shows `₱0.00` at a zero
+  balance), links to `/portal`.
 - `shared/components/AppShell/AppShell.tsx` + `shared/components/Navbar/Navbar.tsx`
   — new optional `creditIndicator` prop, threaded through like
   `notificationBell` / `composeButton`.
@@ -123,18 +124,18 @@ total across branches with a wallet icon, hidden at zero, linking to
    credit" field shows `100`. Set notice enforcement to **Soft** (so you can
    test without waiting days), set the rate to **50**, save.
 2. **Customer** → create an online booking that requires a down payment; pay
-   the down payment (PayMongo sandbox). Confirm the navbar shows **no**
-   credit pill yet.
+   the down payment (PayMongo sandbox). The navbar credit pill shows
+   **₱0.00** (always visible).
 3. Cancel that booking (My Bookings → Cancel → confirm modal).
    - Success banner: "converted into account credit…".
-   - Navbar pill appears showing **50% of what was paid**.
+   - Navbar pill updates to **50% of what was paid**.
    - `/portal` branch card shows the same figure.
    - SQL: `select amount, cancellation_log_id from credit_transactions order by created_at desc limit 1;`
      → one `issuance` row, `amount` = 50% of paid, `cancellation_log_id` set.
 4. Set the rate back to **100**, cancel a **fully-paid** booking with notice
    → credit = the full discounted net total (not just a down-payment slice).
 5. Cancel an **unpaid** down-payment reservation with notice → `credit_issued: false`,
-   no `credit_transactions` row, pill unchanged.
+   no `credit_transactions` row, pill still ₱0.00.
 6. Cancel a booking with notice **not met** under Strict → `credit_issued: false`,
    payment forfeited (unchanged behaviour).
 7. #117: covered by the new unit test — a failing `cancellation_logs`
