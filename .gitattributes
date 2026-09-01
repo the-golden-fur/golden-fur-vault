@@ -1,0 +1,17 @@
+# Line endings: store every text file as LF, and check it out as LF on every
+# platform (Windows included). Without this, `core.autocrlf=true` checks the
+# LF-committed markdown out as CRLF on Windows, so `prettier`/`git` see
+# hundreds of files as "modified" and `format:check` disagrees with CI.
+* text=auto eol=lf
+
+# Binary assets: never normalize, never diff as text.
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary

@@ -1,18 +1,17 @@
 # Pre-commit checks
 
 **Purpose:** run every `(check)`/`(fix)`-labeled VS Code task in
-`.vscode/tasks.json` — currently just Prettier formatting — before code
-gets committed, so formatting issues are caught and auto-corrected
-locally instead of failing this repo's format-check CI job or needing
-manual cleanup after the fact.
+`.vscode/tasks.json` — currently just Prettier formatting — to catch and
+auto-correct formatting issues locally instead of failing this repo's
+format-check CI job.
 
 **Use whenever:**
 
-- **Always, as the first step of the `commit` skill** — run this before
-  staging/writing the commit message, every time a local commit is made in
-  this repo.
-- On request, standalone — "run the checks", "format this" — at any other
-  point while working.
+- **As a step of the `pr` skill** (before `ci-verifier`, which is
+  read-only and won't fix) — not on every commit. A plain `commit` has no
+  format gate.
+- On request, standalone — "run the checks", "format this" — at any point
+  while working, or just before opening a PR.
 
 ## Process
 
@@ -26,6 +25,15 @@ manual cleanup after the fact.
    to the user before committing rather than committing broken content.
 4. Only proceed to stage/commit once the check passes clean, or the user
    explicitly says to commit anyway with known issues outstanding.
+
+## Windows CRLF false-diff
+
+The repo's `.gitattributes` (`* text=auto eol=lf`) checks every text file
+out as LF on every platform, so `npm run format` and `git status` no
+longer disagree with CI over line endings. If a working tree that predates
+`.gitattributes` still shows a big unrelated diff, `git add -A` then
+`git restore --staged .` to normalize the comparison — only files still
+modified after that are real.
 
 ## Scope — deliberately narrow
 
