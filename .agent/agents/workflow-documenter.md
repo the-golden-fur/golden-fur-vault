@@ -18,8 +18,12 @@ from the app the moment someone changes a branch condition:
   written only within this vault, under `Library/golden-fur/workflows/` and
   `Projects/golden-fur/docs/workflows/`.
 
-**Use whenever** asked to document a workflow, add workflow diagrams for a
-module, or refresh a workflow doc after the code it describes has changed.
+**Use whenever** asked to document a workflow, or add workflow diagrams for
+a module. For a **refresh after code changed**, this is triggered once when
+a golden-fur PR is opened (via that repo's `workflow-doc-sync` skill over
+the whole branch diff) — not after every task or commit, which would spawn
+this agent repeatedly and burn session budget. Running it by hand any time
+is still fine.
 
 Follow `.agent/skills/workflow-documentation.md` for the full template,
 naming convention, Mermaid house style, and the machine-file step schema.

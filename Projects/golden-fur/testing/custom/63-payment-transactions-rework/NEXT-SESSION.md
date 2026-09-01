@@ -8,6 +8,47 @@ status: in-progress
 
 # Payment/transactions rework — next-session handoff
 
+## 2026-09-01 follow-up session — gaps A–D + N3/N5 done
+
+PR #135 merged to `dev` (squash, `a2b6759`). The fixes below landed on a fresh
+branch **`fix/payment-rework-followups`** (off `dev`):
+
+- **A (done)** — `CreditBalanceProvider`: `Number()`-coerce the PG-numeric
+  `balance` at the `credits.api.ts` boundary + defensive coerce in the `total`
+  reduce; added a `window` `focus` / `visibilitychange` refetch. New
+  `CreditBalanceProvider.spec.tsx`.
+- **B (done)** — customer-chosen partial balance payments. New
+  `POST /bookings/:id/balance-payment` (jwt-only) →
+  `addCustomerBalancePayment` (checks ownership, `payment_status ===
+'Partially Paid'`, and no pending charge) → existing `add_booking_payment`
+  RPC with `p_processed_by: null`. `payForBooking` now pays an existing `balance` charge
+  for its own amount instead of recomputing to the full remainder. Customer
+  Transaction History page gained a "Pay part of … balance" affordance + amount
+  modal; eligibility/remaining via new `reports/utils/payableBalances.ts`.
+  **N1 still deferred** (RPC `v_remaining` nets settled-only; the one-pending-
+  charge guard covers it for now).
+- **C (done)** — re-added the "Transactions" tile to the `supervisor` dashboard
+  and the `admin` dashboard's "Supervisor" section
+  (`staffDashboard.config.ts`); `Supervisor` is in
+  `TRANSACTION_HISTORY_READ_ROLES`. Dropped the dead `'Transaction History'`
+  `TILE_ICONS` key.
+- **D (done)** — deleted `features/billing/pages/TransactionsPage/` + its route;
+  ported the add-balance-payment form into the live `TransactionHistoryTable`
+  (staff, via existing `addBookingPayment`). Removed the now-dead client
+  `COUNTER_PAYMENT_METHODS` + `PaymentMethodForm` `methods` prop (server
+  `COUNTER_PAYMENT_METHODS` kept — validator uses it).
+- **N3 (done)** — "Due payments only" toggle on both transaction pages.
+- **N5 (done)** — `CustomerBookingsPage` comment verified accurate, no change.
+- **Still open**: N1, N2 (needs `transactions.cash_tendered/change_given`
+  column), N4 (compliance sign-off), and Part 2 (customer credit-expiry
+  visibility) — see the plan file.
+
+No new migration. Server `vitest` 931/931, client `vitest` 739/739, tsc + lint
+clean. `format:check` not runnable locally (working tree is CRLF via
+`core.autocrlf`); CI validates on LF.
+
+---
+
 Branch: **`feat/payment-transactions-rework`** (golden-fur), pushed through
 `1a50f76`. Vault docs branch: **`docs/configurable-credit-conversion-rate`**,
 PR **#17**. All 9 migrations (`20260901150`–`158`) are **applied to the linked

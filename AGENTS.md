@@ -73,7 +73,10 @@ instructions for this vault's reusable AI workflows:
   file for prompt-injection/scope-creep risk before it's adopted.
 - `workflow-documenter` — the one deliberate exception to "vault-only":
   reads the sibling `../golden-fur` code repo to ground workflow docs in
-  real behavior, but only ever writes within this vault.
+  real behavior, but only ever writes within this vault. Code-change
+  refreshes are triggered once per golden-fur PR (that repo's
+  `workflow-doc-sync` skill runs it over the whole branch diff), not after
+  every task or commit.
 - `testing-documenter` — another deliberate "vault-only" exception: reads
   `../golden-fur`'s diff/log and runs its test suites to write the
   verification record for a change just implemented, but only ever writes
