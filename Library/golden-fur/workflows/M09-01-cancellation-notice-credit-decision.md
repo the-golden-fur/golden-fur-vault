@@ -35,7 +35,7 @@ flowchart TD
     H -- "Met" --> I
     H -- "Not met" --> I
     I --> J["Write cancellation_logs row\n(notice_period_met, enforcement_mode_applied,\npolicy_violation = enforced AND NOT met)\n— best-effort, may return null"]
-    J --> K["amountPaid from payment_stage\n(Paid → net total · Paid in Advance → downpayment · Unpaid → 0);\ncreditAmount = round2(amountPaid × rate / 100)"]
+    J --> K["confirmedAmountPaid = SUM of the booking's booking_payment\ntransactions with payment_status != 'Pending';\ncreditAmount = round2(confirmedAmountPaid × rate / 100)"]
     K --> L{"notice_period_met = true\nAND creditAmount > 0?\n(not gated on the log write)"}
     L -- "No" --> P["Send booking_cancelled\nnotification (best-effort)"]
     L -- "Yes" --> M["Call issue_credit() RPC\n(atomic balance increment\n+ credit_transactions row;\ncancellation_log_id may be null)"]
@@ -56,19 +56,23 @@ flowchart TD
   now `issueCredit` is called with a `null` `cancellation_log_id`
   (`credit_transactions.cancellation_log_id` is nullable) and only the
   log-row summary is lost.
-- **The amount converted is what was actually paid, times a rate.**
-  `amountPaid` is read from `bookings.payment_stage` — `Paid` → the
-  discounted net total, `Paid in Advance` → `downpayment_amount`, `Unpaid`
-  → `0`. `creditAmount = round2(amountPaid × cancellation_credit_conversion_rate
-/ 100)`, where the rate is a branch-scoped `policy_configurations` column
-  (`0`–`100`, default `100`), editable on Settings → Config → Policies. So a
-  fully-paid booking of any category can now qualify (not just Hotel /
-  down-payment bookings), and an unpaid down-payment reservation cancelled
-  before its hold expires gets nothing.
+- **The amount converted is what was _confirmed-paid_, times a rate.**
+  `confirmedAmountPaid` is `SUM(total_amount)` of the booking's
+  `booking_payment` `transactions` whose `payment_status` is not `'Pending'`
+  (a settled downpayment is `'Partially Paid'`, a settled full/remaining
+  payment is `'Fully Paid'`) — **not** `bookings.payment_stage`, which an
+  Online booking with no down-payment requirement can reach (`'Paid'`)
+  before any money is collected. `creditAmount = round2(confirmedAmountPaid ×
+cancellation_credit_conversion_rate / 100)`, where the rate is a
+  branch-scoped `policy_configurations` column (`0`–`100`, default `100`),
+  editable on Settings → Config → Policies. So a fully-paid booking of any
+  category can qualify (not just Hotel / down-payment bookings), and a
+  booking with no confirmed transaction — an unpaid down-payment
+  reservation, or one wrongly at `payment_stage = 'Paid'` — gets nothing.
 - `notice_enforcement_enabled = false` short-circuits the whole check to
   "met" (`evaluateNoticePeriod` returns `{ enforced: false, met: true }`),
-  so a disabled policy always qualifies for credit if the customer paid
-  something and the rate is above 0.
+  so a disabled policy always qualifies for credit if the customer has a
+  confirmed payment and the rate is above 0.
 - `issueCredit()` wraps a single atomic Postgres function (`issue_credit`,
   migration `...097`) rather than a separate balance-read + insert, so the
   `credit_balances` increment and the `credit_transactions` issuance row

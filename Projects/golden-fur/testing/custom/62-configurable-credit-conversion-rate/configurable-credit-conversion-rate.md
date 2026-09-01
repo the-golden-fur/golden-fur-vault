@@ -32,17 +32,30 @@ is nullable, so the two never needed to be chained.
 
 **Second gap found while fixing.** The old logic keyed off `downpayment_amount`,
 so a booking **paid in full** got credit for only the down-payment slice (or
-nothing, if no down payment was configured), and a still-`Unpaid`
-down-payment reservation could be issued credit for money never received.
-The fix bases the credit on what was actually paid, derived from
-`bookings.payment_stage`.
+nothing, if no down payment was configured). The rate now applies to what
+the customer actually paid.
 
-**Decision (from clarifying questions):** the rate applies to the _actual
-amount paid_ (`Paid` → net total, `Paid in Advance` → down payment, `Unpaid`
-→ 0), not just the configured down payment. Navbar shows one summed peso
-total across branches with a wallet icon, linking to `/portal`. It is
-**always shown, including at a ₱0.00 balance** (changed on live feedback
-from an initial "hidden at zero" design, so customers discover the feature).
+**Third gap — live testing, the one that actually matters.** Basing the
+paid amount on `bookings.payment_stage` was still wrong: a customer
+self-service Online booking that requires **no** down payment lands at
+`payment_stage = 'Paid'` at creation (see the `paymentStage` ternary in
+`booking.service.ts` — the `downpaymentRequired ? 'Unpaid' : undefined`
+branch, where `undefined` → column default, but these rows still read
+`'Paid'`), so cancelling one minted credit for money that was never
+collected. Reported: Customer 1's balance jumped `0 → 1386` from cancelling
+two never-paid ₱693 Grooming bookings. **Fix:** `confirmedAmountPaid()` now
+sums the booking's `booking_payment` `transactions` whose `payment_status`
+is not `'Pending'` (a cashier / the PayMongo webhook actually settled them —
+`'Partially Paid'` for a downpayment, `'Fully Paid'` for a full/remaining
+payment). No confirmed transaction → no credit. _(The `payment_stage = 'Paid'`
+-without-payment behaviour itself is a separate pre-existing booking-flow
+bug, flagged for a later pass — this change just stops trusting it.)_
+
+**Decision (from clarifying questions + live feedback):** the rate applies
+to the confirmed-paid amount, not the configured down payment. Navbar shows
+one summed peso total across branches with a wallet icon, linking to
+`/portal`, **always shown, including at a ₱0.00 balance** (changed from an
+initial "hidden at zero" design so customers discover the feature).
 
 ## What changed
 
@@ -65,10 +78,10 @@ from an initial "hidden at zero" design, so customers discover the feature).
   `cancellation_credit_conversion_rate: z.number().min(0).max(100).optional()`
   (the object is `.strict()`, so the field must be declared).
 - `services/cancellation.service.ts` — core change:
-  - new `amountPaidOnBooking(booking)` helper derives the paid amount from
-    `payment_stage` (`Paid` → `total_price − discount_amount − promo_amount`;
-    `Paid in Advance` → `downpayment_amount`; else `0`).
-  - `creditAmount = round2(amountPaidOnBooking(booking) × rate / 100)`;
+  - new `confirmedAmountPaid(bookingId)` helper: `SUM(total_amount)` of the
+    booking's `transactions` where `transaction_type = 'booking_payment'`
+    AND `payment_status != 'Pending'`. Skipped (→ 0) when notice wasn't met.
+  - `creditAmount = round2(confirmedAmountPaid × rate / 100)`;
     `qualifies = notice.met && creditAmount > 0`.
   - credit issuance block no longer gated on `log`; `issueCredit` is called
     with `cancellationLogId: log?.id ?? null`; the log patch runs only when a
@@ -114,28 +127,31 @@ from an initial "hidden at zero" design, so customers discover the feature).
    → 200, response echoes `50`.
 4. `4. PATCH /bookings/policy` `{ "cancellation_credit_conversion_rate": 150 }`
    → 400 (validator: 0–100).
-5. Cancel flow is environment-dependent (needs a paid booking id) — steps
-   `5`–`7` are templated; fill `booking_id` and run against a booking whose
-   `payment_stage` is `Paid in Advance`.
+5. Cancel flow is environment-dependent (needs a booking with a confirmed
+   `booking_payment` transaction) — steps `6`–`8` are templated; fill
+   `booking_id` / `expected_paid_amount` and run against a booking a cashier
+   has marked paid.
 
 ### Manual — full pipeline (dev servers up; migration pushed to the linked non-prod Supabase)
 
 1. **Admin** → Settings → Config → Policies. Confirm the new "Cancellation
    credit" field shows `100`. Set notice enforcement to **Soft** (so you can
    test without waiting days), set the rate to **50**, save.
-2. **Customer** → create an online booking that requires a down payment; pay
-   the down payment (PayMongo sandbox). The navbar credit pill shows
-   **₱0.00** (always visible).
-3. Cancel that booking (My Bookings → Cancel → confirm modal).
+2. **Customer** → create an online booking that requires a down payment. The
+   navbar credit pill shows **₱0.00** (always visible).
+3. **Cancel it now, before paying** → `credit_issued: false`, no
+   `credit_transactions` row, pill still ₱0.00 (this is the reported bug — an
+   uncollected booking must not mint credit, even if its `payment_stage`
+   reads `Paid`).
+4. Create another, **pay the down payment** (PayMongo sandbox, or a cashier
+   marks the `booking_payment` transaction paid). Then cancel it.
    - Success banner: "converted into account credit…".
    - Navbar pill updates to **50% of what was paid**.
    - `/portal` branch card shows the same figure.
    - SQL: `select amount, cancellation_log_id from credit_transactions order by created_at desc limit 1;`
-     → one `issuance` row, `amount` = 50% of paid, `cancellation_log_id` set.
-4. Set the rate back to **100**, cancel a **fully-paid** booking with notice
-   → credit = the full discounted net total (not just a down-payment slice).
-5. Cancel an **unpaid** down-payment reservation with notice → `credit_issued: false`,
-   no `credit_transactions` row, pill still ₱0.00.
+     → one `issuance` row, `amount` = 50% of the settled down payment.
+5. Set the rate back to **100**, cancel a **fully-paid** booking with notice
+   → credit = the full settled amount (down payment + remaining balance).
 6. Cancel a booking with notice **not met** under Strict → `credit_issued: false`,
    payment forfeited (unchanged behaviour).
 7. #117: covered by the new unit test — a failing `cancellation_logs`
@@ -147,17 +163,32 @@ from an initial "hidden at zero" design, so customers discover the feature).
 ## Test suites
 
 - `server`: `npx vitest run` — 917/917 passing (86 files); `npx tsc --noEmit` clean.
-  `cancellation.service.spec.ts` gains 4 cases (rate scaling, fully-paid
-  conversion, unpaid → no credit, #117 log-failure still issues).
+  `cancellation.service.spec.ts` (13 cases): rate scaling, full settled-amount
+  conversion, **`payment_stage: 'Paid'` with no confirmed transaction → no
+  credit**, notice-not-met → no credit, #117 log-failure still issues.
 - `client`: `npx vitest run` — 740/740 passing (143 files); `npx tsc --noEmit` clean.
-  New `CreditBalanceIndicator.spec.ts` (3 cases); `CustomerBookingsPage.spec.ts`
-  and `CustomerAuthGuard.spec.ts` updated for the provider.
+  New `CreditBalanceIndicator.spec.ts` (3 cases, incl. renders `₱0.00` at zero);
+  `CustomerBookingsPage.spec.ts` and `CustomerAuthGuard.spec.ts` updated for
+  the provider. (One unrelated pre-existing failure on `dev`:
+  `AdminPromoConfigPage.spec.ts > the timing filter narrows to Ended promos`,
+  a date-sensitive flake — not touched by this change.)
 - Root: `npm run format:check` clean; `npm --prefix client run lint` clean;
   `npm --prefix server run lint` clean (0 errors, pre-existing `no-console`
   warnings only); `npm --prefix client run build` succeeds.
 
 ## Open items
 
+- **`payment_stage = 'Paid'` on an uncollected Online booking** is a
+  separate pre-existing booking-flow bug (a customer self-service Online
+  Grooming/Vet booking with no down-payment requirement reads `'Paid'` at
+  creation). This change stops the credit path trusting it, but the
+  mislabelled `payment_stage` itself is still there — the user plans to
+  revisit the payment-confirmation model (possibly folding the Payments
+  Queue into the Transactions page) in a later request.
+- **Stale test data:** Customer 1's `credit_balances` row (₱1386) and its
+  two ₱693 issuance `credit_transactions` were minted by the interim
+  `payment_stage`-based version against never-paid bookings — needs zeroing
+  / deleting on the linked project.
 - **Checkout redemption is still a stub** (unchanged) — issued credit still
   can't be spent at checkout; DSR credit-usage still reads zero. Out of
   scope here.

@@ -23,6 +23,7 @@ source:
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
   - supabase/migrations/20260808111_m03_m08_bookings_downpayment_generalize.sql
   - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
+  - supabase/migrations/20260731068_m08_create_transactions_schema.sql
 steps:
   - id: start
     type: start
@@ -83,7 +84,7 @@ steps:
     next: compute_credit_amount
   - id: compute_credit_amount
     type: action
-    label: "amountPaid from booking.payment_stage (Paid -> net total; Paid in Advance -> downpayment_amount; Unpaid -> 0); creditAmount = round2(amountPaid * policy.cancellation_credit_conversion_rate / 100)"
+    label: "confirmedAmountPaid = SUM(total_amount) of the booking's transactions where transaction_type='booking_payment' AND payment_status != 'Pending' (NOT bookings.payment_stage); creditAmount = round2(confirmedAmountPaid * policy.cancellation_credit_conversion_rate / 100)"
     next: check_credit_qualifies
   - id: check_credit_qualifies
     type: decision

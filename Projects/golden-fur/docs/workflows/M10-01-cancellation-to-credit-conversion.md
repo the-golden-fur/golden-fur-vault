@@ -21,6 +21,7 @@ source:
   - supabase/migrations/20260805097_m10_create_credit_transactions_schema.sql
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
   - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
+  - supabase/migrations/20260731068_m08_create_transactions_schema.sql
 steps:
   - id: start
     type: start
@@ -64,7 +65,7 @@ steps:
     next: compute_paid
   - id: compute_paid
     type: action
-    label: "Compute amountPaid from bookings.payment_stage: Paid -> net total (total_price - discount_amount - promo_amount); Paid in Advance -> downpayment_amount; Unpaid/unset -> 0"
+    label: "confirmedAmountPaid = SUM(total_amount) of the booking's transactions where transaction_type = 'booking_payment' AND payment_status != 'Pending' (a settled downpayment is 'Partially Paid', a settled full/remaining payment is 'Fully Paid'). NOT bookings.payment_stage. Skipped (0) when notice was not met."
     next: compute_credit
   - id: compute_credit
     type: action

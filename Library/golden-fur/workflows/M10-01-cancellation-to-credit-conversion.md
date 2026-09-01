@@ -17,8 +17,12 @@ module: M10
 A customer or staff member cancels a booking. Cancellation itself is never
 blocked by an unmet notice period — what the notice outcome decides is
 whether the money the customer already paid is converted into branch-locked
-credit or simply forfeited. When it is converted, only a configurable
-percentage of the paid amount becomes credit
+credit or simply forfeited. "Money paid" means the booking's **confirmed**
+`booking_payment` transactions (a cashier or the PayMongo webhook has moved
+them off `Pending`), not `bookings.payment_stage` — an Online booking with
+no down-payment requirement can read `payment_stage = 'Paid'` before a peso
+is collected, and cancelling that must not mint credit. When credit is
+issued, only a configurable percentage of the paid amount becomes credit
 (`cancellation_credit_conversion_rate`, default 100% — the advisor asked for
 this to be adjustable, e.g. down to 50%, so a late-ish cancellation can keep
 part of the payment as a charge).
@@ -32,8 +36,8 @@ flowchart TD
     E --> F{"Booking update\nsucceeded?"}
     F -- "No" --> G(["END: Blocked — failed to cancel booking (400)"])
     F -- "Yes" --> H["Write cancellation_logs row\n(credit_issued=false, credit_amount=null by default;\nbest-effort — insert failure returns null, not a throw)"]
-    H --> I["Compute amountPaid from payment_stage:\nPaid → net total · Paid in Advance → downpayment · Unpaid → 0"]
-    I --> I2["creditAmount = round2(amountPaid ×\ncancellation_credit_conversion_rate / 100)"]
+    H --> I["confirmedAmountPaid = sum of the booking's booking_payment\ntransactions with payment_status != 'Pending' (skipped if notice unmet)"]
+    I --> I2["creditAmount = round2(confirmedAmountPaid ×\ncancellation_credit_conversion_rate / 100)"]
     I2 --> J{"Qualifies for credit?\n(notice period met AND creditAmount > 0)"}
     J -- "No" --> K["No credit attempted\n(notice missed → payment forfeited,\nor nothing was paid,\nor rate is 0%)"]
     J -- "Yes" --> L{"credit_expiry_enabled\non the branch's policy?"}
@@ -58,15 +62,16 @@ flowchart TD
   pair inside `issue_credit()` itself is atomic (a single PL/pgSQL function,
   `SECURITY DEFINER`, called via RPC) — see
   `supabase/migrations/20260805097_m10_create_credit_transactions_schema.sql`.
-- **What gets converted is the amount actually paid, not the configured
-  downpayment.** `amountPaid` is derived from `bookings.payment_stage`:
-  `Paid` → the discounted net total (`total_price − discount_amount −
-promo_amount`); `Paid in Advance` → `downpayment_amount`; `Unpaid` (or
-  unset) → `0`. So a booking paid in full returns its whole net total, a
-  booking that only paid the downpayment returns the downpayment, and an
-  unpaid booking (e.g. a still-Pending down-payment reservation cancelled
-  before its hold expires) returns nothing — no credit for money the
-  business never received.
+- **What gets converted is the amount _confirmed-paid_, not the configured
+  downpayment and not `payment_stage`.** `confirmedAmountPaid` is the sum of
+  the booking's `booking_payment` `transactions` rows whose `payment_status`
+  is not `'Pending'` — a cashier or the PayMongo webhook has actually
+  settled them (`'Partially Paid'` for a down payment, `'Fully Paid'` for a
+  full/remaining payment). A booking paid in full returns its whole settled
+  amount; a downpayment-only booking returns the downpayment; a booking with
+  no confirmed transaction — including an Online booking wrongly sitting at
+  `payment_stage = 'Paid'` with nothing collected, or a still-Pending
+  down-payment reservation — returns nothing.
 - **The conversion rate** is `policy_configurations.cancellation_credit_conversion_rate`
   — a percentage `0`–`100`, `NOT NULL DEFAULT 100`, branch-scoped and
   resolved by the same `resolveEffectivePolicy()` used for the notice
@@ -77,7 +82,7 @@ promo_amount`); `Paid in Advance` → `downpayment_amount`; `Unpaid` (or
 - A Strict-mode unmet notice period never blocks cancellation the way it
   blocks a _reschedule_ — it only withholds credit. This mirrors the
   distinction already documented for reschedule's own notice check.
-- Any booking that was actually paid can now qualify — including a
+- Any booking with a confirmed payment can now qualify — including a
   fully-paid Grooming/Daycare/Veterinary booking, which previously could
   never get credit because the old logic keyed off `downpayment_amount`
   alone. The notice period still has to be met.
