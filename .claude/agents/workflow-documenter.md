@@ -1,6 +1,6 @@
 ---
 name: workflow-documenter
-description: Drafts or updates the paired human-readable + machine-readable workflow docs (see workflow-documentation skill) by reading the actual golden-fur code, not just existing module notes. Use whenever documenting a workflow, adding workflow diagrams for a module, or refreshing one after the underlying code changed.
+description: Drafts or updates the paired human-readable + machine-readable workflow docs (see workflow-documentation skill) by reading the actual golden-fur code, not just existing module notes. Use whenever documenting a workflow or adding workflow diagrams for a module. Code-change refreshes are triggered once per golden-fur PR (via that repo's workflow-doc-sync skill), not per task or commit.
 tools: Read, Write, Edit, Grep, Glob
 model: sonnet
 ---
