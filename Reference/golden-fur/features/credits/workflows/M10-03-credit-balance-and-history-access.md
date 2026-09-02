@@ -4,7 +4,7 @@ module: M10
 title: Credit Balance & History Access
 actors: [Customer, Cashier, Admin, Superadmin]
 trigger: "A customer or staff member calls GET /credits/balances or GET /credits/history"
-outcome_success: returns the caller-authorized customer's credit_balances (all branches) or credit_transactions history (one branch), empty array if none exist
+outcome_success: returns the caller-authorized customer's credit_balances (all branches, each enriched best-effort with next_expires_at / next_expires_amount) or credit_transactions history (one branch), empty array if none exist
 outcome_failure:
   [
     unauthorized,
@@ -19,8 +19,11 @@ source:
   - server/src/features/credits/credits.routes.ts
   - server/src/features/credits/credits.types.ts
   - server/src/features/credits/modules/validators/credits.validator.ts
+  - server/src/features/credits/modules/creditExpiry.util.ts
   - supabase/migrations/20260805096_m10_create_credit_balances_schema.sql
   - supabase/migrations/20260805097_m10_create_credit_transactions_schema.sql
+  - supabase/migrations/20260902159_m10_policy_credit_expiry_mode.sql
+  - supabase/migrations/20260902160_m10_credit_expiry_manila_end_of_day.sql
 steps:
   - id: start
     type: start
@@ -109,11 +112,35 @@ steps:
   - id: query_balances
     type: action
     label: Query credit_balances where customer_id = target, ordered by branch_id
+    next: check_any_balances
+  - id: check_any_balances
+    type: decision
+    label: Any balance rows returned?
+    branches:
+      - condition: "no"
+        next: end_success_balances
+      - condition: "yes"
+        next: enrich_expiry
+  - id: enrich_expiry
+    type: action
+    label: "Best-effort enrichment: one extra query against credit_transactions (transaction_type='issuance', expired_at IS NULL, expires_at IS NOT NULL) for all returned balance ids, ordered by expires_at asc. Group lots by balance; per row nextExpiry() = the soonest Manila-calendar-day lot total (manilaDayKey), capped at MIN(nominal, current balance) — mirrors expire_credits() FIFO. Sets next_expires_at (manilaEndOfDayIso of that day) + next_expires_amount"
+    next: check_enrich_error
+  - id: check_enrich_error
+    type: decision
+    label: Did the credit_transactions enrichment query error?
+    branches:
+      - condition: "yes"
+        next: enrich_degraded
+      - condition: "no"
+        next: end_success_balances
+  - id: enrich_degraded
+    type: action
+    label: "Log the error (console.error) and return the bare balances with next_expires_at = next_expires_amount = null — the list is NOT 400'd"
     next: end_success_balances
   - id: end_success_balances
     type: end
     result: success
-    label: Returns balances array (one row per branch, may be empty)
+    label: "Returns balances array (one row per branch, may be empty); each row carries next_expires_at / next_expires_amount (null when nothing expires, balance <= 0, or enrichment failed)"
   - id: lookup_balance_row
     type: action
     label: Look up credit_balances row for (target, branch_id)

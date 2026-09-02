@@ -1,0 +1,290 @@
+{
+  "info": {
+    "name": "65 - Credit expiry visibility & config",
+    "description": "API-level checks for session 65: the credit_expiry_mode / credit_expiry_fixed_date fields on PATCH /bookings/policy (and their mutual-exclusivity validation), the new next_expires_at / next_expires_amount on GET /credits/balances, and POST /credits/expire. Run top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "A real branches.id to scope the policy override + credit checks to"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin/Superadmin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. PATCH policy - rolling mode (should succeed)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"credit_expiry_mode\": \"rolling\",\n  \"credit_expiry_days\": 30\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('mode saved as rolling', () => pm.expect(b.credit_expiry_mode).to.eql('rolling'));",
+              "pm.test('fixed date is null in rolling mode', () => pm.expect(b.credit_expiry_fixed_date).to.eql(null));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH policy - fixed_date without a date (should 400)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"credit_expiry_mode\": \"fixed_date\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH policy - rolling + a fixed date together (should 400)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"credit_expiry_mode\": \"rolling\",\n  \"credit_expiry_days\": 30,\n  \"credit_expiry_fixed_date\": \"2026-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - only one or the other', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. PATCH policy - fixed_date with a date (should succeed, retroactive)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"credit_expiry_mode\": \"fixed_date\",\n  \"credit_expiry_fixed_date\": \"2026-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('mode saved', () => pm.expect(b.credit_expiry_mode).to.eql('fixed_date'));",
+              "pm.test('date saved', () => pm.expect(b.credit_expiry_fixed_date).to.eql('2026-12-31'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GET /credits/balances (customer) - carries next_expires_*",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/balances",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "balances"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const rows = pm.response.json().balances;",
+              "pm.test('every row has the expiry fields', () => rows.forEach((r) => {",
+              "  pm.expect(r).to.have.property('next_expires_at');",
+              "  pm.expect(r).to.have.property('next_expires_amount');",
+              "}));",
+              "const dated = rows.find((r) => r.next_expires_at);",
+              "if (dated) pm.test('dated row: amount is <= balance and > 0', () => {",
+              "  pm.expect(Number(dated.next_expires_amount)).to.be.above(0);",
+              "  pm.expect(Number(dated.next_expires_amount)).to.be.at.most(Number(dated.balance));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. POST /credits/expire (Admin) - run the sweep",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/credits/expire",
+          "host": ["{{base_url}}"],
+          "path": ["credits", "expire"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('reports a swept count', () => pm.expect(pm.response.json()).to.have.property('expired_count'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Reset the branch policy to rolling/30",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"credit_expiry_mode\": \"rolling\",\n  \"credit_expiry_days\": 30\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    }
+  ]
+}
