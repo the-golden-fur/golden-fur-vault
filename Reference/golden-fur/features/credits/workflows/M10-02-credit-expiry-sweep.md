@@ -4,7 +4,7 @@ module: M10
 title: Credit Expiry Sweep
 actors: [System, Admin, Superadmin]
 trigger: Daily pg_cron schedule (if pg_cron installed) OR an Admin/Superadmin manually calls POST /credits/expire
-outcome_success: every not-yet-swept issuance row past its expires_at gets an offsetting expiry credit_transactions row (capped at current balance) and its expired_at marked; returns count swept
+outcome_success: every not-yet-swept issuance row past its expires_at gets an offsetting expiry credit_transactions row (capped at the balance re-read FOR UPDATE that iteration) and its expired_at marked; returns count swept
 outcome_failure: [forbidden_role, expire_credits_rpc_error]
 related_modules: [M08, M14]
 source:
@@ -15,6 +15,8 @@ source:
   - server/src/features/credits/credits.types.ts
   - server/src/features/auth/staff/middleware/requireRole/requireRole.middleware.ts
   - supabase/migrations/20260805098_m10_create_credit_expiry_function.sql
+  - supabase/migrations/20260902159_m10_policy_credit_expiry_mode.sql
+  - supabase/migrations/20260902160_m10_credit_expiry_manila_end_of_day.sql
   - server/src/features/billing/services/creditStub.service.ts
 steps:
   - id: start
@@ -64,7 +66,7 @@ steps:
     label: Credit expiry job failed (500)
   - id: select_expired_rows
     type: action
-    label: Select every not-yet-swept issuance row where expires_at < now(), oldest expires_at first
+    label: "Open a cursor over every not-yet-swept issuance row (transaction_type='issuance', expired_at IS NULL, expires_at IS NOT NULL AND < now()), ordered oldest expires_at first. Since migration 20260902159 the cursor selects only ct.id/credit_balance_id/amount — NOT a one-time cb.balance join"
     next: check_rows_remaining
   - id: check_rows_remaining
     type: decision
@@ -73,10 +75,14 @@ steps:
       - condition: "no"
         next: end_success
       - condition: "yes"
-        next: compute_expire_amount
+        next: reread_balance
+  - id: reread_balance
+    type: action
+    label: "Re-select this row's credit_balances.balance FOR UPDATE (per-iteration, new in migration 20260902159 — the old version read balance once via the cursor join, so several same-dated lots each capped against the ORIGINAL balance and could drive it below 0, tripping the balance >= 0 CHECK and aborting the whole sweep)"
+    next: compute_expire_amount
   - id: compute_expire_amount
     type: action
-    label: "expire_amount = LEAST(issuance amount, GREATEST(current balance, 0))"
+    label: "expire_amount = LEAST(issuance amount, GREATEST(this-iteration balance, 0))"
     next: check_expire_amount_positive
   - id: check_expire_amount_positive
     type: decision

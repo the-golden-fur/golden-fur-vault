@@ -18,11 +18,14 @@ source:
   - server/src/features/booking/booking.types.ts
   - server/src/features/booking/modules/validators/booking.validator.ts
   - server/src/features/credits/services/creditIssuance.service.ts
+  - server/src/features/credits/modules/creditExpiry.util.ts
   - supabase/migrations/20260805095_m09_create_cancellation_logs_schema.sql
   - supabase/migrations/20260718037_m03_policy_configurations_stub.sql
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
   - supabase/migrations/20260808111_m03_m08_bookings_downpayment_generalize.sql
   - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
+  - supabase/migrations/20260902159_m10_policy_credit_expiry_mode.sql
+  - supabase/migrations/20260902160_m10_credit_expiry_manila_end_of_day.sql
   - supabase/migrations/20260731068_m08_create_transactions_schema.sql
 steps:
   - id: start
@@ -96,7 +99,7 @@ steps:
         next: issue_credit
   - id: issue_credit
     type: action
-    label: Call issue_credit() Postgres RPC (atomic credit_balances increment + credit_transactions row); p_amount = creditAmount; p_cancellation_log_id may be null; expires_at computed from credit_expiry_enabled/credit_expiry_days
+    label: "Call issue_credit() Postgres RPC (atomic credit_balances increment + credit_transactions row); p_amount = creditAmount; p_cancellation_log_id may be null; p_expires_at switched on the branch effective policy.credit_expiry_mode — 'none' -> null, 'rolling' -> manilaEndOfDayIso(now + credit_expiry_days), 'fixed_date' -> manilaEndOfDayIso(credit_expiry_fixed_date) (creditExpiry.util.ts; the old credit_expiry_enabled boolean was replaced by this enum in migration 20260902159)"
     next: check_credit_issued
   - id: check_credit_issued
     type: decision

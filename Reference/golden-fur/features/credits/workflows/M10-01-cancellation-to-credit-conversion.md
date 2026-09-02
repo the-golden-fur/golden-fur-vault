@@ -17,10 +17,13 @@ source:
   - server/src/features/booking/modules/validators/booking.validator.ts
   - server/src/features/credits/services/creditIssuance.service.ts
   - server/src/features/credits/services/creditIssuance.service.spec.ts
+  - server/src/features/credits/modules/creditExpiry.util.ts
   - supabase/migrations/20260805096_m10_create_credit_balances_schema.sql
   - supabase/migrations/20260805097_m10_create_credit_transactions_schema.sql
   - supabase/migrations/20260805094_m09_policy_configurations_downpayment_reschedule_fee_credit_expiry.sql
   - supabase/migrations/20260901149_m10_policy_cancellation_credit_conversion_rate.sql
+  - supabase/migrations/20260902159_m10_policy_credit_expiry_mode.sql
+  - supabase/migrations/20260902160_m10_credit_expiry_manila_end_of_day.sql
   - supabase/migrations/20260731068_m08_create_transactions_schema.sql
 steps:
   - id: start
@@ -78,26 +81,32 @@ steps:
       - condition: "no"
         next: skip_credit
       - condition: "yes"
-        next: check_expiry_enabled
+        next: check_expiry_mode
   - id: skip_credit
     type: action
     label: No credit attempted (notice missed and payment forfeited, nothing was paid, or rate is 0%)
     next: send_notification
-  - id: check_expiry_enabled
+  - id: check_expiry_mode
     type: decision
-    label: credit_expiry_enabled on the branch's policy?
+    label: "branch effective policy.credit_expiry_mode (resolveEffectivePolicy / notice.policy) — replaces the removed credit_expiry_enabled boolean (migration 20260902159)"
     branches:
-      - condition: "yes"
-        next: set_expiry
-      - condition: "no"
+      - condition: "none"
         next: set_no_expiry
-  - id: set_expiry
+      - condition: "rolling"
+        next: set_expiry_rolling
+      - condition: "fixed_date"
+        next: set_expiry_fixed
+  - id: set_expiry_rolling
     type: action
-    label: expires_at = now() + credit_expiry_days
+    label: "expiresAt = manilaEndOfDayIso(now + credit_expiry_days days) — the 23:59:59.999 instant of the Asia/Manila calendar day that many days out (creditExpiry.util.ts); same instant reapply_branch_credit_expiry() stamps for retroactive re-applies"
+    next: call_issue_credit
+  - id: set_expiry_fixed
+    type: action
+    label: "expiresAt = manilaEndOfDayIso(credit_expiry_fixed_date) — end of that Manila calendar day; stays null if credit_expiry_fixed_date is somehow unset (a CHECK constraint makes that state unreachable via the API)"
     next: call_issue_credit
   - id: set_no_expiry
     type: action
-    label: expires_at = null (never expires)
+    label: "expiresAt = null (credit never expires) — credit_expiry_mode = 'none'"
     next: call_issue_credit
   - id: call_issue_credit
     type: action

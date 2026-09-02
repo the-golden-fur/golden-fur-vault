@@ -12,7 +12,8 @@ module: M09
 **Code:** `server/src/features/booking/services/cancellation.service.ts`,
 `server/src/features/booking/services/cancellationLog.service.ts`,
 `server/src/features/booking/services/reschedule.service.ts` (shared `evaluateNoticePeriod`),
-`server/src/features/credits/services/creditIssuance.service.ts`
+`server/src/features/credits/services/creditIssuance.service.ts`,
+`server/src/features/credits/modules/creditExpiry.util.ts`
 **Part of:** [[M09-policy-enforcement|M09 · Policy Enforcement]]
 
 When a customer or staff member cancels a booking, the system checks how far
@@ -38,7 +39,7 @@ flowchart TD
     J --> K["confirmedAmountPaid = SUM of the booking's booking_payment\ntransactions with payment_status != 'Pending';\ncreditAmount = round2(confirmedAmountPaid × rate / 100)"]
     K --> L{"notice_period_met = true\nAND creditAmount > 0?\n(not gated on the log write)"}
     L -- "No" --> P["Send booking_cancelled\nnotification (best-effort)"]
-    L -- "Yes" --> M["Call issue_credit() RPC\n(atomic balance increment\n+ credit_transactions row;\ncancellation_log_id may be null)"]
+    L -- "Yes" --> M["Call issue_credit() RPC\n(atomic balance increment\n+ credit_transactions row;\ncancellation_log_id may be null;\nexpires_at per credit_expiry_mode —\nnone/rolling/fixed_date)"]
     M --> N{"Credit transaction\nissued successfully?"}
     N -- "No" --> P
     N -- "Yes" --> O["Patch log row if it exists:\ncredit_issued = true,\ncredit_amount = creditAmount"] --> P
@@ -77,6 +78,19 @@ cancellation_credit_conversion_rate / 100)`, where the rate is a
   migration `...097`) rather than a separate balance-read + insert, so the
   `credit_balances` increment and the `credit_transactions` issuance row
   can't diverge.
+- **The issued lot's `expires_at` is decided by the branch's effective
+  `credit_expiry_mode`** — a three-way enum (`none` / `rolling` / `fixed_date`)
+  that replaced the old `credit_expiry_enabled` boolean in migration
+  `20260902159_m10_policy_credit_expiry_mode.sql`. `none` → `null` (never
+  expires); `rolling` → the end of the Asia/Manila calendar day
+  `credit_expiry_days` out; `fixed_date` → the end of the Manila day
+  `credit_expiry_fixed_date`. All three go through the same
+  `resolveEffectivePolicy()` (`notice.policy`) the notice period does.
+  `creditExpiry.util.ts`'s `manilaEndOfDayIso` builds the instant (migration
+  `20260902160` snapped everything to Manila end-of-day so same-day lots share
+  one date). Full detail and the retroactive-re-stamp companion flow live with
+  [[M10-01-cancellation-to-credit-conversion|M10-01]] /
+  [[M10-05-credit-expiry-policy-retroactive-restamp|M10-05]].
 - The `sendBookingCancelledNotification` email/in-app dispatch is
   best-effort and runs last, after the credit decision is fully resolved,
   so its message can state the credited amount (or omit it) correctly.
