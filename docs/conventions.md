@@ -20,15 +20,18 @@ project: <project slug, e.g. golden-fur>
 ```
 
 `project` is omitted for notes that aren't scoped to one project (e.g. a
-general `Areas/` or `Resources/` note). Weekly review notes additionally
+general `Areas/` or `Projects/golden-fur/shared/` note). Weekly review notes additionally
 use `tags: [review]`.
 
 ## Naming
 
-- Dated notes: `YYYY-MM-DD-short-slug.md`.
-- Changelog entries: `Projects/<project>/docs/changelog/<date>-<slug>.md`.
-- Testing subfolders: `testing/issues/NN-summary/` for a GitHub issue,
-  `testing/custom/NN-summary/` for an ad-hoc request.
+- Dated notes: `YYYY-MM-DD-short-slug.md` (ADRs under
+  `Projects/golden-fur/shared/decisions/`).
+- Session records: one self-contained
+  `Projects/golden-fur/sessions/NN-<slug>/` folder per session (`plan.md`,
+  `testing/`, `reviews/`, `context/`) — one monotonic `NN` counter (see
+  `sessions/README.md`). Legacy history is frozen under
+  `sessions/_legacy/{custom,issues}/`.
 
 ## Never overwrite
 

@@ -210,7 +210,7 @@ Veterinarian role can write to the console (PRs #112–#115).
 
 - `golden-fur/AGENTS.md` and `golden-fur/docs/architecture.md` (system
   layout, tech stack — architecture-level parts still accurate).
-- `Projects/golden-fur/docs/context/architecture/Modules-Features.docx`
+- `Projects/golden-fur/shared/context/architecture/Modules-Features.docx`
   ("Latest" edition, compiled 2026-08-11, reconciled against dev HEAD
   commit `ffd9ac2` as of 2026-08-09) — primary source for module detail;
   described by the doc itself as grounded directly in the codebase

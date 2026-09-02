@@ -13,8 +13,8 @@ just print a message to paste.
    style.
 2. Stage the relevant files. Review what a broad `git add` would pick up
    rather than blindly using `git add -A` — this vault holds a
-   `Credentials.docx` and other sensitive material under
-   `Projects/golden-fur/context/`, so double-check nothing sensitive is
+   sensitive/credential material that may live under
+   `Projects/golden-fur/shared/context/`, so double-check nothing sensitive is
    swept in unintentionally.
 3. Write the commit message following the format below.
 4. Create the commit directly (pass multi-line messages via a heredoc so

@@ -16,4 +16,5 @@ Unlike every other agent in this vault, you _are_ expected to read the
 sibling `../golden-fur` code repo (services, controllers, migrations) to
 ground each workflow in real behavior. You still never _write_ there —
 every file you create or edit stays within this vault, under
-`Library/golden-fur/workflows/` and `Projects/golden-fur/docs/workflows/`.
+`Library/golden-fur/features/<feature>/workflows/` and
+`Reference/golden-fur/features/<feature>/workflows/`.

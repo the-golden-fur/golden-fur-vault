@@ -2,8 +2,25 @@
 
 **Purpose:** document golden-fur's business-process workflows (login flows,
 approval flows, booking/checkout flows, etc.) as a **matched pair** of notes
-per workflow — one for humans, one for machines — grouped by the module
-numbering already established in `Library/golden-fur/modules/` (M01–M14).
+per workflow — one for humans, one for machines — grouped by **feature**,
+mirroring golden-fur's own `client/src/features/<feature>/` layout. The
+capstone module code (M01–M14) is kept as the filename prefix and the
+`module:` frontmatter field, but the folder a note lives in is its feature.
+
+## Module code → feature
+
+| M-code                              | feature      | M-code                                     | feature         |
+| ----------------------------------- | ------------ | ------------------------------------------ | --------------- |
+| M01 staff accounts / unavailability | `staff`      | M08 sales / billing                        | `billing`       |
+| M02 customer & pet records          | `customers`  | M09 policy enforcement (cancel/reschedule) | `booking`       |
+| M03 appointment booking             | `booking`    | M10 credit balance                         | `credits`       |
+| M04 grooming                        | `grooming`   | M11 notification                           | `notifications` |
+| M05 hotel / boarding                | `hotel`      | M12 discounts                              | `discounts`     |
+| M06 daycare                         | `daycare`    | M13 packages / services / promos           | `maintenance`   |
+| M07 health / veterinary             | `veterinary` | M14 reports / analytics                    | `reports`       |
+
+Check the real `client/src/features/*` + `server/src/features/*` names before
+filing a note for a new area.
 
 **Use whenever** asked to document, diagram, or map out how a workflow/process
 works, or to keep an existing workflow note in sync after the underlying code
@@ -16,11 +33,11 @@ diagram, and the "why"; a script or another LLM wants a flat, parseable step
 list with no prose to strip out first. Rather than compromise on one file,
 every workflow gets both:
 
-- **Human-readable** — `Library/golden-fur/workflows/<Code>-<slug>.md`.
+- **Human-readable** — `Library/golden-fur/features/<feature>/workflows/<Code>-<slug>.md`.
   Follows this vault's `Library/` rule: clean prose, headings, a rendered
   Mermaid diagram, short "why" notes. Meant to be opened in Obsidian and
   read.
-- **Machine-readable** — `Projects/golden-fur/docs/workflows/<Code>-<slug>.md`.
+- **Machine-readable** — `Reference/golden-fur/features/<feature>/workflows/<Code>-<slug>.md`.
   All substance lives in the YAML frontmatter as a structured step list — a
   parser (or another LLM) should be able to read _just_ the frontmatter and
   get the complete workflow, no prose-scraping required. The body is a
@@ -32,10 +49,12 @@ Both files share the same `<Code>-<slug>` so they're trivially pairable.
 
 `<ModuleCode>-<NN>-<slug>.md`, e.g. `M01-01-staff-account-creation.md`.
 
-- `ModuleCode` matches an existing `Library/golden-fur/modules/M0X-*.md` file
-  — a workflow always belongs to exactly one primary module, even if it
+- `ModuleCode` matches an existing
+  `Library/golden-fur/features/<feature>/modules/M0X-*.md` file — a workflow
+  always belongs to exactly one primary module (and its feature), even if it
   touches others (cross-module effects go in `related_modules`, not a
-  duplicate file).
+  duplicate file). Both the human and machine file live under that module's
+  feature folder.
 - `NN` is a two-digit sequence, ordered by whenever each workflow was first
   documented for that module — not a canonical/authoritative ordering.
 - `slug` is a short kebab-case name for the workflow itself, not the module.
@@ -146,16 +165,18 @@ steps:
 # M0X · <Workflow Name>
 
 Machine-readable companion to
-[[<Code>-<slug>|the human-readable version]] in `Library/golden-fur/workflows/`.
+[[<Code>-<slug>|the human-readable version]] in
+`Library/golden-fur/features/<feature>/workflows/`.
 ```
 
 Keep the body to that one line — no restating the diagram in prose here.
 
 ## Cross-linking
 
-- The workflow's home module note (`Library/golden-fur/modules/M0X-*.md`)
-  should link to every workflow filed under it — add or update a short
-  `## Workflows` section there listing `[[M0X-NN-slug|Workflow Name]]`.
+- The workflow's home module note
+  (`Library/golden-fur/features/<feature>/modules/M0X-*.md`) should link to
+  every workflow filed under it — add or update a short `## Workflows`
+  section there listing `[[M0X-NN-slug|Workflow Name]]`.
 - The human workflow note links back to its module via `**Part of:**`.
 - Follow `.agent/skills/cross-linking.md` for any other related-note links
   (e.g. a workflow that feeds into another workflow).

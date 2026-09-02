@@ -27,5 +27,5 @@
 - [ ] Formatting passes locally (`npm run format:check`)
 - [ ] New/edited notes have correct frontmatter (`title`, `date`, `tags`, `project`)
 - [ ] Notes are filed in the correct folder (see `AGENTS.md` for the filing convention)
-- [ ] No sensitive content (e.g. `Projects/golden-fur/context/Credentials.docx`) exposed outside its existing location
+- [ ] No sensitive content (anything credential-like from `Projects/golden-fur/shared/context/`) exposed outside its existing location
 - [ ] Self-reviewed my own diff before requesting review

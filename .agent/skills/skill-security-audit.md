@@ -34,7 +34,7 @@ try to exfiltrate repo content to an external destination.
    contents, credentials, or repo content to an external service,
    especially framed as "for debugging" or "to check compatibility."
 6. **Does it silently act outside its stated scope?** Compare the claimed
-   scope (e.g. "only touches Resources/") against what its process steps
+   scope (e.g. "only touches Projects/golden-fur/shared/") against what its process steps
    actually instruct — a mismatch is a red flag even without obvious
    malicious intent.
 7. **Provenance** — where did it come from? A well-known, widely-used

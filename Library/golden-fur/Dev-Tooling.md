@@ -12,7 +12,7 @@ An inventory of the AI coding agents and skills set up across the two
 repos in this project — the capstone app ([[Architecture|golden-fur]]) and
 this vault (`AGENTS.md` at the vault root). Originated from a
 suggestions document (now filed at
-`Projects/golden-fur/context/Suggested_Agents_Skills.pdf`), grounded
+`Projects/golden-fur/shared/context/Suggested_Agents_Skills.pdf`), grounded
 against the actual current implementation rather than taken as-is.
 
 **Important:** everything here is developer tooling. It runs only inside
@@ -85,7 +85,7 @@ filed, linked, well-formed notes.
 
 **Agents:** `vault-librarian` (file + promote to Library), `weekly-reviewer`
 (7-day rollup), `backlink-curator` (wikilinks + orphan detection,
-read-mostly), `research-capture-agent` (cited sources into `Resources/`),
+read-mostly), `research-capture-agent` (cited sources into `Projects/golden-fur/shared/research/`),
 `skill-agent-auditor` (read-only prompt-injection review before adopting a
 third-party skill/agent).
 

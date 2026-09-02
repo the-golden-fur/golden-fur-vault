@@ -1,6 +1,6 @@
 ---
 name: workflow-documentation
-description: Documents golden-fur business-process workflows as a matched human-readable (Library/, Mermaid diagram) + machine-readable (Projects/docs/, structured YAML frontmatter) pair, grouped by module (M01-M14). Use whenever documenting, diagramming, or updating a workflow.
+description: Documents golden-fur business-process workflows as a matched human-readable (Library/golden-fur/features/<feature>/workflows/, Mermaid diagram) + machine-readable (Reference/golden-fur/features/<feature>/workflows/, structured YAML frontmatter) pair, grouped by feature with the M-code (M01-M14) kept as the filename prefix. Use whenever documenting, diagramming, or updating a workflow.
 ---
 
 # Workflow documentation

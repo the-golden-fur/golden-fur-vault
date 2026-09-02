@@ -9,34 +9,34 @@ repo.
 
 - **`Inbox/`** — raw capture: pasted text, voice transcripts, quick notes not
   yet filed. Messy is fine here.
-- **`Projects/<project>/`** — active working material for a specific project.
-  For golden-fur:
-  - `testing/` — verification docs, Postman collections, and SQL fixtures
-    for each GitHub issue or ad-hoc request, subfoldered as
-    `testing/issues/NN-summary/` and `testing/custom/NN-summary/`. Plus
-    `testing/reviews/<branch>/` — reports from the `code-reviewer` subagent
-    that lives in the `../golden-fur` repo, one file per pre-commit /
-    pre-publish / pre-PR review pass (see `testing/reviews/README.md`).
-  - `docs/` — working docs, meeting notes, drafts, and
-    `docs/changelog/<date>-<slug>.md` entries.
-  - `decisions/` — ADRs / "why we did X" notes.
-  - `context/` — reference material moved from `golden-fur/temp/context/`
-    (capstone proposal, architecture docs, sprint/epic roadmaps, academic
-    report PDFs, etc.). Contains a `Credentials.docx` — handle this folder
-    as sensitive.
-  - `design/` — role-dashboard mockup images moved from
-    `golden-fur/temp/design/`.
+- **`Projects/<project>/`** — record of work on a specific project. For
+  golden-fur it has **exactly two** subtrees:
+  - **`sessions/`** — one folder-set per AI session (a request thread that
+    changed the app), the project's running changelog. a self-contained `NN-<slug>/` folder per session — `plan.md`, `testing/` (verification record + click-by-click manual test, plus Postman/SQL), `reviews/` (`code-reviewer` passes), `context/` (copied context files). One monotonic `NN` counter continuing from `sessions/_legacy/` (the pre-2026-09 `testing/` tree). See
+    `Projects/golden-fur/sessions/README.md`.
+  - **`shared/`** — project-wide material not tied to one session:
+    `shared/context/` (capstone proposal, architecture docs, roadmaps,
+    report PDFs — **sensitive**: treat anything credential-like here as
+    such), `shared/decisions/` (ADRs / "why we did X", `YYYY-MM-DD-slug.md`),
+    `shared/design/` (role-dashboard mockups), `shared/research/` (cited
+    literature/interview sources — `research-capture-agent`'s target).
 - **`Areas/`** — ongoing responsibilities not tied to one project
   (e.g. weekly review summaries land in `Areas/Reviews/`).
-- **`Resources/`** — reference material, not project- or time-bound.
-- **`Archive/`** — anything inactive, kept for history.
-- **`Library/`** — curated, human-readable notes only. **Nothing goes in here
-  except clean, well-formatted markdown meant to be opened and read directly
-  in Obsidian**: proper headings, short paragraphs, no raw JSON/HTML/log
-  dumps, no walls of unformatted extracted text. `Inbox/` and `Projects/` can
-  be messy working areas; `Library/` cannot. A note is only promoted into
-  `Library/` as a separate, deliberate cleanup step — rewritten into clean
-  prose/headings — never copied as-is from a raw extraction or tool output.
+- **`Library/`** — curated, **human-readable** notes only, grouped by
+  golden-fur feature: `Library/golden-fur/features/<feature>/{modules,workflows}/`.
+  **Nothing goes in here except clean, well-formatted markdown** meant to be
+  opened and read in Obsidian — proper headings, short paragraphs, a rendered
+  Mermaid diagram for workflows; no raw JSON/HTML/log dumps. `Inbox/` and
+  `Projects/` can be messy; `Library/` cannot. Promotion into `Library/` is a
+  separate, deliberate cleanup step — never a raw copy.
+- **`Reference/`** — the **machine-readable** counterpart to `Library/`, same
+  feature grouping: `Reference/golden-fur/features/<feature>/workflows/`. Each
+  file is a workflow step-graph that lives entirely in YAML frontmatter so a
+  parser or another LLM can read it without prose-scraping. Written only by
+  `workflow-documenter`.
+- **`docs/`** — this vault repo's own meta-docs (setup, conventions,
+  folder-guide, security) — for a person working _on the vault_, not project
+  content.
 
 ## Filing convention
 
@@ -67,35 +67,39 @@ instructions for this vault's reusable AI workflows:
 - `backlink-curator` — inserts `[[wikilinks]]` between related notes and
   flags orphaned ones (read-mostly: `Read`, `Grep`, `Glob`, `Edit`).
 - `research-capture-agent` — files literature/interview sources into
-  `Resources/` with citation metadata, distinct from `note-filing`'s
-  default handling of raw working notes.
+  `Projects/golden-fur/shared/research/` with citation metadata, distinct
+  from `note-filing`'s default handling of raw working notes.
 - `skill-agent-auditor` — read-only review of a third-party skill/agent
   file for prompt-injection/scope-creep risk before it's adopted.
 - `workflow-documenter` — the one deliberate exception to "vault-only":
   reads the sibling `../golden-fur` code repo to ground workflow docs in
-  real behavior, but only ever writes within this vault. Code-change
+  real behavior, but only ever writes within this vault
+  (`Library/golden-fur/features/<feature>/workflows/` +
+  `Reference/golden-fur/features/<feature>/workflows/`). Code-change
   refreshes are triggered once per golden-fur PR (that repo's
   `workflow-doc-sync` skill runs it over the whole branch diff), not after
   every task or commit.
-- `testing-documenter` — another deliberate "vault-only" exception: reads
-  `../golden-fur`'s diff/log and runs its test suites to write the
-  verification record for a change just implemented, but only ever writes
-  within this vault.
+- `session-documenter` — another deliberate "vault-only" exception: reads
+  `../golden-fur`'s diff/log and runs its test suites to write the session
+  record (near-beginner `plan.md`, click-by-click `testing/testing.md`, copied context, Postman/SQL) for a change
+  just implemented — but only ever writes within this vault. Nudged by
+  golden-fur's `Stop` hook.
 
 Two more agents are defined in `../golden-fur` but also act here — both
-read-only, both wired into this repo's `commit` / `pr` skills:
+read-only, both wired into this repo's `pr` skill's finish pipeline:
 
 - `code-reviewer` (`../golden-fur/.agent/agents/code-reviewer.md`) — files
-  its pre-commit / pre-PR review reports under
-  `Projects/golden-fur/testing/reviews/<branch>/`. Read-only on the
+  its `pre-pr` review reports under
+  the branch's `Projects/golden-fur/sessions/<NN-slug>/reviews/`. Read-only on the
   golden-fur code, never writes there. See
-  `Projects/golden-fur/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`.
+  `Projects/golden-fur/shared/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`.
 - `ci-verifier` (canonical in `../golden-fur`; `.agent/agents/ci-verifier.md`
   here is a pointer) — runs the `✅ CI: Verify All` VS Code task across
   **both** repos (this vault's `format:check`, golden-fur's
   tests/lint/format/build) and reports one pass/fail. Runs checks only —
-  never fixes, stages, commits, or pushes in either repo — and skips a repo
-  that is already clean and pushed.
+  never fixes; on a green pass it writes `.git/ci-verifier-pass` (the
+  verified `HEAD` sha) for the `pr-guard` hook. Its write-side counterpart
+  `ci-fixer-agent` is auto-invoked when it reports red.
 
 **Skills** (auto-invoked reference material):
 
@@ -109,14 +113,19 @@ read-only, both wired into this repo's `commit` / `pr` skills:
   root context file (e.g. `.claude/CLAUDE.md`) a thin pointer to it.
 - `skill-security-audit` — the checklist `skill-agent-auditor` runs.
 - `workflow-documentation` — the paired human-readable
-  (`Library/golden-fur/workflows/`) + machine-readable
-  (`Projects/golden-fur/docs/workflows/`) format `workflow-documenter`
-  writes to, grouped by module (M01–M14).
-- `testing-documentation` — the `Projects/golden-fur/testing/<issues|custom>/NN-slug/`
-  format (`.md` + optional `.postman_collection.json`/`.sql`)
-  `testing-documenter` writes to for every golden-fur change. Replaces the
-  old in-repo `golden-fur/testing/docs/` convention (see
-  `Projects/golden-fur/testing/custom/53-remove-testing-docs/`).
+  (`Library/golden-fur/features/<feature>/workflows/`) + machine-readable
+  (`Reference/golden-fur/features/<feature>/workflows/`) format
+  `workflow-documenter` writes to, grouped by **feature** with the M-code
+  (M01–M14) kept as the filename prefix.
+- `session-documentation` — the `Projects/golden-fur/sessions/` format
+  (`NN-<slug>/{plan.md,testing/,reviews/,context/}`)
+  `session-documenter` writes for every golden-fur change. One monotonic
+  `NN` counter continuing from the frozen legacy
+  `sessions/_legacy/` (currently `63`).
+- `plan` — plan-only mode: design a change and write it up for a
+  near-beginner in `sessions/<NN-slug>/plan.md` **without touching any
+  code**. Invoked when the user asks to "just plan" / "don't touch code" —
+  golden-fur's `session-router` hook routes that phrasing here.
 
 Plus this repo's git workflow: `branch-naming` (name and create a branch),
 `commit` (write and create a conventional commit — performs the commit
@@ -124,16 +133,30 @@ itself, not just a drafted message), `pr` (open a PR targeting `main`,
 merge commit only — this repo has a single `main` branch, no `dev`),
 `merge-pr` (confirm readiness and get explicit go-ahead, then merge a PR
 with a crafted merge-commit title/description), and `pre-commit-checks`
-(run the `(check)`/`(fix)`-labeled VS Code task — Prettier format — auto-
-fixing what it can; a step of `pr`, and invocable standalone, but **not**
-run on every commit). Any AI coding tool working in this repo should read
-the relevant file under `.agent/` before doing that kind of task. These
-skills operate only within this repo — the one cross-repo step they invoke
-is the shared `ci-verifier` agent (above), which **`pr`** spawns (not
-`commit`) to confirm the `✅ CI: Verify All` task is green here **and** in
-`../golden-fur` before opening the PR. **`commit` runs no gates** — not
-`pre-commit-checks`, not `ci-verifier`. Line endings are handled by
-`.gitattributes` (`* text=auto eol=lf`).
+(run the `(check)`/`(fix)`-labeled VS Code task — Prettier format —
+standalone-on-request only; **no longer a pipeline step**). Any AI coding
+tool working here should read the relevant `.agent/` file first.
+
+**`pr` is a finish pipeline**, in this order: `branch-naming` (if on
+`main`) → `ci-verifier` (both repos) → `ci-fixer-agent` if red, then
+re-verify → confirm the session's `sessions/` + `Reference/` material is
+written → `commit` → push → `gh pr create`. `commit` on its own runs **no
+gates**. Line endings are handled by `.gitattributes` (`* text=auto
+eol=lf`).
+
+## Auto-run wiring
+
+`.claude/settings.json` wires three Claude Code hooks (Claude-specific — no
+`.agent/` twin; other tools replicate the intent via their own mechanisms):
+
+- **`session-router`** (`UserPromptSubmit`) — pattern-matches the prompt and
+  injects guidance: "just plan / don't touch code" → the `plan` skill,
+  edit-nothing; "open a PR / ship it / /pr" → the finish pipeline above.
+  Deterministic _decision_; the skills/agents still do the work.
+- **`pr-guard`** (`PreToolUse` on `Bash`) — blocks `gh pr create` until
+  `ci-verifier` has left `.git/ci-verifier-pass` for the current `HEAD`.
+- **`gitkeep-sweep`** (`Stop`) — adds a `.gitkeep` to any tracked-scope dir
+  left empty, removes it once the dir has other files; stages the change.
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:
@@ -158,6 +181,7 @@ discovery metadata (name/description/tools) changes.
 
 This vault is private. It accumulates personal notes, meeting transcripts,
 and possibly sensitive client info from the Golden Fur business — do not make
-this repo public. `Projects/golden-fur/context/` in particular contains a
-`Credentials.docx` — treat it as sensitive and don't surface its contents
-outside this vault.
+this repo public. Treat `Projects/golden-fur/shared/context/` as the place
+credential-like or otherwise sensitive material would land — don't surface
+its contents outside this vault, and never copy a secrets file into a
+session's `context/` folder.
