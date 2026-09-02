@@ -13,16 +13,20 @@ potentially sensitive client info from the Golden Fur business. Do not make
 this repo public, and don't paste its contents into public issues, public
 gists, or third-party tools that might index or cache them.
 
-## `Projects/golden-fur/context/` is sensitive
+## `Projects/golden-fur/shared/context/` is sensitive
 
-This folder contains `Credentials.docx`, moved here from
-`golden-fur/temp/context/`. Treat the whole folder as sensitive:
+This folder holds the capstone proposal, architecture docs, roadmaps, and
+report PDFs, and is the place any credential-like material would land. Treat
+the whole folder as sensitive:
 
 - Don't surface its contents outside this vault (e.g. don't quote it into
   a GitHub issue, PR description, Slack message, or an external tool).
 - Any AI tool reading it should keep that in mind before summarizing or
-  cross-linking from it — a link is fine, quoting `Credentials.docx`
-  itself is not.
+  cross-linking from it — a link is fine, quoting a sensitive document is
+  not.
+- `session-documenter` copies session context into
+  a session's `sessions/NN-<slug>/context/` — it must **reference** anything in
+  here by path, never copy it in.
 
 ## What not to paste into notes
 

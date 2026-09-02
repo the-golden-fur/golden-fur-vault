@@ -1,0 +1,8 @@
+description = "Plan-only mode: design a golden-fur change and write it up for a near-beginner, no code"
+prompt = """
+Read and follow the instructions in .agent/skills/plan.md in this repo.
+Do NOT edit any code — the only file you write is the plan, at
+Projects/golden-fur/sessions/plans/NN-<slug>.md.
+
+{{args}}
+"""

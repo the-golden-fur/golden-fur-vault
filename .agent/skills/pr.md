@@ -3,25 +3,35 @@
 **Use whenever** opening a PR in this vault. This repo has a single `main`
 branch — target `main` for all work.
 
-## Process
+## Process — the locked finish pipeline (vault side)
 
-1. **Run `.agent/skills/pre-commit-checks.md`** — Prettier format fix/check,
-   so `ci-verifier` (read-only, won't fix) has nothing trivial to fail on.
-   Commit any fixes it makes.
-2. Make sure the compare branch is pushed and up to date with its remote.
-3. **Verify CI parity across both repos** — spawn the `ci-verifier`
-   subagent (`.agent/agents/ci-verifier.md`, canonical file in
-   `../golden-fur`); the `✅ CI: Verify All` task must be green here and in
-   `golden-fur` before the PR is opened. A green pass from earlier this
-   session with nothing changed since counts.
-4. Fill in the PR body using the sections below.
-5. Determine the title, label(s), and assignee (see Rules below).
-6. Open it directly with all of it set in one call — title, body, label(s),
-   and assignee — not left for manual follow-up:
+Mirrors `golden-fur`'s finish pipeline. This whole sequence is the "session
+is finished" flow; none of it runs on a plain `commit`. The
+`session-router` hook injects this list on an "open a PR" prompt, and the
+`pr-guard` hook blocks `gh pr create` until step 2 is green for `HEAD`.
+
+1. **Branch.** If `HEAD` is `main`, run `.agent/skills/branch-naming.md` to
+   create and push the branch first.
+2. **Verify CI parity across both repos** — spawn the `ci-verifier` subagent
+   (`.agent/agents/ci-verifier.md`, canonical in `../golden-fur`); the
+   `✅ CI: Verify All` task must be green here and in `golden-fur`. It writes
+   `.git/ci-verifier-pass` (the verified `HEAD` sha). A green pass from
+   earlier this session with nothing changed counts.
+3. **If red — spawn `ci-fixer-agent`** (canonical in `../golden-fur`) to fix
+   format/prose it broke, then re-run `ci-verifier` until green. No separate
+   `pre-commit-checks` step.
+4. **Session record.** Confirm this session's `Projects/golden-fur/sessions/`
+   material (`plans/`, `testing/`, `reviews/`) and any
+   `Reference/golden-fur/` workflow refresh are written and current —
+   normally already done at implementation-finish; `session-documenter` /
+   `workflow-documenter` as a backstop.
+5. **Commit** — run `.agent/skills/commit.md`.
+6. **Push** the branch.
+7. Fill in the PR body (sections below), determine title / label(s) /
+   assignee, and open it in one call:
    `gh pr create --base main --head <branch> --title "..." --body "..."
 --label <label>[,<label>...] --assignee @me`.
-7. If anyone else has write access to the repo, also add
-   `--reviewer <user>` per the reviewer rule below.
+8. If anyone else has write access, add `--reviewer <user>`.
 
 ## Merge strategy: merge commit
 
@@ -55,7 +65,7 @@ Always set an assignee at creation time — default to `--assignee @me`
 - **What Changed** — brief bullet list of key files/folders touched and
   why; not exhaustive.
 - **Why** — one sentence: what prompted this filing/change now.
-- **Testing** — for anything under `Projects/golden-fur/testing/`, note
+- **Testing** — for anything under `Projects/golden-fur/sessions/`, note
   that it was copied/verified against the source change in
   `../golden-fur`; otherwise N/A for plain note filing.
 

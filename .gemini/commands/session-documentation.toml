@@ -1,0 +1,8 @@
+description = "Write the per-session record for a golden-fur change just implemented"
+prompt = """
+Read and follow the instructions in .agent/skills/session-documentation.md in
+this repo, then write the session record (plan + testing + copied context)
+for the following golden-fur change accordingly:
+
+{{args}}
+"""

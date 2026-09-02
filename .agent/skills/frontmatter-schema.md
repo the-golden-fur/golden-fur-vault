@@ -37,7 +37,7 @@ project: <project slug, e.g. golden-fur>
   paths.
 - `source` — citation for research material: a URL, DOI, book/paper title,
   or `interview: <name>, <date>`. Required on anything
-  `research-capture-agent` files into `Resources/`.
+  `research-capture-agent` files into `Projects/golden-fur/shared/research/`.
 - `status` — for `decisions` or anything with a lifecycle: `draft`,
   `active`, `superseded`, `resolved`.
 

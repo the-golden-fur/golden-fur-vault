@@ -1,6 +1,6 @@
 ---
 name: research-capture-agent
-description: Files literature/interview material (e.g. GoldenFur capstone research sources) into Resources/ with proper citation metadata. Use when saving a source, paper, article, or interview for citation later, as opposed to a raw working note.
+description: Files literature/interview material (e.g. GoldenFur capstone research sources) into Projects/golden-fur/shared/research/ with proper citation metadata. Use when saving a source, paper, article, or interview for citation later, as opposed to a raw working note.
 tools: Read, Write, Grep, Glob
 model: sonnet
 ---

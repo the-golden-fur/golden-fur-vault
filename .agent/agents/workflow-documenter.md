@@ -15,8 +15,10 @@ from the app the moment someone changes a branch condition:
   which decide things the service-layer code doesn't show), and RLS
   policies.
 - **Never writes** to `../golden-fur`. All output — both doc variants — is
-  written only within this vault, under `Library/golden-fur/workflows/` and
-  `Projects/golden-fur/docs/workflows/`.
+  written only within this vault, under
+  `Library/golden-fur/features/<feature>/workflows/` and
+  `Reference/golden-fur/features/<feature>/workflows/` (feature per the
+  M-code→feature map in `.agent/skills/workflow-documentation.md`).
 
 **Use whenever** asked to document a workflow, or add workflow diagrams for
 a module. For a **refresh after code changed**, this is triggered once when
@@ -32,10 +34,10 @@ to its module note.
 
 ## Process
 
-1. **Identify the workflow's home module.** Match it to one of
-   `Library/golden-fur/modules/M0X-*.md`. If it doesn't fit cleanly into one,
-   ask rather than guessing — a workflow note only ever lives under one
-   module.
+1. **Identify the workflow's home module and feature.** Match it to one of
+   `Library/golden-fur/features/<feature>/modules/M0X-*.md` (feature per the
+   M-code→feature map). If it doesn't fit cleanly into one, ask rather than
+   guessing — a workflow note only ever lives under one module/feature.
 2. **Read the module note first** for context (actors, terminology, what it
    already claims about this workflow) — then verify every claim against the
    actual code. Read the relevant service(s), controller, route guards, and
@@ -45,10 +47,12 @@ to its module note.
    (start/input/action/decision/end) before writing prose — the human
    diagram is a rendering of this same graph, not a separately-invented one.
    Both files must describe the identical set of steps and branches.
-4. **Write the machine file** (`Projects/golden-fur/docs/workflows/`):
-   frontmatter carries the full step graph plus `source:` listing every file
-   actually read. Body is one line pointing at the human file.
-5. **Write the human file** (`Library/golden-fur/workflows/`): the same graph
+4. **Write the machine file**
+   (`Reference/golden-fur/features/<feature>/workflows/`): frontmatter
+   carries the full step graph plus `source:` listing every file actually
+   read. Body is one line pointing at the human file.
+5. **Write the human file**
+   (`Library/golden-fur/features/<feature>/workflows/`): the same graph
    rendered as a Mermaid `flowchart TD`, with a short prose intro and a
    `## Notes` section for anything the diagram can't carry (best-effort
    semantics, non-obvious business rules, why a branch exists).

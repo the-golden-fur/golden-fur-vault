@@ -7,11 +7,13 @@ format-check CI job.
 
 **Use whenever:**
 
-- **As a step of the `pr` skill** (before `ci-verifier`, which is
-  read-only and won't fix) — not on every commit. A plain `commit` has no
-  format gate.
-- On request, standalone — "run the checks", "format this" — at any point
-  while working, or just before opening a PR.
+- **On request, standalone** — "run the checks", "format this" — at any
+  point while working, or when you just want Prettier tidy.
+
+**Not** a pipeline step any more. The `pr` skill's finish pipeline runs
+`ci-verifier` first (reports format red) then `ci-fixer-agent` (fixes it) —
+this skill is no longer wired between them. A plain `commit` has no format
+gate.
 
 ## Process
 

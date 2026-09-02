@@ -1,0 +1,9 @@
+description = "Write the golden-fur session record by reading the actual diff and running the tests"
+prompt = """
+Read and follow the role/process in .agent/agents/session-documenter.md in
+this repo. You may read the sibling ../golden-fur code repo (diff, log,
+migrations) and run its test suites for grounding, but only write within
+this vault repo.
+
+{{args}}
+"""

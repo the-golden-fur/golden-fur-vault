@@ -1,4 +1,4 @@
-description = "File a research source (paper, article, interview) into Resources/ with citation metadata"
+description = "File a research source (paper, article, interview) into Projects/golden-fur/shared/research/ with citation metadata"
 prompt = """
 Read and follow the role/process in .agent/agents/research-capture-agent.md
 in this repo. Only read/write paths within this repo.
