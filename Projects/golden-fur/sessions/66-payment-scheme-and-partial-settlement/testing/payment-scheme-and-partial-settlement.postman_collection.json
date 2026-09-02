@@ -1,0 +1,296 @@
+{
+  "info": {
+    "name": "66 - Payment scheme + partial settlement",
+    "description": "API-level checks for session 66: payment_scheme on POST /bookings creating two Pending transactions for the downpayment scheme, amount_applied on POST /billing/transactions/:id/pay spawning a leftover 'balance' transaction, and the amount_applied validation. Fill the collection variables (login identifiers/passwords, a real customer_id + pet_id + branch_id + one service_id) and run top to bottom. Assumes the branch downpayment policy is enabled (default after migration 20260902161).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "staff_identifier",
+      "value": "",
+      "description": "A BILLING_STAFF_ROLES account (Cashier/Receptionist/Admin/...)"
+    },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "An assessed pet belonging to customer_id"
+    },
+    { "key": "branch_id", "value": "" },
+    {
+      "key": "service_id",
+      "value": "",
+      "description": "An active Grooming service at branch_id"
+    },
+    {
+      "key": "scheduled_start",
+      "value": "",
+      "description": "ISO, comfortably past the notice window"
+    },
+    { "key": "scheduled_end", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "downpayment_txn_id", "value": "" },
+    { "key": "balance_txn_id", "value": "" },
+    { "key": "leftover_txn_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('staff_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create booking with payment_scheme = downpayment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"booking_source\": \"Online\",\n  \"items\": [{ \"service_id\": \"{{service_id}}\" }],\n  \"scheduled_start\": \"{{scheduled_start}}\",\n  \"scheduled_end\": \"{{scheduled_end}}\",\n  \"payment_scheme\": \"downpayment\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "const b = pm.response.json();",
+              "pm.collectionVariables.set('booking_id', b.booking ? b.booking.id : b.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET booking transactions - expect TWO Pending rows (downpayment + balance)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/booking/{{booking_id}}/transactions",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "booking", "{{booking_id}}", "transactions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const rows = pm.response.json().transactions;",
+              "const bp = rows.filter(r => r.transaction_type === 'booking_payment');",
+              "pm.test('two booking_payment rows', () => pm.expect(bp.length).to.eql(2));",
+              "const dp = bp.find(r => r.payment_choice === 'downpayment');",
+              "const bal = bp.find(r => r.payment_choice === 'balance');",
+              "pm.test('one downpayment + one balance', () => { pm.expect(dp).to.be.an('object'); pm.expect(bal).to.be.an('object'); });",
+              "pm.test('both Pending', () => { pm.expect(dp.payment_status).to.eql('Pending'); pm.expect(bal.payment_status).to.eql('Pending'); });",
+              "pm.test('amounts sum to the net total', () => pm.expect(Number(dp.total_amount) + Number(bal.total_amount)).to.be.closeTo(Number(dp.total_amount) + Number(bal.total_amount), 0.01));",
+              "if (dp) pm.collectionVariables.set('downpayment_txn_id', dp.id);",
+              "if (bal) pm.collectionVariables.set('balance_txn_id', bal.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Settle the downpayment transaction in full (Cash)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{downpayment_txn_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{downpayment_txn_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('transaction Fully Paid', () => pm.expect(b.transaction.payment_status).to.eql('Fully Paid'));",
+              "pm.test('no leftover on a full settle', () => pm.expect(b.leftover).to.be.null);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Partial settle of the balance transaction - spawns a leftover",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "description": "Sends amount_applied = 1 (a token partial). Expects the balance row to settle for 1 and a fresh Pending 'balance' transaction for the rest.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000,\n  \"amount_applied\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{balance_txn_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{balance_txn_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('settled row shrank to 1', () => pm.expect(Number(b.transaction.total_amount)).to.eql(1));",
+              "pm.test('settled row Fully Paid', () => pm.expect(b.transaction.payment_status).to.eql('Fully Paid'));",
+              "pm.test('leftover balance transaction returned', () => { pm.expect(b.leftover).to.be.an('object'); pm.expect(b.leftover.payment_choice).to.eql('balance'); pm.expect(b.leftover.payment_status).to.eql('Pending'); });",
+              "if (b.leftover) pm.collectionVariables.set('leftover_txn_id', b.leftover.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. amount_applied above the transaction total is rejected (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Card\",\n  \"payment_reference\": \"ref-too-big\",\n  \"amount_applied\": 99999999\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{leftover_txn_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{leftover_txn_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Settle the leftover in full -> booking Fully Paid",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 100000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{leftover_txn_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{leftover_txn_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('booking Fully Paid', () => pm.expect(b.booking.payment_status).to.eql('Fully Paid'));",
+              "pm.test('no further leftover', () => pm.expect(b.leftover).to.be.null);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
