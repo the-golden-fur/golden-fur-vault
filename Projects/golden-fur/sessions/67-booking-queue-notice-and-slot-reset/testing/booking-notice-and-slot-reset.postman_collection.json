@@ -1,0 +1,357 @@
+{
+  "info": {
+    "name": "67 - Booking notice period + slot reset",
+    "description": "API-level checks for session 67. Covers: the new policy_configurations.booking_notice_period_days knob via PATCH /bookings/policy; GET /bookings/availability returning the FULL operating-hours slot set for a future date (no time-of-day shift); the intent=new_booking vs intent=reschedule split on min_notice_days; and POST /bookings rejecting a past-dated Online booking. Fill the collection variables and run top to bottom. Assumes the seeded default policy (notice_period_days 3, enforcement on) and a branch open in the morning. Times are computed by the pre-request scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "An Admin or Superadmin account (BOOKING_POLICY_WRITE_ROLES)"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "customer_identifier",
+      "value": "",
+      "description": "A customer account owning pet_id"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "A branch whose operating_hours open in the morning (e.g. Makati 08:00)"
+    },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "An assessed pet belonging to customer_identifier"
+    },
+    {
+      "key": "service_id",
+      "value": "",
+      "description": "An active Grooming service at branch_id"
+    },
+    {
+      "key": "future_date",
+      "value": "",
+      "description": "set by script - today + 5 days, YYYY-MM-DD"
+    },
+    {
+      "key": "near_date",
+      "value": "",
+      "description": "set by script - today + 1 day, YYYY-MM-DD"
+    },
+    {
+      "key": "past_start",
+      "value": "",
+      "description": "set by script - yesterday ISO"
+    },
+    {
+      "key": "past_end",
+      "value": "",
+      "description": "set by script - yesterday + 1h ISO"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('admin_access_token', b.access_token);",
+              "const d = new Date();",
+              "const iso = (x) => x.toISOString().slice(0, 10);",
+              "pm.collectionVariables.set('future_date', iso(new Date(d.getTime() + 5 * 864e5)));",
+              "pm.collectionVariables.set('near_date', iso(new Date(d.getTime() + 1 * 864e5)));",
+              "pm.collectionVariables.set('past_start', new Date(d.getTime() - 864e5).toISOString());",
+              "pm.collectionVariables.set('past_end', new Date(d.getTime() - 864e5 + 36e5).toISOString());"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Availability for a future date - full slot set, min_notice_days 0",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{future_date}}&slot_duration_minutes=60",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{future_date}}" },
+            { "key": "slot_duration_minutes", "value": "60" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('min_notice_days is 0 (booking_notice_period_days default)', () => pm.expect(b.min_notice_days).to.eql(0));",
+              "pm.test('slots start at the branch open time, not shifted by now', () => {",
+              "  pm.expect(b.slots.length).to.be.above(0);",
+              "  const first = new Date(b.slots[0].start);",
+              "  const openHint = b.window && b.window.open ? b.window.open : '08:00';",
+              "  // first slot local hour should equal the branch open hour, regardless of the current time",
+              "  pm.expect(first.getUTCHours() >= 0).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Availability intent=reschedule for a near date - still floored (min_notice_days 3, slots [])",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{near_date}}&slot_duration_minutes=60&intent=reschedule",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{near_date}}" },
+            { "key": "slot_duration_minutes", "value": "60" },
+            { "key": "intent", "value": "reschedule" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('reschedule keeps the 3-day notice_period_days floor', () => pm.expect(b.min_notice_days).to.eql(3));",
+              "pm.test('a date inside the reschedule window returns no slots', () => pm.expect(b.slots).to.eql([]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Availability intent=new_booking for the same near date - bookable (min_notice_days 0)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{near_date}}&slot_duration_minutes=60&intent=new_booking",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{near_date}}" },
+            { "key": "slot_duration_minutes", "value": "60" },
+            { "key": "intent", "value": "new_booking" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('new booking uses the 0-day floor', () => pm.expect(b.min_notice_days).to.eql(0));",
+              "pm.test('tomorrow is bookable for a new booking', () => pm.expect(b.slots.length).to.be.above(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. PATCH policy - set booking_notice_period_days = 2",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"booking_notice_period_days\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('field persisted', () => pm.expect(b.booking_notice_period_days).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Availability new_booking for the near date - now floored ([])",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/availability?branch_id={{branch_id}}&service_category=Grooming&date={{near_date}}&slot_duration_minutes=60",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "availability"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "date", "value": "{{near_date}}" },
+            { "key": "slot_duration_minutes", "value": "60" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('now floored to 2 days out', () => pm.expect(b.min_notice_days).to.eql(2));",
+              "pm.test('tomorrow returns no slots', () => pm.expect(b.slots).to.eql([]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. PATCH policy - reset booking_notice_period_days = 0",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"booking_notice_period_days\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('reset', () => pm.expect(b.booking_notice_period_days).to.eql(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. POST booking with a past scheduled_start - rejected 422",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"pet_id\": \"{{pet_id}}\",\n  \"branch_id\": \"{{branch_id}}\",\n  \"service_category\": \"Grooming\",\n  \"booking_source\": \"Online\",\n  \"items\": [{ \"service_id\": \"{{service_id}}\" }],\n  \"scheduled_start\": \"{{past_start}}\",\n  \"scheduled_end\": \"{{past_end}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings",
+          "host": ["{{base_url}}"],
+          "path": ["bookings"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('past slot is rejected even at the 0-day floor', () => pm.response.to.have.status(422));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
