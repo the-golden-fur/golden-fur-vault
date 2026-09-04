@@ -1,0 +1,242 @@
+{
+  "info": {
+    "name": "68 - Service Types staff-role multi-select + dropped Key",
+    "description": "API-level checks for session 68. Covers: POST /maintenance/service-types (no `key` in the request body anymore - server generates it; `eligible_staff_roles` accepted); PATCH /maintenance/service-types/:id (same, plus round-tripping the roles); GET /bookings/staff-picker for a Grooming booking (still resolves normally through the new data-driven resolveServiceTypeStaffConfig helper, not the old hardcoded map); and PATCH /bookings/policy with the now-removed staff_picker_enabled_grooming field, which the .strict() validator rejects outright (400) rather than silently ignoring. Fill the collection variables and run top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "An Admin or Superadmin account (adminWrite role, required for /maintenance/service-types writes)"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "branch_id",
+      "value": "",
+      "description": "A branch open at the requested window below"
+    },
+    {
+      "key": "grooming_start",
+      "value": "",
+      "description": "set by script - a Grooming-eligible future ISO datetime"
+    },
+    {
+      "key": "grooming_end",
+      "value": "",
+      "description": "set by script - grooming_start + 1h ISO"
+    },
+    { "key": "created_service_type_id", "value": "" },
+    { "key": "created_service_type_key", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('admin_access_token', b.access_token);",
+              "const d = new Date();",
+              "const start = new Date(d.getTime() + 3 * 864e5);",
+              "start.setUTCHours(9, 0, 0, 0);",
+              "pm.collectionVariables.set('grooming_start', start.toISOString());",
+              "pm.collectionVariables.set('grooming_end', new Date(start.getTime() + 36e5).toISOString());"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. POST /maintenance/service-types - no key in the body, eligible_staff_roles accepted",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Session 68 test type\",\n  \"staff_picker_enabled\": true,\n  \"cage_picker_enabled\": false,\n  \"eligible_staff_roles\": [\"Groomer\", \"Veterinarian\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201 created', () => pm.response.to.have.status(201));",
+              "const b = pm.response.json();",
+              "pm.test('a key was generated server-side, not echoed from the request', () => {",
+              "  pm.expect(b.service_type.key).to.be.a('string').and.not.empty;",
+              "});",
+              "pm.test('eligible_staff_roles persisted', () => {",
+              "  pm.expect(b.service_type.eligible_staff_roles).to.eql(['Groomer', 'Veterinarian']);",
+              "});",
+              "pm.collectionVariables.set('created_service_type_id', b.service_type.id);",
+              "pm.collectionVariables.set('created_service_type_key', b.service_type.key);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. POST /maintenance/service-types - a `key` field in the body is now rejected (unrecognized key, .strict())",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"key\": \"MyCustomKey\",\n  \"name\": \"Should be rejected\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "service-types"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('400 - key is no longer an accepted field', () => pm.response.to.have.status(400));",
+              "const b = pm.response.json();",
+              "pm.test('error mentions invalid payload', () => pm.expect(b.error).to.eql('Invalid payload'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH /maintenance/service-types/:id - update eligible_staff_roles, no key accepted",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"eligible_staff_roles\": [\"Groomer\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/service-types/{{created_service_type_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "maintenance",
+            "service-types",
+            "{{created_service_type_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('roles narrowed to just Groomer', () => pm.expect(b.service_type.eligible_staff_roles).to.eql(['Groomer']));",
+              "pm.test('key is unchanged (still server-generated, not client-writable)', () => pm.expect(b.service_type.key).to.eql(pm.collectionVariables.get('created_service_type_key')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /bookings/staff-picker for a Grooming booking - still resolves normally",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_id}}&service_category=Grooming&scheduled_start={{grooming_start}}&scheduled_end={{grooming_end}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "staff-picker"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Grooming" },
+            { "key": "scheduled_start", "value": "{{grooming_start}}" },
+            { "key": "scheduled_end", "value": "{{grooming_end}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('staff_picker_enabled true for Grooming (resolveServiceTypeStaffConfig, not the old hardcoded map)', () => {",
+              "  pm.expect(b.staff_picker_enabled).to.be.true;",
+              "});",
+              "pm.test('options is an array (possibly empty if nobody is free at this window)', () => {",
+              "  pm.expect(b.options).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. PATCH /bookings/policy with the removed staff_picker_enabled_grooming field - rejected 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": null,\n  \"staff_picker_enabled_grooming\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('400 - unrecognized key under the .strict() validator, not silently ignored', () => pm.response.to.have.status(400));",
+              "const b = pm.response.json();",
+              "pm.test('error mentions invalid payload', () => pm.expect(b.error).to.eql('Invalid payload'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
