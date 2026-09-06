@@ -1,0 +1,296 @@
+{
+  "info": {
+    "name": "72 - Multi-booking checkout",
+    "description": "API-level checks for session 72: POST /bookings/groups creating several bookings that share one booking_groups row and one shared charge (downpayment + balance, mirroring a single booking's shape), GET /billing/booking-group/:id/transactions showing the shared rows, and GET/POST /billing/checkout/group/... settling the group and rolling the paid status onto every member booking. Fill the collection variables (login identifiers/passwords, a real branch_id + two different pet_id values belonging to customer_id + one active service_id per pet's category) and run top to bottom. Assumes the branch downpayment policy is enabled.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "staff_identifier",
+      "value": "",
+      "description": "A BILLING_STAFF_ROLES account (Cashier/Receptionist/Admin/...)"
+    },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    { "key": "customer_identifier", "value": "" },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    {
+      "key": "pet_id_a",
+      "value": "",
+      "description": "An assessed pet belonging to the logged-in customer"
+    },
+    {
+      "key": "pet_id_b",
+      "value": "",
+      "description": "A DIFFERENT assessed pet belonging to the same customer"
+    },
+    {
+      "key": "service_id_grooming",
+      "value": "",
+      "description": "An active Grooming service at branch_id"
+    },
+    {
+      "key": "service_id_daycare",
+      "value": "",
+      "description": "An active Daycare service at branch_id"
+    },
+    {
+      "key": "scheduled_start_a",
+      "value": "",
+      "description": "ISO, comfortably past the notice window"
+    },
+    { "key": "scheduled_end_a", "value": "" },
+    {
+      "key": "scheduled_start_b",
+      "value": "",
+      "description": "A different window from _a - no overlap needed for this collection"
+    },
+    { "key": "scheduled_end_b", "value": "" },
+    { "key": "booking_group_id", "value": "" },
+    { "key": "downpayment_txn_id", "value": "" },
+    { "key": "balance_txn_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('staff_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. POST /bookings/groups - two bookings, different pets, downpayment scheme",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"payment_scheme\": \"downpayment\",\n  \"bookings\": [\n    {\n      \"pet_id\": \"{{pet_id_a}}\",\n      \"service_category\": \"Grooming\",\n      \"booking_source\": \"Online\",\n      \"items\": [{ \"service_id\": \"{{service_id_grooming}}\" }],\n      \"scheduled_start\": \"{{scheduled_start_a}}\",\n      \"scheduled_end\": \"{{scheduled_end_a}}\"\n    },\n    {\n      \"pet_id\": \"{{pet_id_b}}\",\n      \"service_category\": \"Daycare\",\n      \"booking_source\": \"Online\",\n      \"items\": [{ \"service_id\": \"{{service_id_daycare}}\" }],\n      \"scheduled_start\": \"{{scheduled_start_b}}\",\n      \"scheduled_end\": \"{{scheduled_end_b}}\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/groups",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "groups"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created', () => pm.response.to.have.status(201));",
+              "const b = pm.response.json();",
+              "pm.test('two bookings returned, both pointing at the group', () => {",
+              "  pm.expect(b.bookings).to.have.lengthOf(2);",
+              "  pm.expect(b.bookings[0].booking_group_id).to.eql(b.booking_group.id);",
+              "  pm.expect(b.bookings[1].booking_group_id).to.eql(b.booking_group.id);",
+              "});",
+              "pm.test('group net_total is the combined total, no per-booking discount/promo/downpayment', () => {",
+              "  pm.expect(b.bookings[0].selected_discount_id).to.be.null;",
+              "  pm.expect(b.bookings[0].downpayment_required).to.eql(false);",
+              "});",
+              "pm.collectionVariables.set('booking_group_id', b.booking_group.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. GET /billing/booking-group/:id/transactions - expect TWO Pending rows (downpayment + balance)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/booking-group/{{booking_group_id}}/transactions",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "booking-group",
+            "{{booking_group_id}}",
+            "transactions"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const rows = pm.response.json().transactions;",
+              "const bp = rows.filter(r => r.transaction_type === 'booking_payment');",
+              "pm.test('two booking_payment rows, both keyed to the group not a single booking', () => {",
+              "  pm.expect(bp.length).to.eql(2);",
+              "  bp.forEach(r => { pm.expect(r.booking_id).to.be.null; pm.expect(r.booking_group_id).to.eql(pm.collectionVariables.get('booking_group_id')); });",
+              "});",
+              "const dp = bp.find(r => r.payment_choice === 'downpayment');",
+              "const bal = bp.find(r => r.payment_choice === 'balance');",
+              "pm.test('one downpayment + one balance, both Pending', () => {",
+              "  pm.expect(dp).to.be.an('object');",
+              "  pm.expect(bal).to.be.an('object');",
+              "  pm.expect(dp.payment_status).to.eql('Pending');",
+              "  pm.expect(bal.payment_status).to.eql('Pending');",
+              "});",
+              "if (dp) pm.collectionVariables.set('downpayment_txn_id', dp.id);",
+              "if (bal) pm.collectionVariables.set('balance_txn_id', bal.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /billing/checkout/group/:id/preview",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/checkout/group/{{booking_group_id}}/preview",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "checkout",
+            "group",
+            "{{booking_group_id}}",
+            "preview"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('preview lists both member bookings', () => {",
+              "  const body = pm.response.json();",
+              "  const bookings = body.bookings || body.items || [];",
+              "  pm.expect(bookings.length).to.be.at.least(2);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Settle the downpayment transaction (Cash, via /billing/transactions/:id/pay)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{downpayment_txn_id}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{downpayment_txn_id}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('200', () => pm.response.to.have.status(200));"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Re-GET group transactions - group + BOTH member bookings roll up to Partially Paid",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/booking-group/{{booking_group_id}}/transactions",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "booking-group",
+            "{{booking_group_id}}",
+            "transactions"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const rows = pm.response.json().transactions;",
+              "const dp = rows.find(r => r.id === pm.collectionVariables.get('downpayment_txn_id'));",
+              "pm.test('downpayment row is now Fully Paid', () => pm.expect(dp.payment_status).to.eql('Fully Paid'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
