@@ -1,8 +1,8 @@
 # Cross-linking
 
 **Purpose:** rules for when and how to add `[[wikilinks]]` between related
-notes — used inline during filing (`note-filing`, `research-capture-agent`)
-and for batch cleanup by the dedicated `backlink-curator` agent.
+notes — applied inline during filing (`note-filing`, `vault-librarian`) and
+whenever linking up or reviewing existing notes.
 
 ## When to link
 
@@ -31,8 +31,7 @@ and for batch cleanup by the dedicated `backlink-curator` agent.
 ## Orphan notes
 
 A note with zero outgoing links and zero notes linking to it is an orphan.
-`backlink-curator` is responsible for finding these across the vault; when
-filing a single note yourself (`note-filing`), a quick skim of the
-destination folder for one obviously related note is enough —
-exhaustive orphan-hunting is `backlink-curator`'s job, not every filing
-action's.
+When filing a single note (`note-filing`), a quick skim of the destination
+folder for one obviously related note is enough — don't turn every filing
+action into an exhaustive vault-wide orphan hunt. Run a broader sweep only
+when explicitly asked to link up or review a batch of notes.

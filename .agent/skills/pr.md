@@ -13,18 +13,21 @@ is finished" flow; none of it runs on a plain `commit`. The
 1. **Branch.** If `HEAD` is `main`, run `.agent/skills/branch-naming.md` to
    create and push the branch first.
 2. **Verify CI parity across both repos** — spawn the `ci-verifier` subagent
-   (`.agent/agents/ci-verifier.md`, canonical in `../golden-fur`); the
-   `✅ CI: Verify All` task must be green here and in `golden-fur`. It writes
-   `.git/ci-verifier-pass` (the verified `HEAD` sha). A green pass from
-   earlier this session with nothing changed counts.
+   (`.agent/agents/ci-verifier.md`, canonical in `../golden-fur`) **once**;
+   the `✅ CI: Verify All` task must be green here and in `golden-fur`. It
+   writes `.git/ci-verifier-pass` (the verified `HEAD` sha). A green pass
+   from earlier this session with nothing changed counts — if the
+   `golden-fur` PR flow already ran it green this session, **do not spawn it
+   again**.
 3. **If red — spawn `ci-fixer-agent`** (canonical in `../golden-fur`) to fix
    format/prose it broke, then re-run `ci-verifier` until green. No separate
    `pre-commit-checks` step.
 4. **Session record.** Confirm this session's `Projects/golden-fur/sessions/`
-   material (`plans/`, `testing/`, `reviews/`) and any
-   `Reference/golden-fur/` workflow refresh are written and current —
-   normally already done at implementation-finish; `session-documenter` /
-   `workflow-documenter` as a backstop.
+   material (`plan.md`, `testing/`, `reviews/`) and any
+   `Reference/golden-fur/` workflow refresh already exist and are current —
+   `session-documenter` / `workflow-documenter` run at
+   implementation-finish. If something is missing, **stop and ask the user
+   to run the relevant agent** rather than spawning it inside the PR flow.
 5. **Commit** — run `.agent/skills/commit.md`.
 6. **Push** the branch.
 7. Fill in the PR body (sections below), determine title / label(s) /

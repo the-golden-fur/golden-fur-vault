@@ -27,8 +27,8 @@ capture — as opposed to acting on it as a code change.
      - `shared/` — project-wide material not tied to one session:
        `shared/context/` (briefs, roadmaps, architecture docs),
        `shared/decisions/` (ADRs / "why we did X", `YYYY-MM-DD-slug.md`),
-       `shared/design/` (mockups), `shared/research/` (cited sources — but
-       prefer `research-capture-agent` for those).
+       `shared/design/` (mockups), `shared/research/` (cited sources — set
+       the `source` frontmatter field; see `frontmatter-schema`).
      - `sessions/` — the per-AI-session record. Don't hand-file here; the
        `session-documenter` agent owns each `sessions/NN-<slug>/` folder.
    - **Never write directly into `Library/golden-fur/`** (curated prose,
