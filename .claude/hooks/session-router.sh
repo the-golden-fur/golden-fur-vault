@@ -35,9 +35,9 @@ fi
 if printf '%s' "$lc" | grep -qE "(^|[^a-z])(/pr|open (a|the) pr|make (a|the) pr|create (a|the) pull request|raise (a|the) pr|pr this|ready to pr|let'?s pr|ship it|finish (up )?and pr)([^a-z]|$)"; then
   emit "SESSION-FINISH MODE (session-router hook). Vault pipeline, in order:
 1. branch: if HEAD is main, run \`branch-naming\` to create+push a branch.
-2. verify: spawn \`ci-verifier\` (both repos - vault format:check + golden-fur's suite if it changed).
+2. verify: spawn \`ci-verifier\` (both repos - vault format:check + golden-fur's suite if it changed). If \`ci-verifier\` already passed green earlier this session and nothing has changed since, that pass counts - do NOT spawn it again.
 3. ci-fixer: if red, spawn \`ci-fixer-agent\`, re-verify until green.
-4. session/Reference: confirm the sessions/ + Reference/ material for this session is written (session-documenter / workflow-documenter ran already) - write/update if not.
+4. session/Reference: confirm this session's sessions/ + Reference/ material already exists and is current. If it does NOT, stop and tell the user to run \`session-documenter\` / \`workflow-documenter\` first - do NOT spawn them inside the PR flow.
 5. commit: run the \`commit\` skill.
 6. push.
 7. PR: the \`pr\` skill (targets main, merge commit).

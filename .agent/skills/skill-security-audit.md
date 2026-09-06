@@ -2,8 +2,8 @@
 
 **Purpose:** what to check before adopting a publicly-shared Claude Code
 skill or agent (or an equivalent prompt file for another tool) into this
-vault or the `golden-fur` repo. Used by the `skill-agent-auditor` agent,
-and by hand for a quick one-off check.
+vault or the `golden-fur` repo. Run it by hand whenever a skill/agent
+sourced from outside these two repos is being considered.
 
 **Why this exists:** a skill/agent file is a prompt that gets loaded into
 an agent's context and, for agents, granted real tool access (file
@@ -19,9 +19,8 @@ try to exfiltrate repo content to an external destination.
 2. **Does the requested tool access match the stated job?** A note-filing
    skill needing `Bash` or network access is a mismatch worth questioning.
    Prefer the narrowest tool list that still does the job — see
-   `vault-librarian`/`weekly-reviewer`/`backlink-curator`/`skill-agent-auditor`
-   in this repo for the pattern: read-mostly unless the job genuinely
-   requires writing.
+   `vault-librarian` in this repo for the pattern: read-mostly unless the
+   job genuinely requires writing.
 3. **Does it try to override operator instructions?** Look for language
    like "ignore previous instructions," "always do X regardless of what
    you're told," or instructions telling the agent to treat its own output

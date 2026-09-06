@@ -4,9 +4,9 @@
 so filing, review, and linking agents can reliably query/filter notes
 without guessing at field names.
 
-**Use whenever** writing or checking a note's frontmatter —
-`note-filing`, `vault-librarian`, `weekly-reviewer`, `research-capture-agent`,
-and `backlink-curator` all depend on this staying consistent.
+**Use whenever** writing or checking a note's frontmatter — `note-filing`
+and `vault-librarian` depend on this staying consistent, and any review or
+linking pass queries these fields.
 
 ## Required fields (every note)
 
@@ -32,12 +32,12 @@ project: <project slug, e.g. golden-fur>
 
 - `type` — one of `capture` (a raw Inbox note; the default, can be
   omitted), `decision` (ADR-style), `review` (weekly rollup), `resource`
-  (research-capture-agent output), or `library` (promoted, Library/-only
+  (a cited research source), or `library` (promoted, Library/-only
   content). Lets an agent filter notes by kind without parsing folder
   paths.
 - `source` — citation for research material: a URL, DOI, book/paper title,
-  or `interview: <name>, <date>`. Required on anything
-  `research-capture-agent` files into `Projects/golden-fur/shared/research/`.
+  or `interview: <name>, <date>`. Required on anything filed into
+  `Projects/golden-fur/shared/research/`.
 - `status` — for `decisions` or anything with a lifecycle: `draft`,
   `active`, `superseded`, `resolved`.
 

@@ -12,14 +12,15 @@ repo.
 - **`Projects/<project>/`** — record of work on a specific project. For
   golden-fur it has **exactly two** subtrees:
   - **`sessions/`** — one folder-set per AI session (a request thread that
-    changed the app), the project's running changelog. a self-contained `NN-<slug>/` folder per session — `plan.md`, `testing/` (verification record + click-by-click manual test, plus Postman/SQL), `reviews/` (`code-reviewer` passes), `context/` (copied context files). One monotonic `NN` counter continuing from `sessions/_legacy/` (the pre-2026-09 `testing/` tree). See
+    changed the app), the project's running changelog. a self-contained `NN-<slug>/` folder per session — `plan.md`, `testing/` (verification record + click-by-click manual test, plus Postman/SQL), `reviews/` (`code-review` pass summaries), `context/` (copied context files). One monotonic `NN` counter continuing from `sessions/_legacy/` (the pre-2026-09 `testing/` tree). See
     `Projects/golden-fur/sessions/README.md`.
   - **`shared/`** — project-wide material not tied to one session:
     `shared/context/` (capstone proposal, architecture docs, roadmaps,
     report PDFs — **sensitive**: treat anything credential-like here as
     such), `shared/decisions/` (ADRs / "why we did X", `YYYY-MM-DD-slug.md`),
     `shared/design/` (role-dashboard mockups), `shared/research/` (cited
-    literature/interview sources — `research-capture-agent`'s target).
+    literature/interview sources — filed via `vault-librarian` with
+    `frontmatter-schema` citation fields).
 - **`Areas/`** — ongoing responsibilities not tied to one project
   (e.g. weekly review summaries land in `Areas/Reviews/`).
 - **`Library/`** — curated, **human-readable** notes only, grouped by
@@ -63,36 +64,25 @@ instructions for this vault's reusable AI workflows:
 **Agents** (spawnable subagents with restricted tools):
 
 - `vault-librarian` — files raw input and promotes notes into `Library/`.
-- `weekly-reviewer` — summarizes the last 7 days into `Areas/Reviews/`.
-- `backlink-curator` — inserts `[[wikilinks]]` between related notes and
-  flags orphaned ones (read-mostly: `Read`, `Grep`, `Glob`, `Edit`).
-- `research-capture-agent` — files literature/interview sources into
-  `Projects/golden-fur/shared/research/` with citation metadata, distinct
-  from `note-filing`'s default handling of raw working notes.
-- `skill-agent-auditor` — read-only review of a third-party skill/agent
-  file for prompt-injection/scope-creep risk before it's adopted.
+  Also covers filing a cited research source into
+  `Projects/golden-fur/shared/research/` (with `frontmatter-schema`).
 - `workflow-documenter` — the one deliberate exception to "vault-only":
   reads the sibling `../golden-fur` code repo to ground workflow docs in
   real behavior, but only ever writes within this vault
   (`Library/golden-fur/features/<feature>/workflows/` +
   `Reference/golden-fur/features/<feature>/workflows/`). Code-change
-  refreshes are triggered once per golden-fur PR (that repo's
-  `workflow-doc-sync` skill runs it over the whole branch diff), not after
-  every task or commit.
+  refreshes are an **explicit-request-only** drift check now (that repo's
+  `workflow-doc-sync` skill) — no longer a per-PR step.
 - `session-documenter` — another deliberate "vault-only" exception: reads
-  `../golden-fur`'s diff/log and runs its test suites to write the session
-  record (near-beginner `plan.md`, click-by-click `testing/testing.md`, copied context, Postman/SQL) for a change
-  just implemented — but only ever writes within this vault. Nudged by
-  golden-fur's `Stop` hook.
+  `../golden-fur`'s diff/log to write the session record (near-beginner
+  `plan.md`, click-by-click `testing/testing.md`, copied context,
+  Postman/SQL) for a change just implemented — but only ever writes within
+  this vault. Runs at implementation-finish. It takes test pass/fail counts
+  from that session's `ci-verifier` run rather than re-running the suites.
 
-Two more agents are defined in `../golden-fur` but also act here — both
-read-only, both wired into this repo's `pr` skill's finish pipeline:
+One more agent is defined in `../golden-fur` but also acts here — read-only,
+wired into this repo's `pr` skill's finish pipeline:
 
-- `code-reviewer` (`../golden-fur/.agent/agents/code-reviewer.md`) — files
-  its `pre-pr` review reports under
-  the branch's `Projects/golden-fur/sessions/<NN-slug>/reviews/`. Read-only on the
-  golden-fur code, never writes there. See
-  `Projects/golden-fur/shared/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`.
 - `ci-verifier` (canonical in `../golden-fur`; `.agent/agents/ci-verifier.md`
   here is a pointer) — runs the `✅ CI: Verify All` VS Code task across
   **both** repos (this vault's `format:check`, golden-fur's
@@ -101,17 +91,25 @@ read-only, both wired into this repo's `pr` skill's finish pipeline:
   verified `HEAD` sha) for the `pr-guard` hook. Its write-side counterpart
   `ci-fixer-agent` is auto-invoked when it reports red.
 
+Code review at `pr-to-dev` time is the built-in `code-review` skill run
+**in-session** on the golden-fur side (not a subagent); it drops a summary
+file into that branch's `Projects/golden-fur/sessions/<NN-slug>/reviews/`,
+which is the evidence this repo's `pr-guard` also checks for. See
+`Projects/golden-fur/shared/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`
+(the bespoke `code-reviewer` subagent was retired 2026-09-06).
+
 **Skills** (auto-invoked reference material):
 
 - `note-filing` — file a raw capture: destination folder, frontmatter,
-  never overwrite.
+  never overwrite. Covers cited research sources too.
 - `frontmatter-schema` — canonical YAML fields (`title`, `date`, `tags`,
   `project`, plus optional `type`/`source`/`status`).
-- `cross-linking` — when/how to add wikilinks; powers `backlink-curator`.
-- `weekly-review-format` — the structure `weekly-reviewer` writes.
+- `cross-linking` — when/how to add `[[wikilinks]]`; applied inline during
+  filing and review.
 - `agents-md-maintenance` — keeps this file canonical and every tool's
   root context file (e.g. `.claude/CLAUDE.md`) a thin pointer to it.
-- `skill-security-audit` — the checklist `skill-agent-auditor` runs.
+- `skill-security-audit` — checklist for vetting a third-party skill/agent
+  for prompt-injection / scope-creep risk before adopting it.
 - `workflow-documentation` — the paired human-readable
   (`Library/golden-fur/features/<feature>/workflows/`) + machine-readable
   (`Reference/golden-fur/features/<feature>/workflows/`) format
@@ -146,7 +144,7 @@ eol=lf`).
 
 ## Auto-run wiring
 
-`.claude/settings.json` wires three Claude Code hooks (Claude-specific — no
+`.claude/settings.json` wires two Claude Code hooks (Claude-specific — no
 `.agent/` twin; other tools replicate the intent via their own mechanisms):
 
 - **`session-router`** (`UserPromptSubmit`) — pattern-matches the prompt and
@@ -155,8 +153,9 @@ eol=lf`).
   Deterministic _decision_; the skills/agents still do the work.
 - **`pr-guard`** (`PreToolUse` on `Bash`) — blocks `gh pr create` until
   `ci-verifier` has left `.git/ci-verifier-pass` for the current `HEAD`.
-- **`gitkeep-sweep`** (`Stop`) — adds a `.gitkeep` to any tracked-scope dir
-  left empty, removes it once the dir has other files; stages the change.
+
+(The `gitkeep-sweep` `Stop` hook was removed 2026-09-06 — it ran a
+whole-tree `find` on every turn end for a near-never need.)
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:

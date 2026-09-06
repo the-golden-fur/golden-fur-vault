@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Bash): block a real `gh pr create` for THIS repo
 # until the finish pipeline has left its evidence — a green ci-verifier
-# marker for the current HEAD, and a code-reviewer report for this branch in
-# the sibling vault.
+# marker for the current HEAD, and a code-review summary file for this branch
+# in the sibling vault (written in-session after the `code-review` skill run).
 #
 # Deterministic enforcement half of the finish pipeline. Wired from
 # .claude/settings.json. See AGENTS.md "Auto-run wiring".
@@ -43,7 +43,7 @@ if [ -n "$branch" ]; then
   sess="$(grep -rl -F "$branch" "$sessions_dir"/*/plan.md "$sessions_dir"/*/testing/testing.md 2>/dev/null \
             | sed -E 's#(.*/sessions/[^/]+)/.*#\1#' | sort -u | head -1)"
   if [ -z "$sess" ] || ! ls "$sess"/reviews/*.md >/dev/null 2>&1; then
-    missing="${missing}- no code-reviewer report for branch ${branch} in its sessions/<NN-slug>/reviews/ folder. Spawn code-reviewer (trigger pre-pr) first.\n"
+    missing="${missing}- no code-review summary for branch ${branch} in its sessions/<NN-slug>/reviews/ folder. Run the code-review skill (args: high) in-session, then write a <YYYY-MM-DD-HHmm>-pre-pr.md summary there.\n"
   fi
 fi
 

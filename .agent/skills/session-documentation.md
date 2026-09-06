@@ -30,7 +30,7 @@ Projects/golden-fur/sessions/NN-<slug>/
     <slug>.postman_collection.json         if an API route's behaviour changed
     <slug>.sql                             if a migration was added
   reviews/
-    <YYYY-MM-DD-HHmm>-<trigger>.md          each code-reviewer pass (written by that agent)
+    <YYYY-MM-DD-HHmm>-pre-pr.md             code-review summary (written in-session after the code-review skill)
   context/
     <copied files>                         context the session used (see below)
     context-manifest.md                    provenance + referenced-not-copied list
@@ -163,9 +163,14 @@ checks rather than restating every request in prose.>
 
 ## Test suites
 
-<Exact pass/fail counts from actually running them — server and client
-separately, e.g. "`server`: `npm run test` — 920/920 passing (87 files);
-`npx tsc --noEmit` clean." Never state a count you did not personally run.>
+<Exact pass/fail counts — server and client separately, e.g. "`server`:
+`npm run test` — 920/920 passing (87 files); `npx tsc --noEmit` clean."
+**Take these from this session's most recent green `ci-verifier` run** (or a
+`reviews/` pre-PR review that captured them) rather than re-running the full
+suites here — `ci-verifier` already ran them and re-running mid-task burns
+session budget. Only run a suite yourself if no green pass exists this
+session. Never state a count that was neither run nor verified by
+`ci-verifier`.>
 
 ## Open items (only if any)
 
