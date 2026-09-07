@@ -1,0 +1,347 @@
+{
+  "info": {
+    "name": "75 - Customer booking View details + Cashier lookups",
+    "description": "API-level checks for session 75. Part 1: GET /bookings/:id/details returns a fully-hydrated booking (branch/pet/owner/assigned_staff/cage/item-names/pricing/transactions) for the owning customer or any staff, delegating the owner-or-staff gate to getBookingById; a different non-staff customer gets 403; no auth gets 401. Part 2: GET /pets/:id and GET /customers/:id now allow the Cashier role for single-record lookups (previously 403 -> the 'Unknown pet' / 'Unknown owner' fallback in the Bookings Queue / Booking Details pages). Fill the collection variables and run top to bottom. customer_identifier must OWN booking_id_owned; other_customer_identifier must be a different customer.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "customer_identifier",
+      "value": "",
+      "description": "Owner of booking_id_owned, e.g. customer1@goldenfur.com"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "other_customer_identifier",
+      "value": "",
+      "description": "A DIFFERENT customer who does not own booking_id_owned, e.g. customer2@goldenfur.com"
+    },
+    { "key": "other_customer_password", "value": "" },
+    { "key": "other_customer_access_token", "value": "" },
+    {
+      "key": "cashier_identifier",
+      "value": "",
+      "description": "A Cashier staff account, e.g. makati.cashier1"
+    },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    {
+      "key": "booking_id_owned",
+      "value": "",
+      "description": "A booking owned by customer_identifier - ideally Grooming with a downpayment + balance transaction pair"
+    },
+    {
+      "key": "booking_id_grouped",
+      "value": "",
+      "description": "(optional) A booking whose booking_group_id is set - to check group net_total + shared transactions"
+    },
+    {
+      "key": "pet_id",
+      "value": "",
+      "description": "pet_id of booking_id_owned (NOT owned by the cashier) - for the Cashier /pets/:id check"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "customer_id of booking_id_owned - for the Cashier /customers/:id check"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as the owning customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /bookings/:id/details as the owner - fully hydrated",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id_owned}}/details",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id_owned}}", "details"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().details;",
+              "pm.test('names resolved server-side, not left as ids', () => {",
+              "  pm.expect(d.branch, 'branch').to.be.an('object');",
+              "  pm.expect(d.branch.name).to.be.a('string');",
+              "  pm.expect(d.pet, 'pet').to.be.an('object');",
+              "  pm.expect(d.pet.name).to.be.a('string');",
+              "  pm.expect(d.owner.full_name).to.be.a('string');",
+              "  d.items.forEach(i => pm.expect(i.name, 'item name').to.be.a('string'));",
+              "});",
+              "pm.test('assigned_staff is a display_name or null (never a bare id)', () => {",
+              "  if (d.assigned_staff !== null) pm.expect(d.assigned_staff.display_name).to.be.a('string');",
+              "});",
+              "pm.test('pricing rollup is coherent', () => {",
+              "  pm.expect(d.pricing.total).to.be.a('number');",
+              "  pm.expect(d.pricing.amount_paid).to.be.a('number');",
+              "  pm.expect(d.pricing.balance_due).to.eql(Math.max(0, d.pricing.total - d.pricing.amount_paid));",
+              "});",
+              "pm.test('amount_paid counts only settled (Fully/Partially Paid) transactions', () => {",
+              "  const settled = d.transactions.filter(t => ['Fully Paid','Partially Paid'].includes(t.payment_status));",
+              "  const sum = settled.reduce((s,t) => s + Number(t.total_amount), 0);",
+              "  pm.expect(Math.round(d.pricing.amount_paid * 100)).to.eql(Math.round(sum * 100));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. (optional) GET details for a GROUPED booking - group net_total + shared transactions",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id_grouped}}/details",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id_grouped}}", "details"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (!pm.collectionVariables.get('booking_id_grouped')) { pm.test.skip('no grouped booking configured'); return; }",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().details;",
+              "pm.test('group row is present and drives the total', () => {",
+              "  pm.expect(d.group, 'group').to.be.an('object');",
+              "  pm.expect(d.pricing.total).to.eql(Number(d.group.net_total));",
+              "});",
+              "pm.test('transactions include the group-keyed rows (booking_group_id set)', () => {",
+              "  pm.expect(d.transactions.some(t => t.total_amount !== undefined)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Login as a DIFFERENT customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{other_customer_identifier}}\",\n  \"password\": \"{{other_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('other_customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. GET /bookings/:id/details as the wrong customer - 403",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{other_customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id_owned}}/details",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id_owned}}", "details"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('403 - not the owner and not staff', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. GET /bookings/:id/details with no token - 401",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id_owned}}/details",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id_owned}}", "details"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": ["pm.test('401', () => pm.response.to.have.status(401));"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Login as a Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('cashier_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cashier GET /pets/:id - 200 (was 403 -> 'Unknown pet')",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 - Cashier may read a single pet record', () => pm.response.to.have.status(200));",
+              "pm.test('pet name is present', () => pm.expect(pm.response.json().pet.name).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Cashier GET /customers/:id - 200 (was 403 -> 'Unknown owner')",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/customers/{{customer_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["customers", "{{customer_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 - Cashier may read a single customer profile', () => pm.response.to.have.status(200));",
+              "pm.test('owner name is present', () => pm.expect(pm.response.json().customer.full_name).to.be.a('string'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Cashier GET /bookings/:id/details - 200 (staff path)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_id_owned}}/details",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "{{booking_id_owned}}", "details"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 - a Cashier is staff for the owner-or-staff gate', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().details;",
+              "pm.test('pet + owner names resolved (no Unknown fallback needed)', () => {",
+              "  pm.expect(d.pet.name).to.be.a('string');",
+              "  pm.expect(d.owner.full_name).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
