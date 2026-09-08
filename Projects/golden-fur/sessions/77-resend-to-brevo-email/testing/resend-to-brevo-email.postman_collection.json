@@ -1,0 +1,181 @@
+{
+  "info": {
+    "name": "77 - Resend to Brevo email + policy email settings",
+    "description": "Verifies PATCH /bookings/policy accepts and round-trips the three new email-behaviour fields added by migration 20260908181 (booking_group_email_mode, care_log_task_email_enabled, care_log_daily_report_enabled). Run top to bottom against a dev server on base_url with seeded staff. The Brevo send path itself is verified manually (see testing.md Scenario A) - there is no API endpoint that sends a test email.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_identifier", "value": "makati.admin1@goldenfur.com" },
+    { "key": "admin_password", "value": "password123" },
+    { "key": "access_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Staff login (capture token)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{base_url}}/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["staff", "login"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login ok, token present', () => {",
+              "  pm.expect(pm.response.code).to.eql(200);",
+              "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+              "});",
+              "if (body.access_token) pm.collectionVariables.set('access_token', body.access_token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET /bookings/policy - defaults for the new fields",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "const def = body.policies.find((p) => p.branch_id === null);",
+              "pm.test('new email fields present with documented defaults', () => {",
+              "  pm.expect(def.booking_group_email_mode).to.eql('combined');",
+              "  pm.expect(def.care_log_task_email_enabled).to.eql(false);",
+              "  pm.expect(def.care_log_daily_report_enabled).to.eql(true);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. PATCH /bookings/policy - flip all three (system default)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_group_email_mode\": \"per_booking\",\n  \"care_log_task_email_enabled\": true,\n  \"care_log_daily_report_enabled\": false\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('patch persisted the three fields', () => {",
+              "  pm.expect(pm.response.code).to.eql(200);",
+              "  pm.expect(body.policy.booking_group_email_mode).to.eql('per_booking');",
+              "  pm.expect(body.policy.care_log_task_email_enabled).to.eql(true);",
+              "  pm.expect(body.policy.care_log_daily_report_enabled).to.eql(false);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH /bookings/policy - rejects an invalid mode",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_group_email_mode\": \"digest\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invalid enum value is a 400', () => {",
+              "  pm.expect(pm.response.code).to.eql(400);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH /bookings/policy - restore defaults",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"booking_group_email_mode\": \"combined\",\n  \"care_log_task_email_enabled\": false,\n  \"care_log_daily_report_enabled\": true\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('defaults restored', () => {",
+              "  pm.expect(pm.response.code).to.eql(200);",
+              "  const p = pm.response.json().policy;",
+              "  pm.expect(p.booking_group_email_mode).to.eql('combined');",
+              "  pm.expect(p.care_log_daily_report_enabled).to.eql(true);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}
