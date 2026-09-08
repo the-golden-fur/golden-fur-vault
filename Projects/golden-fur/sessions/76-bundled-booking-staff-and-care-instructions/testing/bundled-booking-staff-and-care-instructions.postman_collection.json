@@ -1,0 +1,288 @@
+{
+  "info": {
+    "name": "76 - Bundled-booking staff concurrency + care instructions",
+    "description": "API-level checks for session 76. Focus: the new policy_configurations.max_concurrent_bookings_per_staff knob and how it surfaces. Fill the collection variables (a staff Admin/Superadmin login for the policy write, a customer login that owns pet_id, a real branch_id + an active Grooming service_id + an ISO window comfortably past the notice period) and run top to bottom. Requests 4 and 5 leave the system-default policy row back at max_concurrent_bookings_per_staff = 1 - run request 8 last to confirm.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "staff_username",
+      "value": "",
+      "description": "Admin/Superadmin, e.g. makati.admin1"
+    },
+    { "key": "staff_password", "value": "password123" },
+    { "key": "staff_access_token", "value": "" },
+    {
+      "key": "customer_email",
+      "value": "",
+      "description": "e.g. customer1@goldenfur.com"
+    },
+    { "key": "customer_password", "value": "password123" },
+    { "key": "customer_access_token", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "service_category", "value": "Grooming" },
+    {
+      "key": "scheduled_start",
+      "value": "",
+      "description": "ISO, past the notice window"
+    },
+    { "key": "scheduled_end", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff (Admin/Superadmin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('staff_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. GET /bookings/policy - new column is present",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "const rows = Array.isArray(body) ? body : (body.policies || body.data || []);",
+              "pm.test('every policy row carries max_concurrent_bookings_per_staff >= 1', () => {",
+              "  pm.expect(rows.length).to.be.greaterThan(0);",
+              "  rows.forEach((r) => {",
+              "    pm.expect(r).to.have.property('max_concurrent_bookings_per_staff');",
+              "    pm.expect(r.max_concurrent_bookings_per_staff).to.be.at.least(1);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. PATCH /bookings/policy - reject 0 (booking.validator: min 1)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected (400/422)', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. PATCH /bookings/policy - raise to 2",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "const row = body.policy || body.data || body;",
+              "pm.test('echoes 2', () => pm.expect(row.max_concurrent_bookings_per_staff).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. GET /bookings/staff-picker (customer) - reflects raised value",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_id}}&service_category={{service_category}}&scheduled_start={{scheduled_start}}&scheduled_end={{scheduled_end}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "staff-picker"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "{{service_category}}" },
+            { "key": "scheduled_start", "value": "{{scheduled_start}}" },
+            { "key": "scheduled_end", "value": "{{scheduled_end}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('response carries max_concurrent_per_staff', () => pm.expect(b).to.have.property('max_concurrent_per_staff'));",
+              "pm.test('equals the policy value just set (2)', () => pm.expect(b.max_concurrent_per_staff).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GET /bookings/staff-picker - disabled category still returns the field",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_id}}&service_category=Hotel&scheduled_start={{scheduled_start}}&scheduled_end={{scheduled_end}}",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "staff-picker"],
+          "query": [
+            { "key": "branch_id", "value": "{{branch_id}}" },
+            { "key": "service_category", "value": "Hotel" },
+            { "key": "scheduled_start", "value": "{{scheduled_start}}" },
+            { "key": "scheduled_end", "value": "{{scheduled_end}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('staff_picker_enabled is false for Hotel', () => pm.expect(b.staff_picker_enabled).to.eql(false));",
+              "pm.test('still reports max_concurrent_per_staff (defaults to 1, no policy read)', () => pm.expect(b.max_concurrent_per_staff).to.eql(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. PATCH /bookings/policy - restore to 1",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "const row = body.policy || body.data || body;",
+              "pm.test('back to 1', () => pm.expect(row.max_concurrent_bookings_per_staff).to.eql(1));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
