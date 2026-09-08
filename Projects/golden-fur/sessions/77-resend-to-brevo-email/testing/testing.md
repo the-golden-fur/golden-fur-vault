@@ -101,8 +101,10 @@ DEFAULT true` to `policy_configurations`. Column defaults seed every
 - Comments naming "Resend" updated to "Brevo" across
   `notification.service.ts`, `notifications.types.ts`,
   `staffManagement.service.ts`, `resendAccountEmail.service.ts`,
-  `staffAuth.controller.ts` (the `resendAccountEmail` _feature_ keeps its
-  "re-send" name — unrelated to the provider).
+  `staffAuth.controller.ts` (server) and `staff.api.ts` +
+  `CreateStaffAccountForm.tsx` (client). The `resendAccountEmail` /
+  `ResendEmailButton` _feature_ keeps its "re-send" name — unrelated to the
+  provider.
 
 ### Client
 
