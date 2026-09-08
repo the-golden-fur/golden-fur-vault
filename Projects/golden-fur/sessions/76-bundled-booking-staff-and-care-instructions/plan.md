@@ -22,6 +22,7 @@ payment) let a customer pick **the same groomer** for two different pets at
 
 > Currently, the new bundled booking feature allows selection of the same
 > staff (from staff picker) on the same date/time
+>
 > - Determine if staff assignment is 1 = 1 (e.g. 1 groomer = 1 pet only) or
 >   1 = many (e.g. 1 groomer = 2 pets)
 > - Sample booking chose groomer 1 for both Luna and Cooper on same date 11 AM
@@ -33,6 +34,7 @@ payment) let a customer pick **the same groomer** for two different pets at
 **2. The Hotel "Care Instructions" step crashed on submit.** Verbatim:
 
 > Fix booking > new booking > hotel type service > step 8 care instructions:
+>
 > - When unchecking same instructions every night, and instructions in other
 >   nights are not configured, booking fails
 > - Should set the first night instructions the default for other nights (so
@@ -40,6 +42,7 @@ payment) let a customer pick **the same groomer** for two different pets at
 >
 > Changing instructions for a specific night will only overwrite the
 > instructions for that night
+>
 > - Or perhaps add a new tab that says default instructions, which will be
 >   applied to all nights
 > - Then apply overwrite on nights that are edited
@@ -99,7 +102,7 @@ migrations.
 
 1. **No knob for staff concurrency.** A salon might genuinely want one
    groomer to bathe two small dogs at once. There was no way to allow it —
-   and, worse, the bundled-booking checkout let a customer *pick* the same
+   and, worse, the bundled-booking checkout let a customer _pick_ the same
    groomer twice for the same time even though the booking would then fail
    (or, in the reported case, slip through and create a real double-booking).
 
@@ -110,7 +113,7 @@ migrations.
    server validator, and the customer sees only "Invalid payload" with no
    idea which row or which night is the problem.
 
-3. **The dev database had *no* availability rows at all.** Because the seed
+3. **The dev database had _no_ availability rows at all.** Because the seed
    only runs on reset and the dev DB is kept current with `push`, a Hotel
    service added by a later migration ended up with zero availability rows.
    The code reads "no row" as "not offered here" and hides the service, so
@@ -132,13 +135,13 @@ migrations.
   `supabase/migrations/20260908179_m03_get_staff_availability_staff_capacity.sql`.
 - **The server's two other staff-capacity checkpoints honour it too.** After
   a booking is inserted the server re-counts overlapping bookings to resolve
-  races (`confirmCapacityAfterInsert`); it now keeps the first *N* by
+  races (`confirmCapacityAfterInsert`); it now keeps the first _N_ by
   creation order instead of just the first 1. The bundled-booking service
   has an in-request guard (`claimWindowOrThrow`) that stopped two bookings in
-  one checkout from sharing a staff member; it now allows up to *N*. _Which
+  one checkout from sharing a staff member; it now allows up to _N_. _Which
   files:_ `server/src/features/booking/services/capacity.service.ts`,
   `bookingGroup.service.ts`, `booking.service.ts`.
-- **The Staff Picker greys out a staff member you have already used *N*
+- **The Staff Picker greys out a staff member you have already used _N_
   times in this checkout** for an overlapping window, with a hint
   ("Booked for another pet in this checkout"), so you cannot build a cart
   that only fails at the very end. If you go back and change a slot so a
@@ -200,7 +203,7 @@ migrations.
   (notice periods, lunch break, down-payment settings, …). One row is the
   system-wide default (its `branch_id` is empty); a branch can have its own
   row that overrides the default.
-- **RPC / database function** — code that runs *inside* the Postgres
+- **RPC / database function** — code that runs _inside_ the Postgres
   database rather than in the Node server. `get_staff_availability` is one.
 - **validator** — server-side code that checks an incoming request is
   well-formed before anything acts on it. Here it is a Zod schema.

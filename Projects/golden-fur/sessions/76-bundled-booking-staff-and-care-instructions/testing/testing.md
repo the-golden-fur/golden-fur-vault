@@ -13,6 +13,7 @@ Two "In Progress" backlog items from
 
 > **Currently, the new bundled booking feature allows selection of the same
 > staff (from staff picker) on the same date/time**
+>
 > - Determine if staff assignment is 1 = 1 (e.g. 1 groomer = 1 pet only) or
 >   1 = many (e.g. 1 groomer = 2 pets)
 > - Sample booking chose groomer 1 for both Luna and Cooper on same date 11 AM
@@ -23,6 +24,7 @@ Two "In Progress" backlog items from
 
 > **Fix booking > new booking > hotel type service > step 8 care
 > instructions:**
+>
 > - When unchecking same instructions every night, and instructions in other
 >   nights are not configured, booking fails
 > - Should set the first night instructions the default for other nights (so
@@ -30,6 +32,7 @@ Two "In Progress" backlog items from
 >
 > Changing instructions for a specific night will only overwrite the
 > instructions for that night
+>
 > - Or perhaps add a new tab that says default instructions, which will be
 >   applied to all nights
 > - Then apply overwrite on nights that are edited
@@ -52,7 +55,7 @@ available at this branch" for every category.
   earliest-created overlapping row (`rows[0].id === booking.id`).
 - **`claimWindowOrThrow`** (`bookingGroup.service.ts`): the in-request guard
   that stops two sub-bookings of one bundled checkout from claiming the same
-  staff member threw on the *first* overlap.
+  staff member threw on the _first_ overlap.
 
 Nothing let an admin say "one groomer can take 2 pets at once", and — the
 reported bug — the bundled-booking Staff Picker did not even prevent the
@@ -60,8 +63,8 @@ customer from choosing the same person twice for the same window, so a
 bundled booking could be built that either failed on Confirm or (as reported
 for Luna + Cooper at 11 AM) slipped through.
 
-Separately, `resolveStaffAssignment` (`booking.service.ts`) *silently
-dropped* a `specific` staff choice whenever `isStaffPickerEnabled(category)`
+Separately, `resolveStaffAssignment` (`booking.service.ts`) _silently
+dropped_ a `specific` staff choice whenever `isStaffPickerEnabled(category)`
 was false — leaving a booking with no staff assigned and no signal that the
 client and server disagreed about whether a picker should exist.
 
@@ -97,7 +100,7 @@ available at this branch" for every category.
 
 - **`20260908178_m03_policy_configurations_max_concurrent_staff.sql`** — adds
   `policy_configurations.max_concurrent_bookings_per_staff integer not null
-  default 1 check (>= 1)`. Seeded onto existing rows by the default itself
+default 1 check (>= 1)`. Seeded onto existing rows by the default itself
   (`policy_configurations` is migration-seeded, no seed file). Follows the
   `downpayment_hold_hours` / `booking_notice_period_days` column pattern.
 - **`20260908179_m03_get_staff_availability_staff_capacity.sql`** — plain
@@ -106,7 +109,7 @@ available at this branch" for every category.
   verbatim except: a new `v_max_concurrent` read using the same
   branch-row-wins-else-system-default precedence as the lunch break, and
   Check 2's `not exists (...)` becomes `(select count(*) ...) <
-  v_max_concurrent`.
+v_max_concurrent`.
 - **`20260908180_m13_backfill_branch_availability.sql`** — idempotent
   backfill of `is_available = true` for every active service × branch and
   every service type × branch, `ON CONFLICT DO NOTHING` (preserves opt-outs,
@@ -125,7 +128,7 @@ Remote in sync through `20260908180`. **Not** applied to production
 - **`modules/validators/booking.validator.ts`** — `updatePolicyValidator`
   gains `max_concurrent_bookings_per_staff: z.number().int().min(1).optional()`.
 - **`services/capacity.service.ts`** — `confirmCapacityAfterInsert(booking,
-  staffConcurrency = 1)`. The Grooming/Veterinary branch now returns
+staffConcurrency = 1)`. The Grooming/Veterinary branch now returns
   `rows.slice(0, staffConcurrency).some(r => r.id === booking.id)` — the same
   "rank by (created_at, id), keep the first N" tie-break the Hotel/Daycare
   branches already used. Walk-ins and the down-payment settlement re-check
@@ -181,7 +184,7 @@ Remote in sync through `20260908180`. **Not** applied to production
   - `hotelCareIncompleteRows` memo lists every `partial` row with its
     section + `stay_date`.
   - `isStepValid('hotelDetails')` returns `hotelCareIncompleteRows.length ===
-    0` (was: always `true`).
+0` (was: always `true`).
   - `hotelPreferencesPayload` `.filter(... === 'complete')` on all four row
     types before mapping — `empty` rows are dropped silently.
   - The Care Instructions step passes `allNightsLabel="Default (all nights)"`
@@ -251,7 +254,7 @@ Seed logins: staff are `<branch>.<role>N@goldenfur.com` (username form
 4. Click a **different** night's tab. The row you just started is now hidden.
 5. Click **Next**.
    **Expect:** you do **not** advance. A banner appears reading roughly
-   *"Finish or remove the Feeding entry for <date> before continuing."* with
+   _"Finish or remove the Feeding entry for <date> before continuing."_ with
    a **"Go to that night"** button.
    **Failure (the old bug):** the wizard advances and the Confirm step later
    shows "Invalid payload", **or** Next is blocked with no banner telling you
@@ -272,8 +275,8 @@ Seed logins: staff are `<branch>.<role>N@goldenfur.com` (username form
 2. Click the **gear icon** in the top bar to open **Settings**. In the
    Settings sidebar click **Config**, then the **Policies** tile.
 3. Scroll to the **"Staff concurrency"** section. **Expect:** a number field
-   labelled *"Max concurrent bookings per staff member (1 = one pet at a
-   time)"* showing **1**, with explanatory copy below.
+   labelled _"Max concurrent bookings per staff member (1 = one pet at a
+   time)"_ showing **1**, with explanatory copy below.
 4. Change it to **2**, click the page's **Save** button. **Expect:** a
    success message; reloading the page shows **2** retained.
    **Failure:** a validation error on a valid value `2`, or the value

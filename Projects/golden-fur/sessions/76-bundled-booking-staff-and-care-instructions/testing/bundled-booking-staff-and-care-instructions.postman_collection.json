@@ -6,15 +6,27 @@
   },
   "variable": [
     { "key": "base_url", "value": "http://localhost:3000" },
-    { "key": "staff_username", "value": "", "description": "Admin/Superadmin, e.g. makati.admin1" },
+    {
+      "key": "staff_username",
+      "value": "",
+      "description": "Admin/Superadmin, e.g. makati.admin1"
+    },
     { "key": "staff_password", "value": "password123" },
     { "key": "staff_access_token", "value": "" },
-    { "key": "customer_email", "value": "", "description": "e.g. customer1@goldenfur.com" },
+    {
+      "key": "customer_email",
+      "value": "",
+      "description": "e.g. customer1@goldenfur.com"
+    },
     { "key": "customer_password", "value": "password123" },
     { "key": "customer_access_token", "value": "" },
     { "key": "branch_id", "value": "" },
     { "key": "service_category", "value": "Grooming" },
-    { "key": "scheduled_start", "value": "", "description": "ISO, past the notice window" },
+    {
+      "key": "scheduled_start",
+      "value": "",
+      "description": "ISO, past the notice window"
+    },
     { "key": "scheduled_end", "value": "" }
   ],
   "item": [
@@ -23,8 +35,15 @@
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}" },
-        "url": { "raw": "{{base_url}}/auth/staff/login", "host": ["{{base_url}}"], "path": ["auth", "staff", "login"] }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
       },
       "event": [
         {
@@ -44,8 +63,15 @@
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}" },
-        "url": { "raw": "{{base_url}}/auth/customers/login", "host": ["{{base_url}}"], "path": ["auth", "customers", "login"] }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
       },
       "event": [
         {
@@ -64,8 +90,14 @@
       "name": "3. GET /bookings/policy - new column is present",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{staff_access_token}}" }],
-        "url": { "raw": "{{base_url}}/bookings/policy", "host": ["{{base_url}}"], "path": ["bookings", "policy"] }
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
       },
       "event": [
         {
@@ -95,8 +127,15 @@
           { "key": "Content-Type", "value": "application/json" },
           { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
         ],
-        "body": { "mode": "raw", "raw": "{\n  \"max_concurrent_bookings_per_staff\": 0\n}" },
-        "url": { "raw": "{{base_url}}/bookings/policy", "host": ["{{base_url}}"], "path": ["bookings", "policy"] }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
       },
       "event": [
         {
@@ -117,8 +156,15 @@
           { "key": "Content-Type", "value": "application/json" },
           { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
         ],
-        "body": { "mode": "raw", "raw": "{\n  \"max_concurrent_bookings_per_staff\": 2\n}" },
-        "url": { "raw": "{{base_url}}/bookings/policy", "host": ["{{base_url}}"], "path": ["bookings", "policy"] }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
       },
       "event": [
         {
@@ -138,7 +184,12 @@
       "name": "6. GET /bookings/staff-picker (customer) - reflects raised value",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{customer_access_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
         "url": {
           "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_id}}&service_category={{service_category}}&scheduled_start={{scheduled_start}}&scheduled_end={{scheduled_end}}",
           "host": ["{{base_url}}"],
@@ -169,7 +220,12 @@
       "name": "7. GET /bookings/staff-picker - disabled category still returns the field",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{customer_access_token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
         "url": {
           "raw": "{{base_url}}/bookings/staff-picker?branch_id={{branch_id}}&service_category=Hotel&scheduled_start={{scheduled_start}}&scheduled_end={{scheduled_end}}",
           "host": ["{{base_url}}"],
@@ -204,8 +260,15 @@
           { "key": "Content-Type", "value": "application/json" },
           { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
         ],
-        "body": { "mode": "raw", "raw": "{\n  \"max_concurrent_bookings_per_staff\": 1\n}" },
-        "url": { "raw": "{{base_url}}/bookings/policy", "host": ["{{base_url}}"], "path": ["bookings", "policy"] }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_concurrent_bookings_per_staff\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/policy",
+          "host": ["{{base_url}}"],
+          "path": ["bookings", "policy"]
+        }
       },
       "event": [
         {
