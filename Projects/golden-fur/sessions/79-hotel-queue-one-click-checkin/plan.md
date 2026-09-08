@@ -39,8 +39,8 @@ of opening a long form, and stop showing a separate landing page afterwards.
   owner, the dates, and a **Check in** button.
 - **"Check in"** in this app means: assign the pet a **cage**, record the
   **care instructions** (what to feed it, when to walk it, any medication),
-  create a **stay** record, and flip the booking's status from *Pending* to
-  *In Progress*.
+  create a **stay** record, and flip the booking's status from _Pending_ to
+  _In Progress_.
 - Until this change, clicking **Check in** opened a whole separate page
   (`/staff/hotel/queue/check-in/<booking id>`) — a five-section form for the
   cage and the care instructions. The form pre-filled itself from whatever
@@ -80,7 +80,7 @@ should be a single action.
 3. **Move the old form to the "..." menu as "View booking details".** —
    _Which files:_ `HotelBookingPicker.tsx`,
    `client/src/features/hotel/pages/HotelCheckInFormPage/HotelCheckInFormPage.tsx`
-   — _Why:_ staff who *do* need to change the cage or fix a care
+   — _Why:_ staff who _do_ need to change the cage or fix a care
    instruction before check-in still need the form. It keeps its own URL
    (`/staff/hotel/queue/check-in/<id>`); only the way you reach it changed —
    the "..." kebab menu on each row, item **View booking details**. The
@@ -97,7 +97,7 @@ should be a single action.
 ## Words you might not know
 
 - **cage** — a numbered enclosure in the hotel, sized S/M/L. A pet is
-  assigned one at check-in and it's marked *Occupied* until checkout.
+  assigned one at check-in and it's marked _Occupied_ until checkout.
 - **stay** — the database row representing "this pet is physically here
   now". Created at check-in, closed at checkout.
 - **care instructions** — structured feeding / walking / playtime /

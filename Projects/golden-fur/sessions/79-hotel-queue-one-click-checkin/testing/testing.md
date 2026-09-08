@@ -17,7 +17,7 @@ Branch: `feat/hotel-queue-one-click-checkin` (base: `dev`)
 ## Root cause / Context
 
 The Hotel Queue's **Check In** tab renders `HotelBookingPicker`, a
-searchable list of *Pending* Hotel bookings. Its **Check in** button used
+searchable list of _Pending_ Hotel bookings. Its **Check in** button used
 to `navigate()` to a routed form page (`HotelCheckInFormPage` at
 `/staff/hotel/queue/check-in/:bookingId`), which mounts `HotelCheckInPanel`
 — a five-section cage + care-instructions form that loads read-only,
@@ -26,7 +26,7 @@ booking time), with one **Edit** toggle at the bottom. Submitting it called
 `POST /hotel/check-in` and then replaced the page body with a success
 banner + **Go to checkout** / **Check in another pet** controls.
 
-Nothing about the check-in *endpoint* forced that form to exist:
+Nothing about the check-in _endpoint_ forced that form to exist:
 
 - `CheckInPayload.cage_id` is **optional** — omitted, `resolveAndClaimCage`
   (`server/.../careInstructions.service.ts`) auto-suggests the pet's
@@ -120,7 +120,7 @@ queue.
 2. Go to `http://localhost:5173/staff/hotel/queue`. You land on a page
    headed **Hotel Queue** with **Check In** / **Check Out** tabs; **Check
    In** is selected and shows a list of bookings.
-3. Find a card with a **Check in** button (a *Pending* booking). Click
+3. Find a card with a **Check in** button (a _Pending_ booking). Click
    **Check in**.
    - **PASS:** the button briefly reads **Checking in...**, then a pop-up
      titled **Pet checked in** appears saying "Pet checked in
@@ -150,7 +150,7 @@ queue.
 ### C. "View booking details" (the old form, one level down)
 
 1. On the **Check In** tab, click the **"..."** (three-dots) button in the
-   top-right of a *Pending* booking's card. A small menu opens with **View
+   top-right of a _Pending_ booking's card. A small menu opens with **View
    booking details**.
 2. Click **View booking details**.
    - **PASS:** you land on a page headed **Booking details** (URL
