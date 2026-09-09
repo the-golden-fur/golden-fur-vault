@@ -1,0 +1,246 @@
+{
+  "info": {
+    "name": "Simplify mark-as-paid modal (session 80)",
+    "description": "Verifies the server side of the single 'Amount paid' change on the mark-as-paid / pay-with-credit endpoints. (2) recordTransactionPaymentValidator dropped cash_tendered and is .strict() - a body that still sends cash_tendered is rejected 400. (3) 'Cash' no longer needs cash_tendered - a body without it succeeds. (5) payTransactionWithCreditValidator: amount_applied greater than the transaction total is rejected 400. (6) a valid partial amount_applied on pay-with-credit succeeds and (usually) leaves a Pending 'balance' transaction. Fill the variables, then run top to bottom. Requests 3 and 6 settle real transactions - point them at throwaway Pending rows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "cashier_identifier",
+      "value": "",
+      "description": "e.g. makati.cashier1"
+    },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    {
+      "key": "customer_identifier",
+      "value": "",
+      "description": "e.g. customer1@goldenfur.com - must own pending_txn_credit and have some account credit"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "pending_txn_strict",
+      "value": "",
+      "description": "any Pending booking_payment transaction id - request 2 only validates (rejected before any settle)"
+    },
+    {
+      "key": "pending_txn_cash",
+      "value": "",
+      "description": "a throwaway Pending transaction id - request 3 settles it"
+    },
+    {
+      "key": "pending_txn_credit_reject",
+      "value": "",
+      "description": "any Pending transaction id owned by the customer - request 5 only validates"
+    },
+    {
+      "key": "pending_txn_credit",
+      "value": "",
+      "description": "a throwaway Pending transaction id owned by the customer - request 6 settles it"
+    },
+    {
+      "key": "over_total_amount",
+      "value": "",
+      "description": "any number strictly greater than pending_txn_credit_reject's total_amount - request 5 sends it as amount_applied and expects a 400"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('cashier_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Mark as paid with a stale cash_tendered field - rejected 400 (schema is .strict(), field removed)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 1000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{pending_txn_strict}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{pending_txn_strict}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('unknown cash_tendered key is rejected 400', () => pm.response.to.have.status(400));",
+              "pm.test('row was not settled', () => pm.expect(pm.response.code).to.not.eql(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Mark as paid with Cash and NO cash_tendered - succeeds 200",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{cashier_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"Cash\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{pending_txn_cash}}/pay",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "transactions", "{{pending_txn_cash}}", "pay"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Cash without cash_tendered still settles', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('no changeAmount in the response', () => pm.expect(b).to.not.have.property('changeAmount'));",
+              "pm.test('transaction is Fully Paid', () => pm.expect(b.transaction.payment_status).to.eql('Fully Paid'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. pay-with-credit with amount_applied above the total - rejected 400",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount_applied\": {{over_total_amount}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{pending_txn_credit_reject}}/pay-with-credit",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "transactions",
+            "{{pending_txn_credit_reject}}",
+            "pay-with-credit"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('over-total amount_applied is rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. pay-with-credit with a valid partial amount_applied - succeeds 200",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount_applied\": 50\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/transactions/{{pending_txn_credit}}/pay-with-credit",
+          "host": ["{{base_url}}"],
+          "path": [
+            "billing",
+            "transactions",
+            "{{pending_txn_credit}}",
+            "pay-with-credit"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('valid partial amount_applied settles', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.test('response carries the transaction + credit_transaction', () => { pm.expect(b).to.have.property('transaction'); pm.expect(b).to.have.property('creditTransaction'); });",
+              "pm.test('a Pending balance row was spawned for the uncovered remainder', () => pm.expect(b.leftover === null || b.leftover.payment_status === 'Pending').to.be.true);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
