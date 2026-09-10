@@ -20,10 +20,11 @@ just print a message to paste.
 4. Create the commit directly (pass multi-line messages via a heredoc so
    formatting survives), then run `git status` to confirm it succeeded.
 
-> **No verification gates run at commit time** — not `pre-commit-checks`
-> (Prettier), not `ci-verifier`. Both are steps of the `pr` skill only,
-> run when a PR is actually being opened. Line endings are handled by
-> `.gitattributes`, so local formatting no longer churns.
+> **No verification gates run anywhere in this vault's git workflow** — not
+> at commit time, not in the `pr` skill (which just opens a draft PR). Run
+> `npm run format:check` / `npm run format` yourself if you want the
+> Prettier check. Line endings are handled by `.gitattributes`, so local
+> formatting no longer churns.
 
 ## Message format
 

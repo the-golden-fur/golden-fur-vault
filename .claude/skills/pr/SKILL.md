@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Open a PR in this vault targeting main, filled out per the vault's PR conventions, merge commit only. Use when opening a pull request in this repo.
+description: Open a DRAFT PR in this vault targeting main, filled out per the vault's PR conventions (title, body, labels, assignee), then stop — no CI/format/review step. Merge commit only. Use when opening a pull request in this repo.
 ---
 
 # Pull request

@@ -21,11 +21,9 @@ from the app the moment someone changes a branch condition:
   M-code→feature map in `.agent/skills/workflow-documentation.md`).
 
 **Use whenever** asked to document a workflow, or add workflow diagrams for
-a module. For a **refresh after code changed**, this is triggered once when
-a golden-fur PR is opened (via that repo's `workflow-doc-sync` skill over
-the whole branch diff) — not after every task or commit, which would spawn
-this agent repeatedly and burn session budget. Running it by hand any time
-is still fine.
+a module. For a **refresh after code changed**, run it by hand over the
+whole branch diff when you actually want the drift check — it is not wired
+into any automated PR or commit step.
 
 Follow `.agent/skills/workflow-documentation.md` for the full template,
 naming convention, Mermaid house style, and the machine-file step schema.
