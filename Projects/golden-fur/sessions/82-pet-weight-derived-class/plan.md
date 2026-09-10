@@ -130,6 +130,18 @@ in kilograms or pounds.
    example pet gets a `weight_kg` that actually matches its S/M/L/XL class
    under the seeded cut-offs, so a fresh developer database looks consistent.
 
+8. **Fix how the Assessment Queue opens the pop-up** (follow-up, commit
+   `ccc6a03`, same session). — _Which files:_
+   `client/src/features/booking/pages/AssessmentQueuePage/*`,
+   `client/src/features/booking/components/AssessmentModal/AssessmentModal.tsx`
+   — _Why:_ the pop-up only appeared on the **Start** button, i.e. the
+   Pending → In Progress step. A walk-in assessment is created already
+   "In Progress", so it skipped Start entirely and the receptionist only ever
+   saw a **Complete** button — no way to record the weight and coat. Now the
+   Start and Complete buttons are removed; **clicking the row** opens the
+   pop-up, and its button is **"Confirm"**, which saves the assessment and
+   moves the booking all the way to **Completed** in one go.
+
 ## Words you might not know
 
 - **assessment** — the shop's in-person check of a pet that records its size
@@ -149,10 +161,10 @@ in kilograms or pounds.
   fields.
 - **singleton table** — a table designed to always hold exactly one row, used
   for global settings.
-- **derive** — compute one value from another (weight class *from* weight)
+- **derive** — compute one value from another (weight class _from_ weight)
   instead of storing it independently.
 - **singleton / lower-bound-inclusive** — for the bands, a weight exactly on a
-  cut-off belongs to the *higher* class (22.0 kg → L, not M).
+  cut-off belongs to the _higher_ class (22.0 kg → L, not M).
 - **provider (React)** — a component mounted once near the top of the app that
   holds a piece of shared state (here `ThemeProvider`, which now also holds
   the kg/lb choice).

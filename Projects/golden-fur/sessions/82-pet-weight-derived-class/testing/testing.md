@@ -1,6 +1,7 @@
 # Pet weight recorded as a number, weight class derived from it, per-user kg/lb display
 
-Branch: `feat/pet-weight-derived-class` (golden-fur), commit `a97608d`
+Branch: `feat/pet-weight-derived-class` (golden-fur), commits `a97608d` (core
+feature) + `ccc6a03` (Assessment Queue interaction follow-up, same session)
 Vault branch: `docs/golden-fur-session-82`
 
 ## The request, verbatim
@@ -57,8 +58,8 @@ document. No GitHub issue.
   `numeric NOT NULL`, seeded **9.5 / 22 / 41** as a non-round starting point;
   `updated_by_staff_id`, `updated_at`). Singleton `unique index … ((true))`,
   ordered `CHECK (m_min_kg > 0 AND m_min_kg < l_min_kg AND l_min_kg <
-  xl_min_kg)`, two-tier RLS (all staff read via `current_staff_role() IS NOT
-  NULL`, Admin/Superadmin write). Same shape as `pricing_configuration`
+xl_min_kg)`, two-tier RLS (all staff read via `current_staff_role() IS NOT
+NULL`, Admin/Superadmin write). Same shape as `pricing_configuration`
   (…047); no `supabase/seeds` trio, matching that table.
 - `20260910187_m02_pets_assessment_lock_weight_kg.sql` —
   `CREATE OR REPLACE FUNCTION enforce_pet_assessment_writes()` adding
@@ -89,7 +90,7 @@ stay `null`. The `.sql` mirror and `.seed.spec.ts` are updated to match.
 - `modules/validators/maintenance.validator.ts` —
   `updatePetWeightClassConfigurationValidator`: all three fields optional
   (`.positive().max(499)`), `.strict()`, a `superRefine` that checks ordering
-  among *supplied* fields; inferred type exported.
+  among _supplied_ fields; inferred type exported.
 - `maintenance.controller.ts` — `get` / `update`
   `PetWeightClassConfigurationController` (copy of the pricing pair; returns
   `{ configuration }`).
@@ -157,16 +158,25 @@ stay `null`. The `.sql` mirror and `.seed.spec.ts` are updated to match.
   `PetCreatePayloadStaff`.
 - `features/booking/components/AssessmentModal/AssessmentModal.tsx`
   (+ new `.spec`) — weight input + entry-unit radiogroup + derived/disabled
-  class `<select>` + override checkbox. "Save & Start" is now gated on a
-  positive weight **and** a coat type (was: a class + a coat type).
-- `features/booking/pages/AssessmentQueuePage/AssessmentQueuePage.tsx` — new
-  state, fetches the cut-offs, prefills the weight from `pet.weight_kg`.
-  `confirmAssessment` sends
-  `{ weight_kg: toCanonicalKg(...), coat_type, ...(overridden ? { weight_class } : {}) }`.
+  class `<select>` + override checkbox. The confirm button is **"Confirm"**
+  (was "Save & Start"), gated on a positive weight **and** a coat type (was: a
+  class + a coat type). If the cut-offs haven't loaded it falls back to a
+  plain manual class picker instead of a disabled empty `<select>`.
+- `features/booking/pages/AssessmentQueuePage/AssessmentQueuePage.tsx` —
+  **the row-level Start and Complete buttons are gone.** Any unfinished
+  Assessment row (Pending + Confirmed, or In Progress) is now a clickable
+  button — clicking it opens the modal. `confirmAssessment` sends
+  `{ weight_kg: toCanonicalKg(...), coat_type, ...(overridden ? { weight_class } : {}) }`,
+  then carries the booking straight through to **Completed** (start + complete
+  as needed for a Pending row; complete only for a walk-in already In
+  Progress). The Admin/Superadmin status-override dropdown is unchanged. This
+  fixed a gap where a walk-in assessment (created directly In Progress) never
+  surfaced the modal and only offered "Complete". The now-unused
+  `captures_pet_assessment` service lookup was removed from this page.
 - `features/veterinary/pages/VeterinaryConsolePage/ConsultationDetailPanel.tsx`
-  + `VeterinaryConsolePage.tsx` — the consultation's own `weight` field
-  (treated as canonical kg) is shown and entered in the viewer's unit; the
-  label reads "Weight (kg)" / "Weight (lb)".
+  - `VeterinaryConsolePage.tsx` — the consultation's own `weight` field
+    (treated as canonical kg) is shown and entered in the viewer's unit; the
+    label reads "Weight (kg)" / "Weight (lb)".
 
 ## Manual test — step by step
 
@@ -190,9 +200,12 @@ Customer logins: `customer1@goldenfur.com` … also `password123`.
 2. In the left sidebar open **Bookings → Assessment Queue**. You see a list of
    booked assessment appointments. (If it's empty, first create an
    "Initial Assessment" booking for any pet via **New booking**.)
-3. On any row, click **Start** (or **Start assessment**). A pop-up headed
-   **Record pet assessment** opens.
-4. Confirm the pop-up now has: a **Weight (kg)** number box, an **Entered in**
+3. Each unfinished row shows the hint **"Click to record the assessment and
+   complete this booking"**. There are **no Start / Complete buttons** — click
+   anywhere on the row body. A pop-up headed **Record pet assessment** opens.
+   - Failure: the row isn't clickable, or a "Start"/"Complete" button is still
+     there.
+4. Confirm the pop-up has: a **Weight (kg)** number box, an **Entered in**
    kg/lb radio pair, a **Weight class** drop-down, and a **Coat type**
    drop-down. Before this change there was only Weight class + Coat type.
    - Failure: no weight box at all.
@@ -203,19 +216,21 @@ Customer logins: `customer1@goldenfur.com` … also `password123`.
    - Failure: the drop-down stays "Not yet assessed", or stays editable.
 7. Tick **Override the derived weight class**. The drop-down becomes editable.
    Change it to **L**.
-8. Pick a **Coat type** (e.g. **SC**). Click **Save & Start**.
-   - The pop-up closes and the booking moves to "in progress".
-   - Failure: "Save & Start" stayed disabled (it needs a positive weight + a
-     coat type), or an error banner appeared.
+8. Pick a **Coat type** (e.g. **SC**). Click **Confirm**.
+   - The pop-up closes and the booking jumps straight to **Completed**
+     (regardless of whether it was Pending or already In Progress).
+   - Failure: "Confirm" stayed disabled (it needs a positive weight + a coat
+     type), or an error banner appeared, or the booking only went to
+     "in progress".
 9. Open the pet's profile (**Customers → the customer → the pet**, or from the
    booking). The **Weight** row shows about **13.6 kg** (or **30.0 lb** if
    your preference is pounds — see scenario B) and **Weight class** shows
    **L** (your override), and **Last assessed** shows "just now".
    - Optional DB check: `select weight_kg, weight_class, assessed_at from
-     public.pets where name = '<pet>';` — `weight_kg ≈ 13.61`,
+public.pets where name = '<pet>';` — `weight_kg ≈ 13.61`,
      `weight_class = 'L'`.
-10. Start the assessment again (or edit the pet) and this time enter a weight
-    but **don't** tick Override. The class follows the number: `25` kg → **L**,
+10. On another assessment row (or by editing a pet directly) enter a weight but
+    **don't** tick Override. The class follows the number: `25` kg → **L**,
     `5` kg → **S**, `45` kg → **XL**.
 
 ### B. Per-user kg/lb preference — staff and customer, independent
@@ -251,10 +266,10 @@ Customer logins: `customer1@goldenfur.com` … also `password123`.
    **Save**. A success message shows.
 5. Try to save **M = 30, L = 20** (M ≥ L). It is rejected with a validation
    message — cut-offs must increase.
-6. Go back to the **Assessment Queue** and start an assessment for a pet.
-   Enter a weight of **20 kg**. With the new L cut-off of 18, the derived
-   class is now **L** (it would have been **M** under the old 22). This proves
-   the derivation reads the live config.
+6. Go back to the **Assessment Queue**, click an assessment row, and enter a
+   weight of **20 kg**. With the new L cut-off of 18, the derived class is now
+   **L** (it would have been **M** under the old 22). This proves the
+   derivation reads the live config.
 7. Sign in as a non-Admin (the receptionist) and browse directly to
    `/staff/admin/maintenance/weight-classes` — you are redirected away, and
    the tile is not shown.
@@ -282,14 +297,16 @@ rejecting a bad value (req 11).
 
 ## Test suites
 
-Run and confirmed green this session (no `ci-verifier` run yet — that happens
-at PR time):
+Run and confirmed green this session, including after the `ccc6a03`
+Assessment Queue follow-up (no `ci-verifier` run yet — that happens at PR
+time):
 
 - `server`: `npx vitest run` — **1046 / 1046 passing** (95 files);
   `npm run typecheck` (`tsc --noEmit`) clean; `npx eslint .` — 0 errors
-  (33 pre-existing `no-console` warnings, none in changed files).
+  (33 pre-existing `no-console` warnings, none in changed files). Unchanged by
+  `ccc6a03` (client-only).
 - `client`: `npx vitest run` — **839 / 839 passing** (164 files); `npx tsc -b`
-  clean; `npx eslint .` clean.
+  clean; `npx eslint .` clean. Re-run after `ccc6a03`.
 - `supabase/seeds`: `npm run test:seed` — **26 / 26 passing** (6 files).
 
 ## Open items
