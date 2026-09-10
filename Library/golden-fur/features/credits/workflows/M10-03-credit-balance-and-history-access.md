@@ -94,6 +94,19 @@ flowchart TD
   behind this application-layer authorization — both were read from
   `supabase/migrations/20260805096_m10_create_credit_balances_schema.sql`
   and `...097_m10_create_credit_transactions_schema.sql`.
+- **The client never hides credit surfaces at a zero balance — this is
+  deliberate, not an oversight.** An empty `balances` array (a brand-new
+  customer, or one whose credit has all expired/been redeemed) still shows:
+  the sidebar's "Credits" link (`customerPortal.config.ts`, a static list,
+  never filtered by balance), the navbar wallet pill (`CreditBalanceIndicator.tsx`,
+  documented inline as "Always rendered, even at a zero balance, so customers
+  discover the feature"), the portal-home "Account Credit" tile
+  (`CustomerPortalWidgets.tsx`'s `CreditsWidget`, showing "No credit yet"), and
+  `/portal/credits` itself (`CustomerCreditsPage.tsx`, showing an explanatory
+  empty-state message instead of blanking the page). Covered by
+  `CustomerCreditsPage.spec.ts`'s "shows an empty state when the customer has
+  no credit" test. Re-verified 2026-09-10 against a live zero-balance seeded
+  account (`GET /credits/balances` → `200 {"balances":[]}`, no error).
 
 ## Relationship to other modules
 
