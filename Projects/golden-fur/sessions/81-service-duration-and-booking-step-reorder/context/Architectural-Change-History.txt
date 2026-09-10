@@ -1,0 +1,697 @@
+Tasks
+
+Development
+
+Merged
+Allow admins to set target quotas (e.g. sales quota, grooming count quota, customer quota, etc.)
+James
+Not Started
+Add clear discount messaging on package cards/detail views (e.g., 'Save 10% vs. booking individually') so the savings versus individual pricing are obvious to the customer.
+James
+Merged
+At customer account > My Transactions:
+Clicking on a row opens up the booking details for that transactions
+
+James
+Not Started
+Disable date options earlier than the booking's current effective date in the reschedule date picker.
+James
+In Progress
+At admin settings > services:
+Add config to set average time of service
+This will affect the duration of bookings that have this service
+Make packages derive from this as well
+When making new booking > date time picker step:
+Remove end time presets (time blocks)
+Only show start time
+At the bottom (not in select; separate label), show end time and duration of booking
+Rearrange booking steps:
+Branch > Customer > Pet > Service Type > Services/Packages > Online/Walkin > Date Time + Staff/Cage picker > Confirmation
+Matthew
+Merged
+Simplify cashier account > transaction > mark transaction as paid modal:
+Currently there’s 2 payment fields
+What is amount to collect for?
+What is cash tendered for?
+Simplify and merge, 1 field only and that’s the field how much the cashier/customer is going to pay against the transaction
+You can omit the change label
+
+Matthew
+Merged
+Fix confirmed hotel type bookings not being read by groomers
+Since they’re default in progress, groomers are no longer able to check the pet in
+Thus the instructions do not show up in Boarding Checklist
+Matthew
+Merged
+Remaster cashier > transactions UI:
+Currently they cannot see transaction owners
+Add col that specifies the customer
+The filters and sort are too complex
+Reduce it to 1 sort and filter controls, adding sorts/filters creates round tiles like in Notion (you may look it up)
+Each sort/filter tile instance can be removed via X button on hover
+
+Matthew
+Merged
+Remove the fully booked indicator when starting a new booking:
+I believe this runs when all staff are selected in bookings
+EVEN THOUGH, they’re scheduled on different dates
+This does not mean that on X date, X staff are unavailable
+Either drop how fully booked works or  rewire its functionality
+Alarie
+Merged
+On http://localhost:5173/staff/hotel/queue:
+Clicking on check in on hotel queue should immediately check in the pet, does not open http://localhost:5173/staff/hotel/queue/check-in/e0aff74e-44e8-48a6-9007-008a7603a1a4
+Move http://localhost:5173/staff/hotel/queue/check-in/e0aff74e-44e8-48a6-9007-008a7603a1a4 to the … button > View booking details with an edit option at the bottom
+Do not open this page with go to checkout and check in another pet options after checking it, just return to the queue and show a modal if success or fail
+
+Alarie
+Merged
+Audit repo to change Resend to Brevo
+Optimize all email API features, perhaps there’s some bugs that drain the 300 email daily limit for Brevo
+Make sure to capture all email features and change it to Brevo
+Matthew
+Merged
+Currently, the new bundled booking feature allows selection of the same staff (from staff picker) on the same date/time
+Determine if staff assignment is 1 = 1 (e.g. 1 groomer = 1 pet only) or 1 = many (e.g. 1 groomer = 2 pets)
+Sample booking chose groomer 1 for both Luna and Cooper on same date 11 AM
+
+Perhaps add a config in admin settings that will allow admins to set how many times a staff can be chosen by a booking customer at the same time on the same date
+Matthew
+Merged
+Fix booking > new booking > hotel type service > step 8 care instructions:
+When unchecking same instructions every night, and instructions in other nights are not configured, booking fails
+Should set the first night instructions the default for other nights (so no need to set)
+
+Changing instructions for a specific night will only overwrite the instructions for that night
+Or perhaps add a new tab that says default instructions, which will be applied to all nights
+Then apply overwrite on nights that are edited
+Matthew
+Merged
+Add new option to … in customer account > bookings page:
+Add View Details option
+Should be able to see all details (e.g. branch, pet, date time, assigned staff/cage, price, payments, etc.)
+
+Currently only cancel is available (and reschedule if booking hasn’t been confirmed)
+Matthew
+Merged
+Fix unknown pet owner and unknown pet when viewing bookings as cashier
+
+Matthew
+
+Production
+Features Merged to Main Branch
+Feature
+Contributor
+When making new booking > service type step:
+Allow selection of multiple service types
+This opens up multiple subbookings (each with their own services/packages, date/time, staff/cage)
+But they will all share the same price
+Update the booking process status bar thing (step 1, step 2, step 3…) to include a booking status (¼ bookings; depending on how many service types are selected)
+Introduce some sort of order of priority of subbookings
+The first subbooking gets to config the start date/time, the other subbookings will just follow its end time (e.g. start date time sep 10 - 8 AM, ends at 10 AM, next booking start time will be readonly 10 AM… next booking star time readonly…), UNLESS it reaches branch operating hours cutoff time (last service ends at 5 PM)
+Perhaps make it so that the next service gets scheduled for the next day (with additional night stay fees) OR make it so that this follow end time feature is optional
+When checked off, allow manual setting of start date time instead of following the previous service end time
+Perhaps make this end time tail feature show a list of all the end times of all filed bookings, then allow selection of ONE only of those list items, which will set the start time of the current service
+Filter out the end times if appending the current service will cause cut off overtime
+Though still allow staff/cage selector, no need to make them readonly
+Perhaps we can also introduce sub subbookings:
+Allow selection of multiple pets
+Selecting a second pet creates a sub subbooking, and this pet can have its own sub bookings when selecting multiple service types
+OR TO MAKE THINGS EASIER, just add a step before payment confirmation 
+Show list of bookings, make another booking and cancel booking buttons below
+No need for that append latest booking to previous end time feature
+This uses a much simpler model, and still allows multiple bookings to share payment, downpayment, promos or discounts
+Matthew
+Currently assessment is merged into bookings queue
+Add a new page for receptionist called something like Assessment Queue
+Move the assessment functions there (e.g. start > opens new modal > allows receptionist to edit pet’s weight and coat values)
+Also rename the seed for Misc service type to > Assessment
+Matthew
+Add icons to admin settings > config navigation tiles
+
+Matthew
+Make settings modal fullscreen
+Settings sidebar should be a second sidebar
+Auto collapses the dashboard sidebar when settings opened
+Matthew
+When creating new service type > staff picker, it doesn’t specify what staff roles are available to choose from
+Extend it by adding options to choose staff roles (multi-select)
+Since grooming services > groomer, vet services > vets, etc.
+Do the same for existing service types and update seed scripts
+Also remove the key field, this should be randomly generated anyway, only leave out name
+
+Just drop key field, it seems redundant, I don’t like it showing in the list either
+
+Matthew
+Add something like requests/ or sessions/ somewhere in vault repo > Projects
+It should be filled with folders of claude or other AI sessions, where each session has a file for:
+The plan for the request, explained to a college student (not even entry level)
+The testing steps for the docs, clear and followable, literal step by step as if I don’t know how to navigate
+Context files themselves or reference to them (if they’re placed in different directories)
+Create necessary skills, agents or hooks to replicate this
+Matthew
+Fix how date and time picker in bookings queue > new booking:
+Currently, when it’s 1 PM today and I set a booking for tomorrow, it only shows booking time slots 2 PM and beyond (AS IF IT’S TREATING TODAY’S AVAILABLE BOOKING SLOTS FOR TOMORROW AND LATER DATES)
+Later dates should reset and show all available booking time slots based on branch operating hours and break times
+Staff should not appear in staff picker when they’re not available
+Confirm if availability time is computed properly (does it take into account the monthly schedule that the supervisor set? Is staff on vacation leave? etc.)
+Right now, monthly schedule is not configured by admin role, so all staff should be available EXCEPT when they’re chosen by a customer at X date/time (only on that date/time should they not be selectable)
+Alarie
+Fix not being able to book the next day or today in booking queue
+I think the 3 day notice period FOR RESCHEDULING ONLY, is ALSO applying to future online bookings
+You may add a separate config (for the online booking notice period) in admin settings > config > policies
+See the 2nd image below
+
+
+
+Alarie
+Add info button on booking process > service type step
+Should include the available services for that service type (but readonly)
+
+James
+Add an explicit confirmation dialog ('Are you sure you want to cancel this booking?') before a cancellation is executed.
+Add on-screen copy in the cancellation flow disclosing that payment (full or down) is non-refundable but will be converted into account credit for use on a future visit.
+Alarie
+Fix the bug preventing a newly created and activated service type from appearing in the service selection list.
+Alarie
+Investigate and fix the 3-day-minimum (or N-day) booking filter/configuration — verify it correctly applies date ranges instead of appearing to lock/pin schedules.
+Alarie
+On new booking:
+Allow customers/receptionist to choose payment scheme at last step
+Either downpayment or full payment
+Currently it auto locks full payment
+
+Verify that choosing downpayment scheme should initially create 2 transactions (downpayment + remaining balance)
+If remaining balance isn’t fully paid, it creates another remaining balance transaction instance
+Verify that downpayment config per service/package is now gone
+It should’ve been moved to admin settings > config a while ago
+ Matthew
+At booking process > payment step, allow customers/receptionist to choose payment scheme, whether to pay in full or downpayment when doing online bookings
+This decides the number of transactions made at customer > my transaction or cashier > transactions
+Full payment = 1 transaction only
+Downpayment = 2 transactions (e.g. downpayment and remaining balance, or perhaps make it flexible? 2+ transactions? Downpayment + multiple remaining balance transaction instances where you can choose how much to pay, creates new instance if remaining balance is not paid in full)
+Remove payment mode in booking process, move it to customer > my transactions and cashier > transactions
+Payment mode only appears when clicking on a transaction > pay
+Customers can choose credits, gcash or paymaya
+Cashiers can choose cash, bank, card, pickaroo and the aforementioned three
+Matthew
+Allow customers to see when will their credits expire (perhaps on hover or a dedicated credits page)
+Also allow them to see on what branch their credits are tied to (since credits are branch limited)
+Perhaps just show the sum of all their credits across branches in the navbar
+Then clicking on it will open a dedicated page that shows the credit distribution across other branches and their expiry (date and days left)
+Improve credits expiry config in admin settings
+2 options: entire branch credits expire at X date, or credits from specific transaction from specific booking expire at X date
+Only one or the other
+Matthew
+Add a configurable cancellation-to-credit conversion rate (default 100%, admin-adjustable, e.g. down to 50%) instead of a hardcoded full conversion.
+Fix the bug where credits were not generated after a cancellation during testing — verify the down-payment-to-credit pipeline end-to-end.
+Re-verify that the reschedule flow correctly reflects updated booking status and resulting credit balance after a cancellation.
+On the navbar, show how much credits a customer has (only applies to customers), include an icon
+Matthew
+Update golden fur seed scripts
+Make sure all necessary tables have rows
+Also add a supabase seed script updater agent/skill that auto runs whenever changed code touches a table with a seed script
+Add a skill/agent that auto runs push migrations to supabase when changes to supabase/migrations are made (only run after entire task is done)
+Since you said that the skill/agent that runs verify all vscode task on commit/PR request doesn’t fix the failing CI results, create a subagent and/or skills that fixes failing CI checks from verify all vscode task
+Also create an agent and/or skills that auto updates the existing workflows in the vault repo if anything changes to the corresponding code that involves it are made, and another agent/skills that updates the debugger agent/skills (like .agent\agents\booking-capacity-agent.md)
+Matthew
+Add a subagent code reviewer in golden-fur repo for unbiased code reviews
+Only give it readonly perms
+Should auto run before creating commits, publishing branch or opening PR
+Decide where it should place its outputs, I’m thinking somewhere in Projects\golden-fur\testing
+Matthew
+Add a dedicated transactions page (I think it’s already there) to search, filter and sort all customer transactions (e.g. downpayment, full, etc.), where each transaction is linked to a booking
+Online bookings of status pending payment will appear here for cashiers to mark as paid
+Make other queues pull bookings from payments queue (fully paid or partially paid), instead of relying on bookings queue (status IS NOT pending)
+Or perhaps just add an extra status in bookings queue before pending (e.g. unconfirmed), that specifies that an online booking is still not paid
+Perhaps revamp entire bookings queue status to something like: unconfirmed > confirmed > no show > cancelled
+While all the other queues will use the standard status: pending > in progress > completed
+Matthew
+Require some form of online payment (full or down payment) on every online booking — do not allow a slot to be reserved with zero payment.
+Make the down payment configurable as either a percentage of the total price or a flat fixed amount, set by an admin/owner.
+While a down payment is unpaid, keep the booking at 'Pending' and leave that time slot visible and bookable by other customers — it should not lock the queue/schedule.
+Add an expiration timer to unpaid down-payment reservations (e.g., due by end of day); auto-release the held slot if the deadline passes unpaid.
+At the payment phase of the booking process, add an option for the customer/receptionist to choose either full payment or downpayment for online transaction (NOT IN WALK INS, walkins auto full)
+At payments queue, a design the UI in a way that allows cashiers to mark transactions as paid
+If the transaction is downpayment not full, marking it as paid shows partially paid instead of fully paid
+Each list item should have a way to view the payment details (e.g. date, amount) for each transaction within the booking)
+Discounts and promos apply before downpayment is calculated
+Matthew
+Confirm that the downpayment config at admin settings only applies to online bookings and not walk ins
+Online bookings are identified as bookings made not on the same date and time (any other booking that’s not a walk in)
+Matthew
+Build a dedicated walk-in booking flow: same-day, on-site registration for walk-in customers, distinct from the future-appointment booking flow.
+Build this in the booking process (for both receptionist and customer) > date time picker
+They should be able to choose if it’s an online booking or walk-ins
+If they’re a walk-in, put them in automatically in the booking queue
+You might need to improve the booking queue status (to differentiate between unfinal online bookings and walk in bookings, or perhaps just make online bookings to pending, and walkin bookings to in progress)
+Only walk-in bookings should show up at the other queues (e.g. grooming, vet, hotel, daycare)
+Matthew
+Move the down payment toggle/config so it applies per transaction (all online bookings/services), not per individual service.
+Matthew
+Document the all the workflows in the vault repo
+Group by modules
+See sample mermaid code output
+Matthew
+
+
+
+
+Ideas
+James task: customer home page widgets
+High Priority
+
+Task
+Difficulty
+Allow vets access to bookings queue 
+But they can only book customers they have treated
+This will replace the integrated follow-up booking feature
+Easy
+Add option for staff to extend nights for booked pets in hotel type services
+E.g. extend stay by 2 nights
+Should affect final price
+Affects remaining balance transaction instances (or creates new if fully paid)
+Medium
+Makes changes to credit conversion from cancellation after downpayment
+Make it so that staff can review whether to return downpayment as credits or not
+Need manual review of reason of cancellation
+This is to see if reason is valid
+Perhaps just add a setting toggle that allows credits on cancel to be either manual or automatic, set per branch
+Medium
+On http://localhost:5173/staff/daycare/queue:
+Remove checkin checkout subpages
+Just add a status field to hotel queue items (e.g. pending, checked in, checked out, or follow the standard pending, in progress, completed, cancelled, no show like bookings queue)
+Remove checkin/checkout buttons on each list item
+Make it so that clicking on a pending list item opens the … view details to finalize hotel booking details
+Clicking on a checked in pet opens a custom http://localhost:5173/staff/hotel/care-log page that only has the tasks filtered only for that pet
+Clicking on checked out pet does nothing
+
+
+Medium
+
+MsMayuga-Aug27
+Golden Fur — Advisory Session Review
+Source: MsMayuga-URO-Aug27 (advisor walkthrough transcript)
+Prepared for: dev team backlog / Architectural Change Suggestions log
+Part 1 — Issues Raised During the Session
+The advisor (Ms. Mayuga) walked through a live demo of the Golden Fur booking system. The issues below are organized by area, as surfaced during that walkthrough.
+A. Payment & Compliance
+1. PayMongo requires business verification (KYC).
+When the team attempted to log into PayMongo with the Golden Fur account, the platform required ID/business verification (Know Your Customer) before payment processing could be enabled, since PayMongo is a licensed payment portal. This requirement was not identified prior to the capstone proposal being finalized, so it wasn't accounted for in the original scope.
+2. Facebook Login requires Meta Business Verification.
+Similarly, enabling Facebook Login (Meta for Developers) requires Meta Business Verification once the app is live to the public. This is a second compliance dependency the team was not previously aware of.
+3. Down payment was configured per-service instead of per-transaction.
+During testing, the down payment toggle was found to apply at the individual service level rather than across the entire transaction. Per the proposal's scope, the down payment requirement should apply to all online payments/bookings as a whole.
+B. Booking Flow
+4. Reschedule allows selecting a date before the current booking's day.
+While testing reschedule, a 'previous day' option remained selectable even though the booking had already been moved to a later date. Once a booking is moved forward, earlier dates (already past) should no longer be selectable.
+5. Multi-day (3-day) booking configuration may not be working consistently.
+A minimum-3-days filter/configuration was tested (e.g., Sept 1–3), but the advisor and dev noted it might not be functioning properly, and that schedules appeared to be 'pinned' or locked in an unexpected way.
+6. A newly created service type did not appear in the booking flow.
+A new 'Massage' service was created and marked available for both branches, but it did not show up in the 'Book a Service' step/menu during the customer booking flow.
+7. The system only supports booking one pet at a time.
+Customers with multiple pets cannot book services for more than one pet within the same session (e.g., one pet for Makati, another for Southwoods, or two pets at the same branch). For hotel-type bookings specifically, only one cage can be assigned per booking, so multiple pets cannot each be assigned their own cage in a single transaction. The advisor acknowledged this is a nontrivial database/architecture challenge, not just a UI fix.
+C. Services & Packages
+8. Running total miscalculates when an individual service overlaps with a package.
+When a service that also exists inside a selected package was chosen individually, the displayed price did not update correctly (e.g., showed 750 instead of the expected 630) until the conflicting selection was manually removed.
+9. Unclear selection order and labeling between individual services and packages.
+When a service is already part of a selected package, it becomes disabled — but it isn't clearly labeled with which package it belongs to, making the code/reasoning hard to read. The advisor also raised the open question of whether individual services or packages should be the default/first thing a customer selects.
+D. Cancellations & Credits
+10. Cancellation always converts payment to a full (100%) credit, with no configurable option.
+The system currently performs a full conversion of payment to customer credit upon cancellation. The advisor suggested this should be configurable (e.g., an admin-defined percentage, such as 50%, returned as credit instead of the full amount).
+11. Credits were not generated correctly during a cancel/reschedule test.
+While testing the cancel-then-reschedule path, no credit appeared to have been generated from the cancelled/down-paid booking, which should have converted per policy.
+E. Environment & Deployment
+12. The system is still running on localhost, limiting real-world testing.
+The advisor pointed out that because the system has not yet been deployed to a live environment, certain payment- and integration-related behaviors (e.g., PayMongo, OAuth logins) cannot be fully verified end-to-end.
+
+Part 2 — Actionable Dev Notes
+The items below translate the issues above into a checklist, formatted consistently with the team's Architectural-Change-Suggestions log.
+On PayMongo integration (payment settings):
+Coordinate with the business owner (Sir Mike) to complete PayMongo's Business Verification / KYC requirements before continuing integration work.
+Prepare and store the required verification documents (business permit, IDs, etc.) in the shared Google Drive per PayMongo's checklist.
+Define a fallback plan/scope in case business verification is denied or delayed (e.g., cash-only or manual payment recording as an interim option).
+On Facebook Login (Meta OAuth):
+Confirm with the business owner whether pursuing Meta Business Verification for Facebook Login is worth the added compliance overhead.
+If deprioritized, update the proposal/scope documentation to reflect Google/Gmail OAuth as the primary third-party login method, with Facebook as optional/future work.
+On admin settings → down payment configuration:
+Move the down payment toggle/config so it applies per transaction (all online bookings/services), not per individual service.
+Re-test down payment enforcement across grooming, hotel, daycare, and vet booking types after the fix.
+On staff/customer reschedule flow:
+Disable date options earlier than the booking's current effective date in the reschedule date picker.
+Add a regression test: after moving a booking to a later date, confirm the previously available earlier dates are no longer selectable.
+On multi-day (hotel) booking configuration:
+Investigate and fix the 3-day-minimum (or N-day) booking filter/configuration — verify it correctly applies date ranges instead of appearing to lock/pin schedules.
+Add test cases covering multi-day ranges (e.g., 3 nights, 5 nights) to confirm no unintended schedule locking.
+On Book a Service step (customer/staff booking flow):
+Fix the bug preventing a newly created and activated service type from appearing in the service selection list.
+Add a QA checklist step: verify any new service is immediately visible/selectable in the booking flow once marked active.
+On booking process — multi-pet / multi-branch support:
+Document the current one-pet-per-booking-session limitation as a known constraint if it will not be resolved within capstone scope.
+If pursued, scope a design for handling multiple pets within one session as sequential per-pet bookings (not true simultaneous multi-select), reusing shared booking context (date range, branch) where applicable.
+For hotel-type bookings specifically, resolve the cage-assignment limitation so multiple pets in one transaction can each be assigned a separate cage.
+On service/package selection UI (booking → services step):
+When a service is disabled because it's already included in a selected package, show a label or tooltip naming that package (not just a greyed-out state).
+Fix the running-total computation bug that occurs when a service overlaps between an individual selection and a package selection.
+Decide and document the intended UX order (individual service selection vs. package selection first) and apply it consistently across the booking flow.
+On cancellation policy (admin settings → maintenance → policies):
+Add a configurable cancellation-to-credit conversion rate (default 100%, admin-adjustable, e.g. down to 50%) instead of a hardcoded full conversion.
+Fix the bug where credits were not generated after a cancellation during testing — verify the down-payment-to-credit pipeline end-to-end.
+Re-verify that the reschedule flow correctly reflects updated booking status and resulting credit balance after a cancellation.
+Deployment / test environment:
+Deploy the system to a live/staging environment (beyond localhost) to properly test payment provider integrations (PayMongo) and OAuth logins end-to-end.
+Confirm seeded test data remains usable and realistic once migrated to the live/staging environment.
+
+ChatGPT
+Here are the key details and notes from Speaker 1, organized by topic. I focused only on what Speaker 1 said or confirmed, rather than Speaker 2's suggestions.
+1. Website / Images
+The images currently being used are AI-generated placeholders because they don't have professional photos yet.
+They are still waiting for professional photos.
+Speaker 1 mentioned coordinating with the COO, who is the owner’s spouse, because some business verification information cannot be answered by Sir Mike.
+Business verification is needed for:
+Payment
+Facebook login
+2. Deployment / Website Testing
+The website is already deployed, but Speaker 1 has not yet merged the latest changes.
+The purpose of deploying/testing is to identify errors that may only appear in the deployed environment.
+The homepage can display/package data pulled from the actual package data source.
+3. Packages
+Packages allow the selection of multiple services.
+A percentage discount is applied depending on the package.
+Example discussed:
+Original price: 700
+Discounted price: 630
+Package discount: 10%
+Speaker 1 agreed that the package should communicate the discount more clearly.
+4. Receptionist Role
+The receptionist's main responsibility is handling bookings.
+The receptionist can:
+Create bookings for walk-in customers.
+Create bookings for existing customers.
+Handle bookings made by customers themselves.
+Record the pet's actual weight during the assessment process.
+5. Pet Assessment
+A pet that has not yet been assessed does not have:
+Weight
+Coat size/type
+Other assessment information
+The pet's assessment affects the price of services.
+Weight is measured on-site by the receptionist/staff.
+The assessment is essentially used to determine the pet's relevant characteristics and pricing.
+6. Assessment / "Miscellaneous" Service
+The current Miscellaneous (MISC) category is being used for pets that have not yet been assessed.
+Speaker 1 explained that MISC is essentially a category.
+Once the pet has been assessed, services such as:
+Grooming
+Pet hotel
+Daycare can become available.
+Speaker 1 suggested renaming "Miscellaneous" → "Assessment Types" because "Miscellaneous" is confusing and too broad.
+7. Service Pricing
+The admin configures the price when creating a service.
+The receptionist does not edit service prices during booking.
+Service pricing is determined by the service configuration and, where applicable, pet characteristics such as weight/coating.
+8. Service Configuration
+Admin can configure:
+Service name
+Base price
+Branch availability
+Staff picker
+Cage picker
+Other service-related settings
+Speaker 1 explained that the staff picker is based on staff roles and availability at the selected time.
+9. Cage System
+Speaker 1 implemented a cage picker.
+Cages can have different sizes, such as:
+Small
+Medium
+Large
+Cage assignment can depend on the pet's weight class.
+Speaker 1 suggested using cage selection primarily for monitoring, rather than payment.
+The system should be able to identify which pet is assigned to a specific cage.
+Cage configuration can potentially be mapped to service types.
+10. Staff Picker
+A service can have Staff Picker Enabled.
+Staff selection is based on:
+Staff role
+Staff availability at the selected time
+This allows the system to determine which staff members can handle a particular service.
+11. Walk-in Booking
+At this point, the system does not yet have a proper walk-in function.
+Speaker 1 confirmed that walk-in handling still needs to be implemented.
+The intended process is that the receptionist manages registration for a walk-in customer.
+Walk-in registration should happen on the day/time of service, rather than requiring a future appointment.
+12. Customer & Pets
+Customers can have multiple registered pets.
+Currently, the system handles services one pet at a time.
+Speaker 1 confirmed that multiple pets cannot currently be selected together for a service.
+Speaker 2 suggested that multiple pets should potentially be supported with different appointment times on the same day, especially when staff availability is limited.
+
+Claude Missed
+Golden Fur — Advisory Session Review (Addendum)
+Source: MsMayuga-URO-Aug27 (full re-read) + Speaker 1 session notes
+Purpose: items missed from the first pass, including the down-payment/queue-locking issue flagged as critical
+Part 1 — Issues Raised During the Session (Addendum)
+These issues were surfaced in the same advisory walkthrough but were left out of the first document. They are organized by area.
+A. Down Payment & Slot Reservation (flagged as critical)
+1. Online bookings can currently reserve a slot with zero payment.
+The advisor was explicit that an online booking must never be allowed to hold a slot without some form of payment — either full payment or a down payment. Without this, a customer could reserve a slot and simply not show up, wasting it.
+2. Down payment amount needs to be configurable two ways: percentage or flat fee.
+The owner (Sir Mike) may want a straight percentage (e.g., 50%) or a fixed flat amount (e.g., ₱200) regardless of the total service cost. The system should let admins configure either mode.
+3. An unpaid down payment should NOT lock the booking into the queue — the slot must stay bookable by others.
+This is the core issue: a booking with an unpaid down payment should sit in a 'Pending' / pencil-booking state and the time slot should remain visible and bookable by other customers, not treated as reserved/confirmed. Only an actual payment (full or down) should move it into a real, locked slot.
+4. Unpaid down-payment reservations need an expiration window.
+The advisor described a same-day deadline (e.g., pay by 11:59 PM) after which the reservation auto-resets and the slot becomes available again the next day. There is currently no such timeout/expiration mechanism.
+5. No 'advance payment' option — book online now, pay in person on the day.
+The advisor asked whether a customer could book online but only pay when they physically arrive for the service. This should be supported as a distinct 'advance payment' path, with the cashier able to manually mark it as paid on arrival.
+B. Cancellation Flow
+6. Cancellation currently executes immediately with no confirmation prompt.
+During testing, clicking Cancel went through right away (with only a reason text box), when it should show a proper 'Are you sure you want to cancel?' confirmation step first.
+7. Cancellation screen doesn't disclose the non-refundable/credit-conversion policy to the customer.
+The advisor dictated specific messaging that should appear on-screen: payment (full or down) will not be refunded, but will be converted into account credit usable on the customer's next visit. This messaging currently isn't shown anywhere in the flow.
+C. Notifications & Reporting
+8. Email booking-confirmation notifications are not yet implemented.
+A booking was confirmed in-app, but no confirmation email was sent, since the email API integration hasn't been wired in yet — only the in-browser notification currently works.
+9. The Daily Sales Report (DSR) module does not exist yet.
+When asked about reporting, the team confirmed there is no report/DSR functionality at all yet — a gap against the proposal's stated objectives.
+D. Booking Status Logic
+10. The system currently assumes a booking is paid/started even without a real payment module.
+Because there's no live payment module yet, the flow was found to treat a booking as already paid/in-progress by default, rather than accurately reflecting that no payment has actually been confirmed.
+E. Payment Provider Scope (Defense Contingency)
+11. PayMongo integration may not be ready in time for the defense — a fallback plan is needed.
+Since PayMongo's business verification is still pending owner sign-off, the advisor suggested using a placeholder 'payment type' selector (no live processing) for the thesis defense, with real PayMongo setup happening after deployment and before turnover, once the owner approves. This needs to be explicitly written into the paper's scope section, not just handled in code.
+F. Third-Party Login
+12. The advisor recommended removing Facebook Login outright, not just deferring it.
+Since Google OAuth and email/password login are already implemented and sufficient, the advisor's guidance was to drop Facebook Login from scope entirely rather than pursue Meta Business Verification.
+G. Website Content & Verification Coordination
+13. Site images are AI-generated placeholders pending professional photos.
+The team is still waiting on professional photos from the business; current images are AI-generated stand-ins. Separately, some business-verification information cannot be provided by Sir Mike alone and needs coordination with the COO (the owner's spouse).
+H. Deployment / Environment
+14. The site is deployed, but the latest local changes have not been merged/pushed yet.
+This means recently discussed fixes aren't live yet, and environment-only bugs (that don't show up on localhost) can't be caught until a merge and redeploy happen.
+I. Packages & Pricing Clarity
+15. Package discount percentage isn't clearly communicated to the customer.
+In the example discussed, a package dropped a price from 700 to 630 (a 10% discount), but this percentage/savings isn't clearly surfaced in the UI — customers just see the final bundled price.
+J. Receptionist, Assessment & Walk-in Workflow
+16. There is no proper walk-in booking flow yet.
+Walk-in registration is expected to happen on the day/time of service itself (not as a future appointment), but this distinct flow hasn't been built — the system currently only supports the same appointment-style flow for everyone.
+17. Pet assessment (weight, coat type) must be recorded on-site by the receptionist and directly affects pricing.
+A pet that hasn't been assessed yet has no weight or coat-type data, which blocks accurate pricing for grooming/hotel/daycare services until the receptionist records this in person.
+18. 'Miscellaneous' service category is confusingly named and should be 'Assessment Types.'
+MISC is currently used as the category for pets that haven't been assessed yet, but the label is too broad/confusing (it could imply misc. services or payments) and should be renamed for clarity.
+19. Bug: the Assessment/MISC category does not appear in service type search results.
+This blocks the assessment step entirely for unassessed pets, since staff can't find/select the assessment service type through search.
+K. Cage Assignment
+20. Customers can currently pick their own cage during booking — this should be receptionist-only.
+The advisor was clear that cage selection should not be a customer-facing choice; it should be assigned by the receptionist/staff instead.
+21. Cage assignment should be for monitoring only and should not affect pricing.
+The advisor confirmed cage size/selection has no bearing on the price — it exists purely so staff can track which pet is in which cage.
+L. Multi-Pet Booking
+22. The system still only supports one pet per booking, with no interim solution implemented.
+This was raised again in more concrete terms: rather than true simultaneous multi-pet selection, an interim option discussed was allowing the same customer to book multiple pets on the same day at staggered times, working around limited staff availability.
+
+Part 2 — Actionable Dev Notes (Addendum)
+These translate the addendum issues above into checklist items, in the same format as the Architectural-Change-Suggestions log.
+On booking creation → down payment & slot reservation (critical):
+Require some form of online payment (full or down payment) on every online booking — do not allow a slot to be reserved with zero payment.
+Make the down payment configurable as either a percentage of the total price or a flat fixed amount, set by an admin/owner.
+While a down payment is unpaid, keep the booking at 'Pending' and leave that time slot visible and bookable by other customers — it should not lock the queue/schedule.
+Add an expiration timer to unpaid down-payment reservations (e.g., due by end of day); auto-release the held slot if the deadline passes unpaid.
+Add an 'advance payment' booking option: book online now, pay in person on the day of service.
+Add a cashier action to manually mark an advance-payment booking as 'Paid' when the customer arrives and pays.
+On cancellation flow (customer/staff):
+Add an explicit confirmation dialog ('Are you sure you want to cancel this booking?') before a cancellation is executed.
+Add on-screen copy in the cancellation flow disclosing that payment (full or down) is non-refundable but will be converted into account credit for use on a future visit.
+On notifications:
+Implement email booking-confirmation notifications via the email API (currently not wired in — only in-browser notifications work today).
+On reporting:
+Build the Daily Sales Report (DSR) module — currently missing entirely — covering transactions across branches and payment methods per the proposal's objectives.
+On booking status/payment logic:
+Fix the booking flow so status accurately reflects an unpaid booking instead of assuming payment success when no real payment confirmation exists.
+On payment provider scope (defense contingency):
+Implement a placeholder 'payment type' selector (label only, no live processing) to stand in for PayMongo during the thesis defense.
+Document this contingency explicitly in the capstone paper's scope section: live PayMongo setup to be completed post-deployment, pending the owner's approval, prior to system turnover.
+On third-party login:
+Remove Facebook Login from the login options; keep Google OAuth and email/password login as the supported methods.
+On website content & verification coordination:
+Keep AI-generated placeholder images in place until professional photos are provided; track as a pending content item rather than a bug.
+Coordinate remaining business-verification requirements with the COO (owner's spouse), since some required information falls outside what Sir Mike alone can provide.
+On deployment:
+Merge outstanding local changes and redeploy to the live environment so environment-only bugs can be caught before further testing/defense.
+On packages (booking → services step):
+Add clear discount messaging on package cards/detail views (e.g., 'Save 10% vs. booking individually') so the savings versus individual pricing are obvious to the customer.
+On receptionist / walk-in workflow:
+Build a dedicated walk-in booking flow: same-day, on-site registration for walk-in customers, distinct from the future-appointment booking flow.
+Ensure the receptionist can record a pet's actual weight and coat type on-site during assessment, updating the pet's profile and any pricing inputs that depend on it.
+On assessment / service categorization:
+Rename the 'Miscellaneous' (MISC) service category to 'Assessment Types' for clarity.
+Fix the bug where the Assessment/MISC category does not appear in service type search results, which currently blocks the assessment booking path for unassessed pets.
+On cage assignment:
+Remove the cage picker from the customer-facing booking flow; restrict cage assignment to receptionist/staff only.
+Keep cage assignment purely for monitoring/tracking, with no effect on service pricing.
+On multi-pet booking:
+As an interim solution short of true simultaneous multi-pet booking, support staggered same-day time slots per pet for the same customer when staff availability is limited.
+
+Low Priority
+
+Task
+Difficulty
+Determine what is causing hotel type services to start at 1 PM, even though other services can start as early as 8 AM
+
+Image context:
+It is a bundled booking
+Initial booking at hotel type scheduled for 1 PM (couldn’t choose anything earlier)
+This is the 2nd booking, can choose 9 AM
+Unknown
+On new booking > hotel type service > feeding and med instructions:
+Make it more specific
+Add units of measurements
+Perhaps directly to the items, not during instructions
+Like when adding a new feeding/med item as a customer, allow them to specify its unit of measurement
+Like those you see in diet apps
+Perhaps allow them to attach images to it too
+Medium
+Fix landing page always set to dark theme
+Make it so that it adapts the theme of the system automatically, if light, light
+Add a basic light/dark theme switch at landing page navbar
+Cakewalk
+Add stats to each staff
+Staff can view how much bookings they’ve made, sales made, etc. based on staff role
+Can be seen in profile page
+Medium
+Improve admin dashboard sales breakdown
+Allow admins to see which days or days of the week where stats are low (low sales, low customers, low bookings, etc.)
+Medium
+Reduce vet type services to 2 only:
+Consultation and vaccine
+Reason is that there’s not much vet in PH
+It would be nice if vet can set their own specialization and their own services
+Easy
+When staff edits existing booking (e.g. receptionist changes price, adds new instructions)
+Add a notif/email via Brevo to customer that includes the waiver with required e-signature before staff edits are accepted
+Once signed, include a confirm button at the end of message
+Medium
+At booking process > new booking:
+Add a waiver process (e.g. warnings, disclaimers, disclosures, etc.)
+Should include all waiver details
+At the very end, include an e-signature field
+Once booking is confirmed, send booking details and waiver to customer as email
+Also notif/email the booking details and signed waiver to the assigned staff, and the receptionist who made the booking (if staff made)
+When adding new service type:
+Add “is waiver required” option
+When checked, open up a section that allows admin to specify waiver sections, text content (perhaps add formatting options like from google docs)
+Should stop booking confirmation if waiver is not signed, or auto opens the waiver modal
+Hard
+Staff (receptionist) should be able to edit final price of all service types
+Especially for dematting services, it’s more of a hassle to complete and consumes more resources
+UnknownA
+Add color and label indicators to cage selector in booking process
+Show “booked pet will out in X days/hours/minutes”
+Green is about to out, orange if longer time to out, red if long stay until out
+Add search, filter and sort functions to cage selector
+
+Medium
+Specify if cages are for cats or for dogs
+Should also affect which cages are shown on booking process depending if pet is dog or cat
+Easy
+Add new promo step in booking process
+Receptionist/customer can choose their promos their before payment review step
+Easy
+In booking process > new booking:
+Add list format to when searching for customers
+Improve search button query (e.g. when typing S, it should show all customers with S in their username, display name, etc.)
+Medium
+Include variations to promos
+Currently there’s only time limit
+Add some sort of redemption point system
+E.g. after X bookings, after X money spent = X increase in points or coupons
+Hard
+Remove all traces of misc sales (e.g. in admin settings, transaction types)
+Simply indicate that it is out of the system’s scope
+
+Easy
+When updating a pet’s weight via an assessment type booking, automatically update its weight class
+No longer need to manually select the weight class
+It should derive from actual weight value
+Perhaps make it readonly, but still can be overridden
+Should be able to set it to lbs or kg
+Add settings whether to view pet’s weight as lbs or kg (per user, not admin control)
+Easy
+Decide what to do with filler files in golden fur repo > supabase dir
+They just contain .gitinit
+Perhaps populate them with files like in seeds/ and migrations/ relevant to current code
+Cakewalk
+Fix Booking Queue/customer bookings > new booking > Start Over/Recover Progress feature
+Currently, it also saves completed bookings (e.g. it saves progress from payment step AFTER clicking on confirm booking)
+Should only save up to BEFORE clicking confirm booking
+Easy
+Add new skill, agent or hook that auto collect pasted screenshots in AI chats
+These are placed in sessions/session/context/
+Or make a dedicated folder for it in session/
+Cakewalk
+In customer > sidebar:
+Combine New Booking and My Bookings into one page or nav tile
+Just name it Bookings
+At Bookings, add a New Booking button that opens up the booking process
+Cakewalk
+Remove white border around discount and promo selection in bookings queue > new bookings
+
+You may make promos multi-select (currently it’s radio button), to make it reflect the promo cap configuration in admin settings > config
+Easy
+Vet type staff should have some sort of specialization (e.g. respiratory, cardio, etc.)
+This should be shown in booking process > staff picker
+This should also influence what kind of services they offer
+These services should be readonly if initial consultation service has not been used by the customer
+So for vet type staff, I assume the booking process would be: branch > pet > service type > staff and time pickers > services/packages… or should it be different?
+Services prices are TBD, only estimated prices on payment stage, should be editable by the assigned vet after or during pet treatment
+Hard
+Try ollama integration in the system
+Hard
+Add on screen tutorials for customer and each staff role
+Should dim entire screen except for next step UI
+Next, Previous and Skip buttons
+Can be activated again by interacting with a floating dog mascot (from landing page)
+Medium
+Fix search bar icons on search input fields overlapping with input text
+One in customer login/signup
+Admin settings > promos config page
+Admin settings > services and packages page
+Easy
+Add an auto configure monthly schedule feature
+Automatically chooses rest days, etc. for all staff
+Available in the monthly schedule UI
+Should affect staff availability (when choosing staff in booking queue > staff picker step
+Medium
+Add a way for staff to see their rest days, etc. assigned by supervisors and admins in monthly schedule
+Easy
+Add missing unit test files for all files
+Cakewalk
+Add a table view for all queues (bookings, payments, etc.)
+Medium
+Build the Daily Sales Report (DSR) module — currently missing entirely — covering transactions across branches and payment methods per the proposal's objectives.
+Hard
+In receptionist role > bookings queue, remove branch step
+Since staff accounts are tied to a branch, receptionists should only be able to make bookings at their current branch
+Only do this for receptionist and admins (since admins are also branch locked)
+Customers and superadmins should still be able to select what branch
+Easy
+
