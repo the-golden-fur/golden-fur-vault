@@ -1,0 +1,368 @@
+{
+  "info": {
+    "name": "Pet weight -> derived weight class (session 82)",
+    "description": "Server-side checks for session 82. (3) a staff PATCH /pets/:id with weight_kg derives weight_class from the Admin cut-offs. (4) an explicit weight_class sent alongside weight_kg is a staff override and wins. (5)/(6) the pet_weight_class_configuration singleton: GET open to any staff, PATCH Admin/Superadmin only, out-of-order cut-offs rejected 400. (8) a customer PATCHing weight_kg on their own pet is rejected 400 (staff-only, .strict()). (9)/(10) the per-user weight_unit_preference on /auth/staff/preferences. Fill the variables, then run top to bottom. Requests 3, 4, 6 and 9 mutate real rows - point them at throwaway records.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "staff_identifier",
+      "value": "",
+      "description": "a Receptionist login, e.g. makati.receptionist1 (seed password: password123)"
+    },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "an Admin or Superadmin login, e.g. makati.admin1"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "customer_identifier",
+      "value": "",
+      "description": "a customer login that OWNS customer_pet_id, e.g. customer1@goldenfur.com"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "staff_pet_id",
+      "value": "",
+      "description": "any pet id - requests 3 and 4 overwrite its weight_kg / weight_class"
+    },
+    {
+      "key": "customer_pet_id",
+      "value": "",
+      "description": "a pet id owned by customer_identifier - request 8 only attempts (rejected before any write)"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login as staff (Receptionist)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('staff_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. GET pet weight class configuration - any staff may read",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/pet-weight-class-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pet-weight-class-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const c = pm.response.json().configuration;",
+              "pm.test('carries the three cut-offs', () => { pm.expect(c).to.have.property('m_min_kg'); pm.expect(c).to.have.property('l_min_kg'); pm.expect(c).to.have.property('xl_min_kg'); });",
+              "pm.test('cut-offs increase M < L < XL', () => pm.expect(Number(c.m_min_kg) < Number(c.l_min_kg) && Number(c.l_min_kg) < Number(c.xl_min_kg)).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Staff PATCH /pets/:id with weight_kg only - weight_class is derived",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_kg\": 14,\n  \"coat_type\": \"SC\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{staff_pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{staff_pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const p = pm.response.json().pet;",
+              "pm.test('weight_kg stored', () => pm.expect(Number(p.weight_kg)).to.eql(14));",
+              "pm.test('weight_class derived to M (14 kg, default cut-offs 9.5/22/41)', () => pm.expect(p.weight_class).to.eql('M'));",
+              "pm.test('assessment was re-stamped', () => pm.expect(p.assessed_at).to.not.eql(null));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Staff PATCH /pets/:id with weight_kg AND explicit weight_class - override wins",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_kg\": 40,\n  \"weight_class\": \"S\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{staff_pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{staff_pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const p = pm.response.json().pet;",
+              "pm.test('weight_kg stored as 40', () => pm.expect(Number(p.weight_kg)).to.eql(40));",
+              "pm.test('weight_class kept the explicit override S (not the derived L)', () => pm.expect(p.weight_class).to.eql('S'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Receptionist PATCH config - rejected (Admin/Superadmin only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"l_min_kg\": 25\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pet-weight-class-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pet-weight-class-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('non-admin write is rejected (401/403)', () => pm.expect([401, 403]).to.include(pm.response.code));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('admin_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Admin PATCH config with out-of-order cut-offs - rejected 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"m_min_kg\": 30,\n  \"l_min_kg\": 20\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/pet-weight-class-configuration",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "pet-weight-class-configuration"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('m >= l is rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Login as customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{customer_identifier}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('login ok', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "if (b.access_token) pm.collectionVariables.set('customer_access_token', b.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Customer PATCHes weight_kg on their own pet - rejected 400 (staff-only)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_kg\": 5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pets/{{customer_pet_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{customer_pet_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('weight_kg from a customer is rejected 400 (unknown key, .strict())', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Staff PATCH /auth/staff/preferences weight_unit_preference=lbs - 200",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_unit_preference\": \"lbs\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('echoes the saved preference', () => pm.expect(pm.response.json().weight_unit_preference).to.eql('lbs'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Staff PATCH preferences with a bad unit - rejected 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{staff_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"weight_unit_preference\": \"stone\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/preferences",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "preferences"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('invalid weight unit is rejected 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
