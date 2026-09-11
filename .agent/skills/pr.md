@@ -3,38 +3,27 @@
 **Use whenever** opening a PR in this vault. This repo has a single `main`
 branch — target `main` for all work.
 
-## Process — the locked finish pipeline (vault side)
+## Process — runs once, then done
 
-Mirrors `golden-fur`'s finish pipeline. This whole sequence is the "session
-is finished" flow; none of it runs on a plain `commit`. The
-`session-router` hook injects this list on an "open a PR" prompt, and the
-`pr-guard` hook blocks `gh pr create` until step 2 is green for `HEAD`.
+This skill only gets the branch pushed and opens a **draft** PR with every
+field filled in. It runs **no CI / format / verification check** — the user
+runs those manually after the PR exists. Do not spawn any verifier/fixer
+subagent, and do not loop.
 
 1. **Branch.** If `HEAD` is `main`, run `.agent/skills/branch-naming.md` to
    create and push the branch first.
-2. **Verify CI parity across both repos** — spawn the `ci-verifier` subagent
-   (`.agent/agents/ci-verifier.md`, canonical in `../golden-fur`) **once**;
-   the `✅ CI: Verify All` task must be green here and in `golden-fur`. It
-   writes `.git/ci-verifier-pass` (the verified `HEAD` sha). A green pass
-   from earlier this session with nothing changed counts — if the
-   `golden-fur` PR flow already ran it green this session, **do not spawn it
-   again**.
-3. **If red — spawn `ci-fixer-agent`** (canonical in `../golden-fur`) to fix
-   format/prose it broke, then re-run `ci-verifier` until green. No separate
-   `pre-commit-checks` step.
-4. **Session record.** Confirm this session's `Projects/golden-fur/sessions/`
-   material (`plan.md`, `testing/`, `reviews/`) and any
-   `Reference/golden-fur/` workflow refresh already exist and are current —
-   `session-documenter` / `workflow-documenter` run at
-   implementation-finish. If something is missing, **stop and ask the user
-   to run the relevant agent** rather than spawning it inside the PR flow.
-5. **Commit** — run `.agent/skills/commit.md`.
-6. **Push** the branch.
-7. Fill in the PR body (sections below), determine title / label(s) /
-   assignee, and open it in one call:
-   `gh pr create --base main --head <branch> --title "..." --body "..."
---label <label>[,<label>...] --assignee @me`.
-8. If anyone else has write access, add `--reviewer <user>`.
+2. **Commit** any outstanding work — run `.agent/skills/commit.md`. Skip if
+   the tree is already clean.
+3. **Push** the branch.
+4. Fill in the PR body (sections below), determine title / label(s) /
+   assignee, and open it as a draft in one call:
+   `gh pr create --draft --base main --head <branch> --title "..." --body-file <file> --label <label>[,<label>...] --assignee @me`.
+   If a PR for this branch already exists, apply the same fields with
+   `gh pr edit <n> ...`, then `gh pr ready <n> --undo` to set it back to
+   draft, and confirm with `gh pr view <n> --json title,assignees,labels,isDraft`.
+5. If anyone else has write access, add `--reviewer <user>`.
+
+Then hand back the PR link. You're done.
 
 ## Merge strategy: merge commit
 
