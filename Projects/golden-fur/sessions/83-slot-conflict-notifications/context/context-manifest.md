@@ -26,7 +26,7 @@
 
 - `Projects/golden-fur/shared/context/Architectural-Change-History.docx` —
   the same backlog doc's older `.docx` export; referenced only to confirm
-  it does *not* yet contain this session's item (see note above), not used
+  it does _not_ yet contain this session's item (see note above), not used
   as a source.
 - `golden-fur/server/src/features/booking/booking.types.ts` —
   `SLOT_HOLD_PAID_OR_FILTER`, the pre-existing filter re-confirmed (not

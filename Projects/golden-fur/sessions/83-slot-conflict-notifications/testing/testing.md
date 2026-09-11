@@ -35,7 +35,7 @@ actually pays.
   customers actually paid. `applyFirstBookingPaymentSideEffects`
   (`booking.service.ts`) — called by both the PayMongo webhook and the
   cashier's "Mark as paid" screen after a payment settles — only re-checked
-  and confirmed the *paying* customer's own booking. The other customer
+  and confirmed the _paying_ customer's own booking. The other customer
   found out only if and when they themselves tried to pay (a "that slot
   filled up" 409 at that point) — nothing proactive, nothing on their
   dashboard, nothing in their notifications.
@@ -52,7 +52,7 @@ actually pays.
 
 - `supabase/migrations/20260911188_m03_bookings_slot_conflict_columns.sql` —
   adds `bookings.slot_conflict_at timestamptz` and `bookings.conflict_notice
-  text`, both nullable. `status` is left untouched (`'Pending'`) — this is a
+text`, both nullable. `status` is left untouched (`'Pending'`) — this is a
   "please fix this" flag, not a cancellation.
 - `supabase/migrations/20260911189_custom_notification_event_type_add_booking_slot_conflict.sql`
   — adds `booking_slot_conflict` to the `notification_event_type` enum, in
@@ -72,7 +72,7 @@ Reference copies: `testing/slot-conflict-notifications.sql`.
 
 - `server/src/features/booking/services/capacity.service.ts` — new
   `listOverlappingPencilBookings(...)`, the mirror image of the existing
-  "who holds this slot" query: finds every *other* still-`Pending`, unpaid,
+  "who holds this slot" query: finds every _other_ still-`Pending`, unpaid,
   downpayment-required booking (same branch + service category, overlapping
   window), excluding one booking id. Returns raw candidate rows only — it
   does not decide who "lost."
@@ -121,7 +121,7 @@ Reference copies: `testing/slot-conflict-notifications.sql`.
   (reuses the existing `cagePreferenceValidator`).
 - `server/src/features/booking/booking.controller.ts` +
   `booking.routes.ts` — new `conflictedBookingsController` and `GET
-  /bookings/conflicts/mine` (behind `jwtMiddleware`, not a staff/customer
+/bookings/conflicts/mine` (behind `jwtMiddleware`, not a staff/customer
   role gate — it's scoped to "whatever the caller's own id turns up," which
   is naturally empty for staff callers).
 - `server/src/features/booking/booking.types.ts` — `Booking` gained
@@ -225,7 +225,7 @@ logged in as two different customers at once.
    - **PASS:** the transaction settles normally, no error banner.
 3. Still as staff (or via SQL), check customer 2's booking row:
    `select slot_conflict_at, conflict_notice, status from public.bookings
-   where id = '<customer 2's booking id>';`
+where id = '<customer 2's booking id>';`
    - **PASS:** `slot_conflict_at` is now a recent timestamp, `conflict_notice`
      has a readable explanation, `status` is still `'Pending'` (not
      cancelled).
@@ -259,7 +259,7 @@ logged in as two different customers at once.
    Hotel booking, optionally a different cage preference).
    - **PASS:** the reschedule succeeds.
 2. Check the row again: `select slot_conflict_at, conflict_notice from
-   public.bookings where id = '<id>';` — both should be `NULL`.
+public.bookings where id = '<id>';` — both should be `NULL`.
 3. Reload `/portal` as customer 2.
    - **PASS:** the pop-up no longer appears (assuming this was the only
      conflicted booking).
