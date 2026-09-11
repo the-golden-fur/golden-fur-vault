@@ -71,32 +71,21 @@ instructions for this vault's reusable AI workflows:
   real behavior, but only ever writes within this vault
   (`Library/golden-fur/features/<feature>/workflows/` +
   `Reference/golden-fur/features/<feature>/workflows/`). Code-change
-  refreshes are an **explicit-request-only** drift check now (that repo's
-  `workflow-doc-sync` skill) — no longer a per-PR step.
+  refreshes are an **explicit-request-only** drift check — not wired into
+  any PR or commit step.
 - `session-documenter` — another deliberate "vault-only" exception: reads
   `../golden-fur`'s diff/log to write the session record (near-beginner
   `plan.md`, click-by-click `testing/testing.md`, copied context,
   Postman/SQL) for a change just implemented — but only ever writes within
   this vault. Runs at implementation-finish. It takes test pass/fail counts
-  from that session's `ci-verifier` run rather than re-running the suites.
+  from a suite run actually done that session (a `reviews/` file, or the
+  `✅ CI: Verify All` task output) rather than re-running the suites.
 
-One more agent is defined in `../golden-fur` but also acts here — read-only,
-wired into this repo's `pr` skill's finish pipeline:
-
-- `ci-verifier` (canonical in `../golden-fur`; `.agent/agents/ci-verifier.md`
-  here is a pointer) — runs the `✅ CI: Verify All` VS Code task across
-  **both** repos (this vault's `format:check`, golden-fur's
-  tests/lint/format/build) and reports one pass/fail. Runs checks only —
-  never fixes; on a green pass it writes `.git/ci-verifier-pass` (the
-  verified `HEAD` sha) for the `pr-guard` hook. Its write-side counterpart
-  `ci-fixer-agent` is auto-invoked when it reports red.
-
-Code review at `pr-to-dev` time is the built-in `code-review` skill run
-**in-session** on the golden-fur side (not a subagent); it drops a summary
-file into that branch's `Projects/golden-fur/sessions/<NN-slug>/reviews/`,
-which is the evidence this repo's `pr-guard` also checks for. See
-`Projects/golden-fur/shared/decisions/2026-08-30-unbiased-code-reviewer-subagent.md`
-(the bespoke `code-reviewer` subagent was retired 2026-09-06).
+**CI / verification is not automated.** There is no `ci-verifier` /
+`ci-fixer-agent` subagent and no `code-review` step in the `pr` flow any
+more. Run the `✅ CI: Verify All` VS Code task (`npm run format:check` here;
+golden-fur's tests/lint/format/build there) and `Skill(code-review, "high")`
+by hand whenever you want them. The `pr` skill opens a draft PR and stops.
 
 **Skills** (auto-invoked reference material):
 
@@ -130,32 +119,29 @@ Plus this repo's git workflow: `branch-naming` (name and create a branch),
 itself, not just a drafted message), `pr` (open a PR targeting `main`,
 merge commit only — this repo has a single `main` branch, no `dev`),
 `merge-pr` (confirm readiness and get explicit go-ahead, then merge a PR
-with a crafted merge-commit title/description), and `pre-commit-checks`
-(run the `(check)`/`(fix)`-labeled VS Code task — Prettier format —
-standalone-on-request only; **no longer a pipeline step**). Any AI coding
-tool working here should read the relevant `.agent/` file first.
+with a crafted merge-commit title/description). Any AI coding tool working
+here should read the relevant `.agent/` file first.
 
-**`pr` is a finish pipeline**, in this order: `branch-naming` (if on
-`main`) → `ci-verifier` (both repos) → `ci-fixer-agent` if red, then
-re-verify → confirm the session's `sessions/` + `Reference/` material is
-written → `commit` → push → `gh pr create`. `commit` on its own runs **no
-gates**. Line endings are handled by `.gitattributes` (`* text=auto
-eol=lf`).
+**`pr` opens a draft PR and nothing more**, in this order: `branch-naming`
+(if on `main`) → `commit` any outstanding work → push →
+`gh pr create --draft` with title, body, labels, and assignee all filled
+in. **No CI / format / verification / code-review step runs** — on `commit`
+or in the `pr` skill. The user runs those manually after the PR exists.
+Line endings are handled by `.gitattributes` (`* text=auto eol=lf`).
 
 ## Auto-run wiring
 
-`.claude/settings.json` wires two Claude Code hooks (Claude-specific — no
+`.claude/settings.json` wires one Claude Code hook (Claude-specific — no
 `.agent/` twin; other tools replicate the intent via their own mechanisms):
 
 - **`session-router`** (`UserPromptSubmit`) — pattern-matches the prompt and
   injects guidance: "just plan / don't touch code" → the `plan` skill,
-  edit-nothing; "open a PR / ship it / /pr" → the finish pipeline above.
+  edit-nothing; "open a PR / ship it / /pr" → `branch-naming` (if on
+  `main`) → `commit` → push → open a **draft** PR. No CI / verify step.
   Deterministic _decision_; the skills/agents still do the work.
-- **`pr-guard`** (`PreToolUse` on `Bash`) — blocks `gh pr create` until
-  `ci-verifier` has left `.git/ci-verifier-pass` for the current `HEAD`.
 
-(The `gitkeep-sweep` `Stop` hook was removed 2026-09-06 — it ran a
-whole-tree `find` on every turn end for a near-never need.)
+(The `pr-guard` `PreToolUse` hook was removed — there is no CI gate to
+enforce. The `gitkeep-sweep` `Stop` hook was removed 2026-09-06.)
 
 Tool-specific directories are thin adapters over that same content, wired up
 per tool's own discovery mechanism:

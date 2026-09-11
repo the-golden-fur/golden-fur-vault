@@ -165,12 +165,10 @@ checks rather than restating every request in prose.>
 
 <Exact pass/fail counts — server and client separately, e.g. "`server`:
 `npm run test` — 920/920 passing (87 files); `npx tsc --noEmit` clean."
-**Take these from this session's most recent green `ci-verifier` run** (or a
-`reviews/` pre-PR review that captured them) rather than re-running the full
-suites here — `ci-verifier` already ran them and re-running mid-task burns
-session budget. Only run a suite yourself if no green pass exists this
-session. Never state a count that was neither run nor verified by
-`ci-verifier`.>
+**Take these from a suite run actually done this session** (a `reviews/`
+pre-PR review that captured them, or the `✅ CI: Verify All` VS Code task
+output). Only run a suite yourself if no such run exists this session.
+Never state a count that was neither run nor verified.>
 
 ## Open items (only if any)
 
