@@ -130,7 +130,7 @@ with no way to know about a server-side override.
 7. Back in **Pet Types → Fixed price overrides**, switch the Branch dropdown
    to one specific branch, set a different price for **Dog** there (e.g.
    `500`), click **Save**. Book a Dog service at that branch and confirm it
-   charges ₱500; book the same service at the *other* branch and confirm it
+   charges ₱500; book the same service at the _other_ branch and confirm it
    still prices normally (no override there).
 8. Book a service for a **Rabbit** pet with no override configured and
    confirm it prices exactly like a Dog would (the matrix if the service

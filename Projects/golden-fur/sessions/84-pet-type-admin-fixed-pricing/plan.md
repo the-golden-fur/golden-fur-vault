@@ -97,14 +97,14 @@ that specific service, not one single number for every Cat booking.
    `MyPatientsPage.tsx` on the client, plus the two server-side validators
    that currently reject anything except `'Dog'`/`'Cat'`
    (`maintenance.validator.ts`, `pet.validator.ts`). — _Why:_ without this,
-   a new pet type could be *created* but would be invisible/unusable
+   a new pet type could be _created_ but would be invisible/unusable
    everywhere else — this is what makes "full CRUD" actually mean something.
 
 ## Words you might not know
 
 - **migration** — a numbered SQL file that changes the shape of the
   database (adds a table, a column, etc.). They run in order, once, and are
-  never edited after the fact — a mistake gets fixed by a *new* migration.
+  never edited after the fact — a mistake gets fixed by a _new_ migration.
 - **enum** — a database column type restricted to a fixed list of exact
   values decided when the table was created (here: only `'Dog'` or `'Cat'`,
   nothing else, ever — until this session replaces it with a real table).
