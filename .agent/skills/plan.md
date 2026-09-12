@@ -4,6 +4,14 @@
 only", "don't touch code", "no code yet", "plan first", `/plan`. In `golden-fur`
 the `session-router` hook detects this phrasing and points here.
 
+This is distinct from Claude Code's own built-in Plan Mode toggle (the
+Explore → Plan agent → `ExitPlanMode` workflow), which a separate hook,
+`plan-file-guard` (`golden-fur/.claude/hooks/plan-file-guard.sh`, see
+`golden-fur/AGENTS.md` "Auto-run wiring"), now enforces writes here too: it
+blocks `ExitPlanMode` until a `sessions/NN-<slug>/plan.md` exists
+new/uncommitted or was committed within the last hour. Either route ends
+with the same artifact in the same place.
+
 **Hard rule: do not edit, create, or delete any code file.** No changes under
 `client/`, `server/`, `supabase/`, or anywhere in `golden-fur`. The only file
 this skill writes is the plan itself, in the vault. If the user later says to
