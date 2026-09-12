@@ -80,7 +80,7 @@ dedicated Settings screen — instead of a hardcoded 2-item enum
    relate to several of another, like a pet having several bookings).
 
 2. **Make pet type a hard, no-exceptions filter everywhere a cage gets
-   matched to a pet** — unlike cage *size* (where staff can knowingly
+   matched to a pet** — unlike cage _size_ (where staff can knowingly
    override a mismatch), a wrong-pet-type cage should never even appear as
    an option, for a customer or for staff. — _Which files:_
    `server/src/features/booking/services/cagePicker.service.ts` (the
