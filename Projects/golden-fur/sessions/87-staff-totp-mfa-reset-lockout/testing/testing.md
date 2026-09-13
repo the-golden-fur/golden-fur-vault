@@ -27,8 +27,8 @@ this doc only covers verification.
 shared helper both the staff and customer "start MFA enrollment" endpoints
 call, had a three-tier conflict-recovery fallback for the case where
 Supabase Auth reports a factor with the same name already exists. Tier 1/2
-clean up stray *unverified* factors and retry — safe. Tier 3, reached only
-when the conflict survives that retry (meaning a real, already-*verified*
+clean up stray _unverified_ factors and retry — safe. Tier 3, reached only
+when the conflict survives that retry (meaning a real, already-_verified_
 factor is what's conflicting), deleted **any** factor — verified or not —
 and immediately minted a brand-new one with a new secret and new QR code.
 That tier-3 deletion is the actual "codes randomly reset" bug: a working
@@ -120,6 +120,7 @@ MFA on one first (Settings → Security → **Disable MFA**, while signed in as
 that account and already past a code challenge).
 
 ### A. The original bug repro, confirmed fixed — re-enrolling an
+
 already-verified account no longer destroys it
 
 This is the core regression test: it directly repeats the exact request
@@ -173,6 +174,7 @@ sequence that used to silently swap out a working authenticator secret.
    never touched.
 
 ### C. Supervisor mandatory-MFA popup + Settings → Security — only one
+
 enrollment flow active
 
 1. Sign in as a Supervisor account you've confirmed is **not yet

@@ -45,14 +45,14 @@ The shared server-side helper for starting enrollment is
 `enrollTotpFactor` (`server/src/shared/auth/api/supabaseAuth.api.ts`).
 It's used by both the staff and customer "start MFA setup" endpoints. When
 Supabase reports a factor with the same name already exists (a
-"conflict"), this helper has a fallback: clean up any stray *unverified*
+"conflict"), this helper has a fallback: clean up any stray _unverified_
 factors and retry. If a real, already-verified factor is what's causing
 the conflict, a third "last resort" step kicks in — it removes **any**
 factor, verified or not, and immediately creates a brand-new one with a
 new secret and a new QR code.
 
 Several places can end up calling that "start MFA setup" endpoint again
-for someone who is *already* fully enrolled and verified — not just
+for someone who is _already_ fully enrolled and verified — not just
 someone doing first-time setup:
 
 - After login, if the "am I already enrolled?" status check fails or
@@ -147,8 +147,8 @@ someone doing first-time setup:
 - **TOTP** — "Time-based One-Time Password," the 6-digit code an app like
   Google Authenticator generates every 30 seconds from a shared secret.
 - **factor** — Supabase's term for one enrolled MFA method (here, always
-  "one TOTP factor per account"). A factor is either *verified* (set up
-  and confirmed with a real code) or *unverified* (created but never
+  "one TOTP factor per account"). A factor is either _verified_ (set up
+  and confirmed with a real code) or _unverified_ (created but never
   confirmed — e.g. someone scanned a QR but never entered the code).
 - **aal2** — "Authenticator Assurance Level 2," Supabase's internal marker
   for "this session has actually completed MFA," which is required before
@@ -158,7 +158,7 @@ someone doing first-time setup:
   and each one confusing the other's in-progress factor for a leftover to
   clean up.
 - **defense in depth** — checking the same rule at more than one layer
-  (server *and* client here) so that a bug or bypass at one layer doesn't
+  (server _and_ client here) so that a bug or bypass at one layer doesn't
   fully defeat the protection.
 
 ## How you'll know it worked
