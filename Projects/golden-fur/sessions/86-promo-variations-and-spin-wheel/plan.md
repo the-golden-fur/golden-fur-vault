@@ -153,7 +153,7 @@ currently on.
      existing credit-ledger functions) picks a reward using each reward's
      %-chance, unless the **pity system** kicks in — after spinning some
      admin-set number of times without landing the rarest reward, the
-     *next* spin is guaranteed to land in the lowest-%-chance group. The
+     _next_ spin is guaranteed to land in the lowest-%-chance group. The
      result becomes a **coupon**: a one-time, per-customer, already-decided
      %-or-flat-PHP-off reward, stored in a new `customer_coupons` table.
    - _Admin config page:_ new
@@ -206,7 +206,7 @@ currently on.
    anywhere). The **reward list itself** (five example rewards, e.g. 5%
    off, 10% off, 15% off, PHP 100 off, PHP 250 off, with rarity percentages
    that add up to exactly 100) and a **demo weekly-recurring promo**
-   ("Midweek Grooming Discount," every Tuesday/Wednesday) are real *rows*,
+   ("Midweek Grooming Discount," every Tuesday/Wednesday) are real _rows_,
    so they go in a new seed script,
    `supabase/seeds/custom-rewards/custom-rewards.seed.ts` (plus its `.sql`
    and test-file twins, matching how `supabase/seeds/m13-maintenance/`

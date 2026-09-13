@@ -86,10 +86,10 @@ themselves are NOT seeded here — they're real column defaults in migration
 ### Server
 
 - New shared pure helpers: `shared/services/promoEligibility/` (date-range
-  + weekly-recurring "is this promo live right now," replacing three
-  separate copies of the old date-only check) and `shared/services/promoCap/`
-  (the cap-application math extracted from the checkout-time fallback, now
-  used by both it and the new booking-time resolution).
+  - weekly-recurring "is this promo live right now," replacing three
+    separate copies of the old date-only check) and `shared/services/promoCap/`
+    (the cap-application math extracted from the checkout-time fallback, now
+    used by both it and the new booking-time resolution).
 - `booking.service.ts`: `resolveDiscountAndPromo` → `resolveDiscountAndPromos`,
   now accepting `promo_ids`/`coupon_ids` arrays instead of a single
   `promo_id`, validating/capping all of them together, and writing one
@@ -168,8 +168,7 @@ themselves are NOT seeded here — they're real column defaults in migration
    running "you'll save ₱X" total stops growing once the 10% cap is hit,
    not the naive sum of both promos.
 5. **Spin wheel — earning a spin**: as Admin, go to **Settings → Config →
-   Coupon Spin Wheel**, set "grant a spin every" to a small number (e.g.
-   2) bookings. Complete that many bookings for one customer (mark them
+   Coupon Spin Wheel**, set "grant a spin every" to a small number (e.g. 2) bookings. Complete that many bookings for one customer (mark them
    Completed) and confirm **My Rewards** (customer portal sidebar) shows
    an available spin.
 6. **Spinning**: click **Spin the wheel** on My Rewards. Confirm the wheel
