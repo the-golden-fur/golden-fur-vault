@@ -30,7 +30,7 @@ Confirmed directly against the dev Supabase project (`hikgijuipymfghfuyrjv`): th
 
 ## Manual test — step by step
 
-This bug only shows up for a staff account whose role requires MFA (Admin, Supervisor, Superadmin) and that has *already* completed enrollment.
+This bug only shows up for a staff account whose role requires MFA (Admin, Supervisor, Superadmin) and that has _already_ completed enrollment.
 
 1. Open your web browser and go to `http://localhost:5173`.
 2. Click **Staff Login** (top-right corner). Sign in with an Admin/Supervisor/Superadmin account that already has MFA set up (password + that day's 6-digit code).
