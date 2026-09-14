@@ -62,7 +62,7 @@ within 24 hours, your in-progress booking is still there. That's the
 `PersistedBookingDraft` / `readBookingDraft` / `writeBookingDraft` code
 (same file, roughly lines 375-466 and 1090-1250). It already works
 correctly and was recently patched in PR #181 so it doesn't resurrect a
-booking that was just submitted. This feature is about page *reloads*, not
+booking that was just submitted. This feature is about page _reloads_, not
 about the bug below — we are not touching it.
 
 ### B. Admin > Settings > Config > Services and Packages
@@ -95,7 +95,7 @@ server (`server/src/features/maintenance/modules/validators/maintenance.validato
 before it's allowed into the database — Zod is a library that checks
 incoming data has the right shape and types. These particular schemas are
 marked `.strict()`, meaning any field the schema doesn't explicitly list
-gets *rejected*, not just ignored — so a new field has to be added to the
+gets _rejected_, not just ignored — so a new field has to be added to the
 schema on purpose, or the request will fail.
 
 The app already has a working example of uploading a picture: staff profile
@@ -113,7 +113,7 @@ For icons (not photos), the app already depends on **lucide-react**, an
 icon library — a package of hundreds of small, consistent line-drawing icons
 you refer to by name in code (e.g. `Package`, `Gift`). Today every icon
 usage in the app is a developer typing a specific icon's name into the code
-once; there's no screen anywhere where a *user* picks an icon from a list.
+once; there's no screen anywhere where a _user_ picks an icon from a list.
 
 ### C. The public landing page's color theme
 
@@ -176,10 +176,10 @@ moment" — a decision we're now reversing per this request.
    hotel nights/prefs) — just move to the next step (or no-op, matching
    whatever the "confirm and continue" behavior for an unchanged step should
    be). Only run the full reset when the pet actually changes to a
-   *different* pet (since a different pet can have different eligible
+   _different_ pet (since a different pet can have different eligible
    services — e.g. an unassessed pet can only book "Initial Assessment").
    _Why:_ this is the exact root cause of the reported bug — the pet
-   *does* stay visually selected across Back navigation already; it's this
+   _does_ stay visually selected across Back navigation already; it's this
    handler firing again on the same value that wipes everything else.
 2. **Apply the same guard to branch selection.** _File:_ same file,
    function `handleBranchSelect` (~line 2074). _Change:_ identical guard —
