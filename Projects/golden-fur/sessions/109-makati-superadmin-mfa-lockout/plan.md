@@ -78,8 +78,8 @@ with the service-role key already in that file:
 
 This matches the session-107 bug exactly, just on an account that was
 already broken before that fix landed: `makati.superadmin1`'s authenticator
-app almost certainly still holds the *original* secret from 2026-09-13,
-while Supabase has since been given a *different* one (silently, via the
+app almost certainly still holds the _original_ secret from 2026-09-13,
+while Supabase has since been given a _different_ one (silently, via the
 old enroll bug). Every code the account owner enters is genuinely correct
 for the entry on their phone and genuinely wrong for what Supabase actually
 checks against — so it keeps failing, keeps re-locking itself for another
@@ -87,7 +87,7 @@ checks against — so it keeps failing, keeps re-locking itself for another
 
 There is also no way for the account owner to fix this themselves: the
 "start over" (unenroll) action can only remove a factor from a session that
-has *already* passed MFA (Supabase calls this **aal2**), and an account
+has _already_ passed MFA (Supabase calls this **aal2**), and an account
 that can never pass the check can never reach aal2. This needs a one-time
 fix from the server side, using the service-role key.
 
@@ -106,7 +106,7 @@ row already in the `branches` table, for each entry in `ROLE_SEEDS`, for
 `supabase.auth.admin.createUser(...)`, then insert one `staff_profiles`
 row. There is no per-branch or per-account special case anywhere in that
 function, and no MFA/TOTP enrollment happens at seed time at all for
-*any* account — the seed only creates the login (email + password) and the
+_any_ account — the seed only creates the login (email + password) and the
 `staff_profiles` row. MFA gets enrolled later, by whoever first logs into
 that account through the app and scans a QR code. So `makati.superadmin1`
 is already "seeded just like other accounts"; re-running or fixing the
