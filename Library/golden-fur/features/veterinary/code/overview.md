@@ -120,7 +120,7 @@ can reuse instead of retyping the same items every visit.
   if a vaccination was recorded, writes it to `pet_vaccination_records` via
   the existing customers-feature service.
 - **`services/currentPrescription.service.ts`** — `getCurrentPrescription`
-  returns a pet's most recent *finished* consultation's medications array,
+  returns a pet's most recent _finished_ consultation's medications array,
   read-only and computed on demand (nothing is cached). Kept as its own
   service (not folded into consultation.service.ts) because the Hotel
   feature (M05) is expected to call it directly for check-in auto-fill.

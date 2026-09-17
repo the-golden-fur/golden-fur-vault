@@ -8,7 +8,7 @@ project: golden-fur
 Messaging is the in-app Mail/Announcements feature — Gmail-style threads
 between staff and customers, plus role-targeted Announcements from
 Supervisor/Admin/Superadmin. It was added after the original 14 modules and
-has no M-code of its own; it's a *consumer* of the Notifications module
+has no M-code of its own; it's a _consumer_ of the Notifications module
 (every new thread/reply fires a `message_received` notification through
 `createNotification`), not part of that module's own code.
 
@@ -52,7 +52,7 @@ connects" below for the exact relationship)
   is what links the descriptors to a real message.
 - **`RecipientPicker/RecipientPicker.tsx`** — Debounced (250ms) search box
   for Mail's "anyone to anyone" targeting, backed by `GET
-  /messages/directory`. Client-side filter (staff vs. customer, staff role)
+/messages/directory`. Client-side filter (staff vs. customer, staff role)
   and sort apply to the current results page; the search itself is
   server-side.
 - **`ThreadDetail/ThreadDetail.tsx`** — The detail pane of the Messages
@@ -122,7 +122,7 @@ connects" below for the exact relationship)
   catching and logging any single recipient's notify failure without
   stopping the rest. `replyToThread()` follows the same pattern for a reply:
   inserts the message, bumps the replier's own `last_read_at`, and
-  best-effort notifies every *other* participant. Also exports the inbox
+  best-effort notifies every _other_ participant. Also exports the inbox
   reader `getThreadsForRecipient()` (batch-resolves sender display names
   rather than querying per row), `getThreadDetail()` (404s rather than 403s
   on a thread the requester isn't a participant of, matching Notifications'
@@ -170,7 +170,7 @@ that module's shared `createNotification()` write path
 (`server/src/features/notifications/services/notification.service.ts`) with
 `eventType: 'message_received'` — see
 [[M11-01-event-triggered-notification-dispatch]] for how that dispatch is
-gated by the recipient's own preferences. Messaging is a *source* of that
+gated by the recipient's own preferences. Messaging is a _source_ of that
 event, not part of the Notifications module's own code: the `notifications`
 row a new thread/reply produces is what lights up the bell badge
 (`NotificationBell` — see [[features/notifications/code/overview|the

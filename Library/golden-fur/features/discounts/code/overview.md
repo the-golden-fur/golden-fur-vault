@@ -42,7 +42,7 @@ the server CRUD + branch-availability API behind it.
   `/discounts` routes: list, create, update, archive/restore,
   hard-delete, and the per-branch availability toggle
   (`setDiscountBranchAvailability`). `listDiscounts` deliberately does
-  *not* default to active-only, so the management page can still show
+  _not_ default to active-only, so the management page can still show
   mandated-but-off rows for an Admin to enable.
 
 ### Other files
@@ -79,7 +79,7 @@ the server CRUD + branch-availability API behind it.
     start — there's no "created but switched off" state).
   - `setDiscountBranchAvailability` upserts one
     `discount_branch_availability` row and then re-syncs the parent
-    discount's `is_active` flag: true whenever *any* branch is
+    discount's `is_active` flag: true whenever _any_ branch is
     available, false when none are. This is the single place that
     flips `is_active` now that it's no longer independently settable.
   - `updateDiscount` blocks renaming a mandated discount (Senior

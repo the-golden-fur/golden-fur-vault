@@ -22,6 +22,7 @@ its own routes, pages, forms, and API layer — they share almost nothing
 except the `shared/auth` Supabase client wrapper (outside this feature).
 
 ### customer/api/
+
 - **`customerAuth.api.ts`** — `signup`/`login` post to the Express
   `/auth/customers/*` endpoints. `signInWithGoogle`/`signInWithFacebook`
   call Supabase's `signInWithOAuth` directly and redirect the browser to
@@ -34,6 +35,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   Settings).
 
 ### customer/components/
+
 - **`buttons/GoogleOAuthButton.tsx`**, **`buttons/FacebookOAuthButton.tsx`** —
   one button each, call `signInWithGoogle`/`signInWithFacebook` on click.
 - **`buttons/SocialAuthButtons.tsx`** — lays the two buttons out side by
@@ -51,6 +53,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   than creating a new one.
 
 ### customer/guards/
+
 - **`CustomerAuthGuard/CustomerAuthGuard.tsx`** — wraps every `/portal/*`
   route. Confirms a session exists, confirms the signed-in user actually
   has a `customer_profiles` row (a valid Supabase session alone isn't
@@ -61,6 +64,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   notification bell and message compose button.
 
 ### customer/pages/
+
 - **`CustomerLoginPage.tsx`** / **`CustomerSignupPage.tsx`** — the
   marketing-style split-screen layout (feature list on the left, form on
   the right) hosting `CustomerLoginForm`/`CustomerSignupForm`.
@@ -72,11 +76,13 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   to `/portal`), or navigates straight to `/portal`.
 
 ### customer/modules/validators/
+
 - **`customerAuth.validator.ts`** — Zod schemas: signup requires a
   non-empty name, valid email, 8+ character password; login just requires
   a valid email and non-empty password.
 
 ### customer/ (routes & types)
+
 - **`customerAuth.routes.ts`** — wires `/login`, `/signup`, `/auth/callback`,
   `/portal/mfa/verify` (all public) and `/portal`, `/portal/settings`,
   `/portal/notifications` (behind `CustomerAuthGuard`).
@@ -84,6 +90,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   (`CustomerSignupPayload`, `CustomerLoginPayload`, `OAuthCallbackResult`).
 
 ### staff/api/
+
 - **`staffAuth.api.ts`** — `login` posts to `/auth/staff/login`.
   `mfaEnroll`/`mfaVerify` drive TOTP setup and challenge.
   `forgotPassword` requests a reset email. `establishRecoverySession`
@@ -93,6 +100,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   `updateStaffPassword` calls Supabase directly to set the new password.
 
 ### staff/components/forms/
+
 - **`StaffLoginForm.tsx`** — username-or-email + password login, plus an
   inline "Forgot password" mini-form. After login it calls `getMfaStatus`
   to learn the caller's role and enrollment state: Admin/Superadmin are
@@ -112,6 +120,7 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   set and confirm a new password (8+ characters).
 
 ### staff/guards/
+
 - **`StaffAuthGuard/StaffAuthGuard.tsx`** — wraps every `/staff/*` route.
   Loads the caller's real `staff_profiles.role` and username from the
   server (a JWT alone only proves "authenticated", not which staff role),
@@ -123,11 +132,13 @@ except the `shared/auth` Supabase client wrapper (outside this feature).
   warning with `SessionExpiryModal` before signing out.
 
 ### staff/modules/validators/
+
 - **`staffAuth.validator.ts`** — Zod schemas for login (identifier +
   password), a 6-digit TOTP code, forgot-password email, and reset
   password (with a confirm-password match check).
 
 ### staff/ (routes & types)
+
 - **`staffAuth.routes.ts`** — wires `/staff/login`, `/staff/mfa/enroll`,
   `/staff/mfa/verify`, `/staff/reset-password` (public) and `/staff`,
   `/staff/settings`, `/staff/notifications` (behind `StaffAuthGuard`).
@@ -143,6 +154,7 @@ Also split into `customers/` and `staff/` sub-folders, joined by a thin
 top-level shim.
 
 ### Top-level shim
+
 - **`auth.controller.ts`** — one line: re-exports `staffLoginController`
   from `staff/staffAuth.controller.ts` (legacy import path kept alive).
 - **`auth.routes.ts`** — mounts `staff/staffAuth.routes.ts` and
@@ -152,6 +164,7 @@ top-level shim.
   `StaffLoginResponse` interfaces.
 
 ### Controller & routes (staff)
+
 - **`staffAuth.controller.ts`** — `staffLoginController` resolves a
   username-shaped identifier to an email (`resolveStaffLoginIdentifier`),
   signs in with Supabase, then explicitly checks the account has a
@@ -181,12 +194,13 @@ top-level shim.
   whose JWT `aal` isn't `aal2`, i.e. hasn't completed a TOTP challenge
   this session.
 - **`middleware/requireRole/requireRole.middleware.ts`** — a middleware
-  *factory*: `requireRole(['Admin', 'Superadmin'])` returns middleware
+  _factory_: `requireRole(['Admin', 'Superadmin'])` returns middleware
   that 403s unless the caller's `staff_profiles.role` is in that list.
   This is the RBAC building block other features' routes use to
   role-gate endpoints.
 
 ### Controller & routes (customers)
+
 - **`customerAuth.controller.ts`** — `customerSignupController` creates
   the Supabase Auth user via the admin API (skips the confirmation email,
   which would otherwise hit a 2/hour rate limit), inserts a
@@ -195,7 +209,7 @@ top-level shim.
   in reverse — rejects the login if no `customer_profiles` row exists for
   that email, so a staff member's credentials can't reach the customer
   portal. `customerMfaEnrollController`/`Verify`/`Status`/
-  `UnenrollController` mirror the staff MFA endpoints. 
+  `UnenrollController` mirror the staff MFA endpoints.
   `customerOauthCallbackController` is the security-sensitive one: it
   takes the bearer token the client got from Supabase after the
   Google/Facebook redirect, verifies it against Supabase
@@ -206,6 +220,7 @@ top-level shim.
   preferences endpoints as the staff side, scoped to `customer_profiles`.
 
 ### Service
+
 - **`services/accountMerge.service.ts`** — `mergeOrCreate(session)` is the
   account-merge logic: it reads the OAuth provider, email, display name,
   and provider ID off the Supabase session's user object. If a
@@ -213,13 +228,14 @@ top-level shim.
   (e.g. the customer originally signed up with email/password, then later
   clicks "Continue with Google" using the same address), it **merges** —
   updates `primary_auth_provider` (and `facebook_id` for Facebook) on the
-  *existing* row rather than creating a second profile. If no row exists,
+  _existing_ row rather than creating a second profile. If no row exists,
   it **creates** a new one. Throws `MissingProviderEmailError` if the
   provider never handed Supabase a confirmed email (e.g. an unconfirmed
   Facebook email) — the controller turns that into a clear 422 instead of
   a generic failure.
 
 ### Types & validators
+
 - **`customers/customerAuth.types.ts`** — `CustomerAuthInput`,
   `CustomerProfile` (including `primary_auth_provider` and
   `facebook_id`).
@@ -228,7 +244,7 @@ top-level shim.
   regex.
 - **`staff/staffAuth.types.ts`** — `StaffLoginPayload`,
   `StaffAuthContext`.
-- **`staff/modules/validators/staffAuth.validator.ts`** — *not* Zod (the
+- **`staff/modules/validators/staffAuth.validator.ts`** — _not_ Zod (the
   only validator in this feature that isn't): a hand-rolled
   `safeParse`-shaped object for login (accepts either `identifier` or a
   legacy `username` field) and for the TOTP code, matching Zod's

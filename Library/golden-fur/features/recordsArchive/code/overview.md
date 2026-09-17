@@ -6,7 +6,7 @@ project: golden-fur
 ---
 
 Records Archive is a universal safety net for accidental (or malicious)
-deletes: whenever a row is physically deleted from *any* table in the
+deletes: whenever a row is physically deleted from _any_ table in the
 database, a Postgres trigger copies its full contents into one shared
 `deleted_records_archive` table before it's gone. This feature is the
 admin-facing API over that table — list/search what's been deleted,
@@ -24,6 +24,7 @@ context but documented in full as part of
 ## Server-side (`server/src/features/recordsArchive/`)
 
 ### Controller & routes
+
 - **`recordsArchive.controller.ts`** — four handlers:
   `listDeletedRecordsController`, `listDeletedRecordTablesController`,
   `restoreDeletedRecordController`, `purgeDeletedRecordController`. The
@@ -44,6 +45,7 @@ context but documented in full as part of
   alongside the rest of the Archive page's routes.
 
 ### Service
+
 - **`services/recordsArchive.service.ts`** — the core logic, four
   functions:
   - `listDeletedRecords` — filters `deleted_records_archive` by
@@ -70,6 +72,7 @@ context but documented in full as part of
     itself, so purging never re-archives the purge.
 
 ### Types
+
 - **`recordsArchive.types.ts`** — `DeletedRecordArchiveEntry` (id,
   source_table, record_id, row_data, deleted_by, deleted_at, restored_at,
   restored_by) and the `DeletedRecordsSort` union. A comment notes
@@ -91,11 +94,13 @@ reads and manages what that trigger has already written; nothing in
 `server/src/features/recordsArchive/` performs the capture itself.
 
 ### Related shared module: the soft-archive gate
+
 `server/src/shared/archive/archiveGuard.ts` is a separate, smaller shared
 helper — not part of this feature's own code, but worth knowing about
 since both concern "archiving." It exports two guard functions used by
 Products, Staff, and Customers/Pets before their own archive/hard-delete
 actions:
+
 - **`assertInactiveBeforeArchive(isActive, entityLabel)`** — throws a 403
   unless the entity is already deactivated (`is_active === false`), so
   nothing still in active use can be archived by accident.
@@ -104,7 +109,7 @@ actions:
   can be permanently deleted without first passing through the archived
   state.
 
-These guard a row's own `is_active`/`archived_at` flags on its *original*
+These guard a row's own `is_active`/`archived_at` flags on its _original_
 table — a completely different mechanism from `deleted_records_archive`,
 which only fires once a row is physically `DELETE`d.
 

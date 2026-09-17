@@ -16,6 +16,7 @@ restore or permanently delete) used across the app.
 ## Client-side (`client/src/features/staff/`)
 
 ### pages/
+
 - **`StaffDashboardPage.tsx`** — The one landing page every role shares after
   login (`/staff/dashboard/:roleSlug`). It looks up the signed-in staff
   member's profile, maps their role to a dashboard "slug"
@@ -66,8 +67,10 @@ restore or permanently delete) used across the app.
   customer-facing portal uses.
 
 ### components/dashboard/
+
 Per-role dashboard widgets, all small "fetch on mount, render a summary"
 components used by `StaffDashboardPage.tsx`.
+
 - **`DashboardTile.tsx`** — A generic clickable tile (link, or a button when
   `onSelect` is given) used to build the Settings > Config sub-navigation;
   renders "Coming soon" when a tile has no destination yet.
@@ -97,12 +100,13 @@ components used by `StaffDashboardPage.tsx`.
   viewer's own branch.
 
 ### components/ (other)
+
 - **`cards/StaffCard/StaffCard.tsx`** — One staff member's summary card
   (avatar/initials, name, role, branch, availability badge, and a resend-
   account-email button) — the building block of `StaffManagementPage`'s grid.
 - **`badges/UnavailabilityBlockBadge/UnavailabilityBlockBadge.tsx`** — Reads
   Supabase directly (not the REST API) to check whether a staff member has an
-  active block covering *right now*, and renders "Available" / "Off until
+  active block covering _right now_, and renders "Available" / "Off until
   HH:MM" / "Full day off."
 - **`buttons/ResendEmailButton/ResendEmailButton.tsx`** — Re-sends the
   original account-created credential email without generating a new
@@ -119,7 +123,7 @@ components used by `StaffDashboardPage.tsx`.
   confirmation dialog. `AdminArchivePage` plugs in different fetch/restore/
   delete functions per tab rather than duplicating this component per entity.
 - **`DeletedRecordsArchiveList/DeletedRecordsArchiveList.tsx`** — A separate,
-  broader archive: every row ever hard-deleted from *any* table app-wide,
+  broader archive: every row ever hard-deleted from _any_ table app-wide,
   captured automatically by a database trigger. Supports filtering by table,
   search, sort, pagination, viewing the captured JSON snapshot, restoring it
   back into its original table, or purging the archive entry itself.
@@ -147,6 +151,7 @@ components used by `StaffDashboardPage.tsx`.
   the file is sent to the server.
 
 ### api/
+
 - **`staff.api.ts`** — Every `fetch` call to the `/staff/*` REST endpoints:
   profile read/update, username change, avatar upload, unavailability block
   CRUD and review, branch schedule, staff list, account create/manage/
@@ -156,6 +161,7 @@ components used by `StaffDashboardPage.tsx`.
   the universal Deleted Records archive.
 
 ### config/ and modules/validators/
+
 - **`config/staffDashboard.config.ts`** — The single source of truth for
   every role's dashboard: which tiles appear, in what order, under what
   section headings, with what icon. `toSidebarSections()` flattens this same
@@ -167,6 +173,7 @@ components used by `StaffDashboardPage.tsx`.
   round trip to the server.
 
 ### Other
+
 - **`staff.routes.ts`** — Registers every `/staff/*` page route under
   `StaffAuthGuard` (the client-side route guard, not to be confused with the
   server's role checks).
@@ -180,6 +187,7 @@ pure styling, no logic.
 ## Server-side (`server/src/features/staff/`)
 
 ### Controller & routes
+
 - **`staff.controller.ts`** — Every `/staff/*` request handler: profile
   read/update, self-service username change, avatar upload (with its own
   Multer error handler), staff account create/manage/archive/restore/hard-
@@ -197,6 +205,7 @@ pure styling, no logic.
   Superadmin) for reviewing requests and viewing branch/pending schedules.
 
 ### Services
+
 - **`staffManagement.service.ts`** — Creating a staff account is the most
   involved flow here: checks username/email aren't already taken, creates
   the Supabase Auth user with a randomly-generated temporary password,
@@ -238,6 +247,7 @@ pure styling, no logic.
   point and would otherwise be stale.
 
 ### Types & validators
+
 - **`staff.types.ts`** — `ALL_STAFF_ROLES` (the 8 roles) and the three role-
   group constants routes/services check against: `ADMIN_ROLES`,
   `ANNOUNCEMENT_SENDER_ROLES`, and `UNAVAILABILITY_MANAGER_ROLES` (each

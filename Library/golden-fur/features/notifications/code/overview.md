@@ -130,6 +130,6 @@ feature's own `message_received` event all go through this one function. See
 and [[M11-02-appointment-reminder-polling-sweep]] for the reminder job's
 claim-then-send mechanics. The messaging feature (no M-code of its own — see
 [[features/messaging/code/overview|the Messaging Code Guide]]) is a
-*consumer* of this module: it calls `createNotification` with `eventType:
+_consumer_ of this module: it calls `createNotification` with `eventType:
 'message_received'` and a `relatedThreadId`, it doesn't provide the delivery
 mechanism itself.

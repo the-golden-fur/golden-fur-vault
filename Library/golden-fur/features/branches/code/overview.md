@@ -20,6 +20,7 @@ create or edit a branch.
 ## Server-side (`server/src/features/branches/`)
 
 ### Controller & routes
+
 - **`branches.controller.ts`** — four handlers: `listBranchesController`,
   `getBranchController`, `createBranchController`,
   `updateBranchController`. Create/update parse the request body with the
@@ -39,6 +40,7 @@ create or edit a branch.
   only Superadmin should see, not just edit.
 
 ### Service
+
 - **`services/branches.service.ts`** — plain Supabase CRUD, no business
   logic beyond error mapping: `listBranchesFull` (all branches,
   alphabetical), `getBranch` (404 if missing), `createBranch` (409 if the
@@ -49,6 +51,7 @@ create or edit a branch.
   what the controller's `sendServiceError` reads back out.
 
 ### Types & validators
+
 - **`branches.types.ts`** — the `Branch` interface (id, name, address,
   contact_number, is_vet_branch, operating_hours, timezone, created_at),
   `BRANCH_CONFIG_ROLES` (`['Superadmin']`), the `WEEKDAYS` tuple, and the

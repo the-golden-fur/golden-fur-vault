@@ -17,6 +17,7 @@ Daycare visit is a row in the same `stays` table, just with
 ## Client-side (`client/src/features/daycare/`)
 
 ### pages/
+
 - **`DaycareQueuePage/DaycareQueuePage.tsx`** — the main screen. Loads the
   branch's Daycare bookings (via `listBookings` with
   `serviceCategory: 'Daycare'`), then loads each booking's pet and owner so
@@ -59,12 +60,14 @@ Daycare visit is a row in the same `stays` table, just with
   Assistant).
 
 ### api/
+
 - **`daycare.api.ts`** — thin `fetch` wrappers around the server routes:
   `checkInDaycareSession`, `listDaycareSessions` (with status/date-range
   filters), and `checkOutDaycareSession`. Each returns a
   `{ data, error }` shape rather than throwing.
 
 ### Types & routing
+
 - **`daycare.types.ts`** — `DaycareStatus` (`'Active' | 'Completed'`),
   `CheckInPayload`, and `DaycareSession` — which is just a type alias for
   `HotelStay` from the hotel feature, not a separate shape. This is the
@@ -77,6 +80,7 @@ Daycare visit is a row in the same `stays` table, just with
 ## Server-side (`server/src/features/daycare/`)
 
 ### Controller & routes
+
 - **`daycare.controller.ts`** — three request handlers:
   `checkInDaycareSessionController`, `listDaycareSessionsController`,
   `checkOutDaycareSessionController`. Each validates the request with a Zod
@@ -89,6 +93,7 @@ Daycare visit is a row in the same `stays` table, just with
   `requireRole(DAYCARE_ADVANCE_ROLES)`, and `requireBranch`.
 
 ### Service
+
 - **`services/daycareCheckIn.service.ts`** — the most important file here.
   `checkInDaycareSession` handles both paths: an existing booking
   (`booking_id`, must be `Pending` or an already-`In Progress` walk-in
@@ -124,6 +129,7 @@ Daycare visit is a row in the same `stays` table, just with
   the authoritative record that checkout happened).
 
 ### Types & validators
+
 - **`daycare.types.ts`** — `DAYCARE_ROLES` (front-desk roles: Receptionist,
   Admin, Supervisor, Superadmin) and `DAYCARE_ADVANCE_ROLES` (those plus
   Groomer and Pet Assistant, since Daycare has no dedicated assigned-staff

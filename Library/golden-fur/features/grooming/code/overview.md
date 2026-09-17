@@ -17,6 +17,7 @@ booking's status is the single source of truth.
 ## Client-side (`client/src/features/grooming/`)
 
 ### pages/
+
 - **`GroomerDashboardPage/GroomerDashboardPage.tsx`** — the whole feature's
   UI. Gates access to `Groomer`/`Admin`/`Supervisor`/`Superadmin`
   (`ALLOWED_VIEWER_ROLES`), then loads today's queue via `listGroomingQueue`
@@ -31,6 +32,7 @@ booking's status is the single source of truth.
   with the response (which already comes back with its booking re-joined).
 
 ### components/
+
 - **`AppointmentCard/AppointmentCard.tsx`** — one card per queue entry.
   Shows the pet/owner, weight class, coat type, service labels, and special
   instructions. Its one Start/Complete button is driven by a small lookup
@@ -40,12 +42,14 @@ booking's status is the single source of truth.
   "reopen" path once a session is Completed.
 
 ### api/
+
 - **`grooming.api.ts`** — `listGroomingQueue` (optional `dateFrom`/`dateTo`)
   and `transitionGroomingStatus` (PATCH the session's status to `'In
-  Progress'` or `'Completed'`), both thin `fetch` wrappers returning a
+Progress'` or `'Completed'`), both thin `fetch` wrappers returning a
   `{ data, error }` shape.
 
 ### Types & routing
+
 - **`grooming.types.ts`** — `GroomingSession`: just `id`, `booking_id`,
   `assigned_groomer_id`, `queue_position`, timestamps, and an optional
   joined `booking`. Notably has **no status field of its own** — the
@@ -58,6 +62,7 @@ booking's status is the single source of truth.
 ## Server-side (`server/src/features/grooming/`)
 
 ### Controller & routes
+
 - **`grooming.controller.ts`** — `listGroomingQueueController` reads the
   requester's id/role/branch off the authenticated request plus optional
   `date_from`/`date_to` query params and calls the service.
@@ -71,6 +76,7 @@ booking's status is the single source of truth.
   `requireBranch`.
 
 ### Service
+
 - **`services/grooming.service.ts`** — the core logic, in two functions.
   `listGroomingQueue` queries `bookings` for `service_category: 'Grooming'`,
   `status: 'In Progress'` only, within the resolved date range (defaults to
@@ -90,6 +96,7 @@ booking's status is the single source of truth.
   transition error simply propagates up from those shared functions.
 
 ### Types & validators
+
 - **`grooming.types.ts`** — `GROOMING_QUEUE_ROLES` (Groomer, Admin,
   Supervisor, Superadmin) and the server copy of the `GroomingSession`
   interface (same shape as the client's).

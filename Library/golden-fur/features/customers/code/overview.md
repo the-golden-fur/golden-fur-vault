@@ -16,6 +16,7 @@ vaccination/medical-note/health-condition history shown on a pet's profile.
 ## Client-side (`client/src/features/customers/`)
 
 ### pages/
+
 - **`CustomerPetManagerPage.tsx`** — the "Pet Manager" screen at
   `/portal/pets`. Loads the signed-in customer's pets via `listCustomerPets`,
   renders them as `PetCard`s, and toggles an inline `PetForm` for adding a
@@ -32,6 +33,7 @@ vaccination/medical-note/health-condition history shown on a pet's profile.
   since the server 403s anyone else's).
 
 ### components/
+
 - **`badges/PetHealthConditionBadge/PetHealthConditionBadge.tsx`** — a small
   read-only chip that fetches `getPetHealthConditions` and renders nothing
   if there's no text (no health issues recorded is a normal state, not an
@@ -86,12 +88,14 @@ vaccination/medical-note/health-condition history shown on a pet's profile.
   reschedule it.
 
 ### config/
+
 - **`customerPortal.config.ts`** — `CUSTOMER_SIDEBAR_SECTIONS`, the static
   list of sidebar links every customer sees (Notifications, Book a Service,
   My Bookings, Transactions, Credits, My Rewards, Pet Manager, Food &
   Medication). Unlike the staff dashboard, this list never varies by role.
 
 ### api/
+
 - **`customer.api.ts`** — every fetch call this feature makes: customer
   profile read/update/list, the deactivate → archive → restore → hard-delete
   lifecycle for both customers and pets, pet CRUD (`listCustomerPets`,
@@ -102,6 +106,7 @@ vaccination/medical-note/health-condition history shown on a pet's profile.
   `maintenance.api.ts` uses for branches).
 
 ### Routing & types
+
 - **`customer.routes.ts`** — the client-side route table: `/portal/pets`
   (`CustomerPetManagerPage`), `/portal/pets/:petId` (`PetProfilePage`), and
   `/portal/food-medication`, all gated behind `CustomerAuthGuard`.
@@ -117,6 +122,7 @@ that one component — not documented individually.
 ## Server-side (`server/src/features/customers/`)
 
 ### Controller & routes
+
 - **`customer.controller.ts`** / **`customer.routes.ts`** — customer CRUD:
   `GET/PATCH /customers/:id` (self or authorized staff/lookup role),
   `GET /customers` and `/customers/archived` (staff only), and the
@@ -137,6 +143,7 @@ that one component — not documented individually.
   enforcement point behind "only staff can record an assessment."
 
 ### Service
+
 - **`services/customerArchive.service.ts`** — the customer lifecycle:
   `deactivateCustomer` (also cascades `is_active: false` to all the
   customer's pets), `activateCustomer`, `archiveCustomer` (stamps
@@ -168,6 +175,7 @@ that one component — not documented individually.
   prior uploads — many care-item photos can coexist per pet.
 
 ### Types & validators
+
 - **`customer.types.ts`** — `CustomerProfile`, `CUSTOMER_MANAGER_ROLES`
   (Receptionist/Admin/Supervisor/Superadmin — general staff access) and the
   narrower `CUSTOMER_ARCHIVE_ROLES` (Admin/Superadmin — the

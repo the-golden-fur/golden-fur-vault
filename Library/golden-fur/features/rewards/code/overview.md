@@ -62,7 +62,7 @@ percentage/flat coupon they can later apply at booking time.
   customer-or-staff spin/coupon/history endpoints.
 - **`rewards.routes.ts`** — mounts everything under `/rewards/*`.
   Config write and reward-catalog write are Admin/Superadmin only
-  (`REWARDS_WRITE_ROLES`); reading the reward list is open to *any*
+  (`REWARDS_WRITE_ROLES`); reading the reward list is open to _any_
   authenticated principal (`jwtMiddleware` alone), since the
   customer-facing wheel needs every active reward to render its
   segments. The spin/coupon/history routes are likewise gated by
@@ -87,7 +87,7 @@ percentage/flat coupon they can later apply at booking time.
   eligibility check used when a coupon is selected at the booking-time
   Promos & Coupons step), and `markCouponsRedeemed` (locks coupons to
   the booking/booking group that used them, with an `is_redeemed =
-  false` guard against a race between two concurrent requests
+false` guard against a race between two concurrent requests
   redeeming the same coupon twice).
 - **`services/rewardsAccess.service.ts`** — `resolveTargetCustomerId`,
   shared by the two services above: a customer can only ever act on

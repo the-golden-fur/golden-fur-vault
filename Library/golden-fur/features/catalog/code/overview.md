@@ -54,8 +54,8 @@ tables.
   hard-delete), and the customer-scoped
   `/customers/me/food-medication-catalog` /
   `/customers/:customerId/food-medication-catalog` endpoints (the
-  second lets a staff member, e.g. a receptionist, read *a specific
-  customer's* saved types rather than their own).
+  second lets a staff member, e.g. a receptionist, read _a specific
+  customer's_ saved types rather than their own).
 
 ### Other files
 
