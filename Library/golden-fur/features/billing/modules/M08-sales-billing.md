@@ -135,6 +135,10 @@ category. Distinct from the _Misc_ `service_category` (Initial
 Assessment/Reassessment — [[M13-maintenance-packages-services-promos|M13]]), which does have a booking record and
 its own `booking_payment` transaction like any other category.
 
+## Code Guide
+
+- [[features/billing/code/overview|Billing — Code Guide]]
+
 ## Workflows
 
 - [[M08-01-cashier-checkout|Cashier Checkout]]

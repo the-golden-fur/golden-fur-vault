@@ -69,6 +69,10 @@ payment/transactions rework) — see [[M03-appointment-booking|M03]].
 - [[M14-03-transaction-history-search|Transaction History Search]]
 - [[M14-04-analytics-dashboard-summary|Analytics Dashboard Summary]]
 
+## Code Guide
+
+- [[features/reports/code/overview|Reports — Code Guide]]
+
 ## Relationship to other modules
 
 Depends on [[M08-sales-billing|M08]] (transaction data, now filtered to

@@ -48,6 +48,19 @@ twice.
 - [[M11-01-event-triggered-notification-dispatch|Event-Triggered Notification Dispatch]]
 - [[M11-02-appointment-reminder-polling-sweep|Appointment-Reminder Polling Sweep]]
 
+## Code Guide
+
+- [[features/notifications/code/overview|Notifications — Code Guide]]
+
+## Messaging Code Guide
+
+Messaging (`features/messaging`) is a related but separate feature — added
+after the original 14 modules, no M-code of its own (see
+`docs/architecture.md`'s module map) — documented here because it's the
+main consumer of this module's `createNotification()` write path.
+
+- [[features/messaging/code/overview|Messaging — Code Guide]]
+
 ## Relationship to other modules
 
 Depends on [[M01-staff-authentication-access-control|M01]], [[M02-customer-portal-pet-management|M02]], [[M03-appointment-booking|M03]], [[M05-pet-hotel-boarding-management|M05]], [[M08-sales-billing|M08]], and

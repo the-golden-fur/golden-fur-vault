@@ -43,6 +43,10 @@ as Hotel.
 - [[M06-01-daycare-check-in|Daycare Check-In]]
 - [[M06-02-daycare-checkout-billing|Daycare Checkout & Billing]]
 
+## Code Guide
+
+- [[features/daycare/code/overview|Daycare — Code Guide]]
+
 ## Relationship to other modules
 
 Bookings come from [[M03-appointment-booking|M03]] (advance) or are created directly by a

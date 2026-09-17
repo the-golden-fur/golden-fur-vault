@@ -198,6 +198,10 @@ first load. The same floor is asserted by `createBooking` and by
 - [[M03-01-new-appointment-booking|New Appointment Booking]]
 - [[M03-02-multi-item-booking-pricing|Multi-Item Booking Selection & Pricing]]
 
+## Code Guide
+
+- [[features/booking/code/overview|Booking — Code Guide]]
+
 ## Relationship to other modules
 
 Depends on [[M01-staff-authentication-access-control|M01]] (availability, hours, lunch break), [[M02-customer-portal-pet-management|M02]] (customer/pet

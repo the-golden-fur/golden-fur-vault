@@ -129,6 +129,16 @@ Settings > Config.
 - [[M13-01-package-creation-bundled-pricing|Package Creation & Bundled-Price Derivation]]
 - [[M13-02-promo-creation-cap-evaluation|Promo Creation, Branch Availability & Per-Transaction Cap Evaluation]]
 
+## Code Guide
+
+- [[features/maintenance/code/overview|Maintenance — Code Guide]]
+
+## Public Code Guide
+
+The `public` feature (unauthenticated) exposes a read-only subset of this
+module's packages/promos catalog to logged-out marketing-site visitors -
+see [[features/public/code/overview|Public — Code Guide]].
+
 ## Relationship to other modules
 
 Service/package definitions and Service Types are consumed in
