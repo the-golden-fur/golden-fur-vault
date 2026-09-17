@@ -86,6 +86,18 @@ only) System Configuration.
 - [[M01-01-staff-account-creation|Staff Account Creation]]
 - [[M01-02-unavailability-block-request-review|Unavailability Block Request & Review]]
 
+## Auth Code Guide
+
+- [[features/auth/code/overview|Auth — Code Guide]]
+
+## Staff Code Guide
+
+- [[features/staff/code/overview|Staff — Code Guide]]
+
+## Branches Code Guide
+
+- [[features/branches/code/overview|Branches — Code Guide]]
+
 ## Relationship to other modules
 
 Feeds staff identity/role into [[M03-appointment-booking|M03]] (Staff Picker), [[M04-grooming-management|M04]]

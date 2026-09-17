@@ -70,6 +70,10 @@ now reports real figures.
 Credit can be issued, tracked, redeemed, and expired end to end. This
 module did not exist in the database at all before 2026-08-05.
 
+## Code Guide
+
+- [[features/credits/code/overview|Credits — Code Guide]]
+
 ## Workflows
 
 - [[M10-01-cancellation-to-credit-conversion|Cancellation-to-Credit Conversion]]

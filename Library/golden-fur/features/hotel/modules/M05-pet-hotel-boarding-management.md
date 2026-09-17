@@ -31,6 +31,10 @@ free text with no catalog match). Picking a real catalog item offers
 "Owner will bring it" (default) or "Staff will purchase it" — the
 latter, with a quantity, shows a live price estimate.
 
+## Catalog Code Guide
+
+- [[features/catalog/code/overview|Catalog — Code Guide]]
+
 ## Boarding Checklist (formerly Care Log)
 
 Renamed and now shared with Daycare ([[M06-daycare-management|M06]]) rather than Hotel-only.
@@ -80,6 +84,10 @@ passes to [[M08-sales-billing|M08]]. The cage releases back to Available.
 - [[M05-01-hotel-check-in|Hotel Check-In]]
 - [[M05-02-boarding-checklist-task-lifecycle|Boarding Checklist Task Lifecycle]]
 - [[M05-03-hotel-checkout|Hotel Checkout]]
+
+## Code Guide
+
+- [[features/hotel/code/overview|Hotel — Code Guide]]
 
 ## Relationship to other modules
 

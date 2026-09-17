@@ -40,6 +40,10 @@ Dental Cleaning, Surgery, and Emergency Consultation ship pre-flagged at
 - [[M07-02-follow-up-visit-scheduling|Follow-Up Visit Scheduling]]
 - [[M07-03-pet-health-conditions-recording|Pet Health Conditions Recording]]
 
+## Code Guide
+
+- [[features/veterinary/code/overview|Veterinary — Code Guide]]
+
 ## Relationship to other modules
 
 Depends on [[M02-customer-portal-pet-management|M02]] and [[M03-appointment-booking|M03]]. Feeds M02 (read-only health flags),

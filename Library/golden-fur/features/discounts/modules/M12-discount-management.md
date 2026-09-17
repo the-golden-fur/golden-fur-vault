@@ -34,6 +34,10 @@ same discounts data and are reflected consistently in reporting.
 - [[M12-01-discount-creation-and-lifecycle|Discount Creation, Branch Availability & Archive Lifecycle]]
 - [[M12-02-discount-eligibility-calculation-and-application|Discount Eligibility Calculation & Application]]
 
+## Code Guide
+
+- [[features/discounts/code/overview|Discounts — Code Guide]]
+
 ## Relationship to other modules
 
 Consumed by [[M08-sales-billing|M08]] (checkout) and [[M03-appointment-booking|M03]] (booking-time application);

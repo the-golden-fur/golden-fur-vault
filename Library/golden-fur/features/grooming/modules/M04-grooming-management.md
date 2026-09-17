@@ -35,6 +35,10 @@ staff) happens at booking creation, not in this feature's own code — see
 - [[M04-01-grooming-queue-population|Grooming Queue Population & Visibility]]
 - [[M04-02-grooming-session-execution|Grooming Session Execution & Billing Handoff]]
 
+## Code Guide
+
+- [[features/grooming/code/overview|Grooming — Code Guide]]
+
 ## Relationship to other modules
 
 Depends on [[M01-staff-authentication-access-control|M01]], [[M03-appointment-booking|M03]], and [[M13-maintenance-packages-services-promos|M13]] (packages, size/coat
