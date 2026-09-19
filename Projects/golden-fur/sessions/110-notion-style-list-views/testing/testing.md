@@ -34,7 +34,7 @@ place when it lands, per the session-documentation skill.
 > board/kanban, calendar with month or week view if table has dates).
 
 **Scope note:** rather than being asked what to include, the instruction was
-to say what should be *excluded*, and otherwise touch everything that fits
+to say what should be _excluded_, and otherwise touch everything that fits
 (any page whose data comes from a GET request to the database). See
 `../plan.md` for the full tier breakdown of what's in, what's partial, and
 what's deliberately left out. This increment covers the shared building
@@ -110,6 +110,7 @@ None.
 **`client/src/features/staff/components/DeletedRecordsArchiveList/`** (the
 Admin "Deleted Records" archive browser, inside Settings > Config >
 Archive):
+
 - `archiveBrowserFields.ts` (new) - the "adapter" file that describes this
   page's specific filters/sort to the shared `FilterSortBar`.
 - `DeletedRecordsArchiveList.tsx` - swapped its plain dropdown toolbar for
@@ -119,6 +120,7 @@ Archive):
 
 **`client/src/features/hotel/pages/AdminCagesPage/`** (Settings > Config >
 Cages) - the full worked example, first page with all three views:
+
 - `cageBrowserFields.ts` (new) - filters (Size, Status, and a multi-select
   Pet type filter, since a cage can support more than one pet type), sort
   (by label or by size), a search matcher, and two "group by" choices
@@ -133,13 +135,14 @@ Cages) - the full worked example, first page with all three views:
 
 **`client/src/features/maintenance/pages/AdminPetTypesPage/`** (Settings >
 Config > Pet Types):
+
 - `petTypeBrowserFields.ts` (new) - a Status (Active/Inactive) filter, sort
   by Name or Key, and a group-by-Status axis.
 - `AdminPetTypesPage.tsx` - the "Existing pet types" list gained the full
   search/filter/sort/Table-List-Board treatment (default view: Table, no
   filter applied by default so both active and inactive types still show,
   matching the old behavior). The separate "Fixed price overrides" list
-  below it - which only ever lists *active* pet types, scoped to one branch
+  below it - which only ever lists _active_ pet types, scoped to one branch
   at a time - keeps its own existing branch selector and per-row price
   inputs unchanged, but gained its own plain search box (a lighter, partial
   treatment: search only, no sort/filter/views, since it isn't really a
@@ -147,6 +150,7 @@ Config > Pet Types):
 
 **`client/src/features/maintenance/pages/AdminBreedsPage/`** (Settings >
 Config > Breed Management):
+
 - `breedBrowserFields.ts` (new) - a Pet type filter (built from the live
   pet-types list), sort by Name, and a group-by-Pet-type axis (its columns
   also come from the live pet-types list, so a newly added pet type gets
@@ -160,6 +164,7 @@ Config > Breed Management):
 
 **`client/src/features/discounts/pages/AdminDiscountManagementPage/`**
 (Settings > Config > Discounts):
+
 - `discountBrowserFields.ts` (new) - Branch/Scope/Status filters (replacing
   the page's old bespoke `DiscountFilterBar` dropdowns), sort by Name or
   Value, and a group-by-Type axis (Government-Mandated vs. Custom).
@@ -183,7 +188,9 @@ Config > Breed Management):
   follow-up cleanup, not done in this session to stay within scope.
 
 **`client/src/features/maintenance/pages/AdminPromoConfigPage/`** (Settings
+
 > Config > Promos) - a lighter treatment, by design:
+
 - `promoBrowserFields.ts` (new) - Branch/Timing/Status filters (replacing
   the old bespoke `PromoFilterBar`), sort by Name or Value.
 - `AdminPromoConfigPage.tsx` - swapped `PromoFilterBar` for `FilterSortBar`.
@@ -199,9 +206,11 @@ Config > Breed Management):
   used anywhere.
 
 **`client/src/features/rewards/pages/AdminSpinWheelConfigPage/`** (Settings
+
 > Config > Coupon Spin Wheel) - the reward pool, full treatment (this is the
-page the Ideas backlog named explicitly: "Add search, sort, filter, group
-by, view options (table, list, kanban) to the reward pool"):
+> page the Ideas backlog named explicitly: "Add search, sort, filter, group
+> by, view options (table, list, kanban) to the reward pool"):
+
 - `rewardBrowserFields.ts` (new) - Status and Discount-type filters, sort by
   Label/Value/Rarity, and two group-by axes (Status, Discount type).
 - `AdminSpinWheelConfigPage.tsx` - the reward pool list gained the full
@@ -213,6 +222,7 @@ by, view options (table, list, kanban) to the reward pool"):
 **`client/src/features/catalog/components/CatalogAdminPage/`** (the shared
 component behind Settings > Config > Product Catalog - `ProductCatalogPage`
 is the only current consumer):
+
 - `catalogBrowserFields.ts` (new) - Category and Service-scope filter
   options are derived from whichever values are actually present in the
   loaded items (category/service_scope are free text, not a fixed enum -
@@ -264,6 +274,7 @@ changed):
 
 **`client/src/features/customers/pages/CustomerPetManagerPage/`**
 (`/portal/pets`, "Pet Manager"):
+
 - `petBrowserFields.ts` (new) - Pet type options derived from the viewer's
   own pets (free text, admin-managed), a fixed Weight class filter (S/M/L/
   XL), an Assessment filter (Assessed/Not yet assessed), sort by Name,
@@ -277,6 +288,7 @@ changed):
 
 **`client/src/features/catalog/pages/CustomerFoodMedicationPage/`**
 (`/portal/food-medication`, "My Food & Medication Types"):
+
 - `customerCatalogBrowserFields.ts` (new) - a Category filter (Food/
   Medication), sort by Name, group-by Category.
 - `CustomerFoodMedicationPage.tsx` - per the Ideas backlog ("combine the
@@ -291,6 +303,7 @@ changed):
 
 **`client/src/features/rewards/pages/CustomerRewardsPage/`**
 (`/portal/rewards`, "My Rewards"):
+
 - `couponBrowserFields.ts` (new) - a Status filter (Available/Used,
   defaulting to Available), sort by Obtained date, Expiry (soonest/latest -
   coupons with no expiry always sort last, regardless of direction), or
@@ -325,7 +338,7 @@ features but not all of them" allowance given for this rollout.
   rendered. Nothing else in this enormous, business-critical file was
   touched - not the selection state (`toggleServiceSelect`/
   `togglePackageSelect`), not pricing, not the Package-tab visibility check
-  (which still reads the *unfiltered* list, so the tab doesn't disappear
+  (which still reads the _unfiltered_ list, so the tab doesn't disappear
   just because a search hides every result).
 - **`client/src/features/booking/components/CagePickerList/`**: a search
   box now appears once there are more than 3 options (that's "No
@@ -365,7 +378,7 @@ of its own hand-written month-grid markup:
   refactor didn't change behavior.
 - Week view exists in `DataCalendar` itself (with its own passing tests)
   but nothing in this app uses it yet - Monthly Schedule only ever offered
-  Month/Grid, and the plan's first *real* week-view consumer is the
+  Month/Grid, and the plan's first _real_ week-view consumer is the
   Activity Log page in Tier 2, not yet started.
 
 ### Tier 2 - partial treatment (search + filter + sort, no Board/group-by)
@@ -417,7 +430,7 @@ would help with.
   search box (pet or owner name). Replaces the old `SearchSortBar` + plain
   `<select>` pair. The two-pane queue/detail layout, and clicking a
   patient's "..." menu to load their consultation history on the right,
-  are unchanged - the one visible difference is *how* the selected patient
+  are unchanged - the one visible difference is _how_ the selected patient
   is highlighted in the queue: it used to recolor the whole row's border,
   now it's an accent-tinted left border on the row's text block, because
   the shared `DataList` component (used here for consistency with every
@@ -429,15 +442,15 @@ would help with.
   missed), a Date filter (reusing the same date-range preset system as
   `QueueFilterBar` - Today/Tomorrow/This week/This month/Custom/All dates
   - **now a removable pill** instead of the old always-on control; removing
-  it lifts the date bound entirely, which is safe because the server
-  already caps an unbounded query at its 200-most-recent-entries default),
-  sort by Date, and a new search box (description/actor name). Replaces
-  `QueueFilterBar` + `ActiveFilterChips` with `FilterSortBar`. Gained a
-  **List / Calendar** view switcher (no Table/Board - a flat description
-  string doesn't need columns, and there's no natural grouping) - this is
-  `DataCalendar`'s first real consumer besides Monthly Schedule, and its
-  month grid shows each day's log entries as small colored chips (same
-  action colors as the List view's badges).
+    it lifts the date bound entirely, which is safe because the server
+    already caps an unbounded query at its 200-most-recent-entries default),
+    sort by Date, and a new search box (description/actor name). Replaces
+    `QueueFilterBar` + `ActiveFilterChips` with `FilterSortBar`. Gained a
+    **List / Calendar** view switcher (no Table/Board - a flat description
+    string doesn't need columns, and there's no natural grouping) - this is
+    `DataCalendar`'s first real consumer besides Monthly Schedule, and its
+    month grid shows each day's log entries as small colored chips (same
+    action colors as the List view's badges).
 
 - **`client/src/features/booking/components/StaffPickerList/`** (the
   booking flow's staff-picker step, both customer and staff surfaces) -
@@ -453,7 +466,7 @@ would help with.
 Deliberately the lightest touch in this whole rollout, per the plan: these
 are shift-critical, real-time staff workflow tools (check-in buttons, live
 care logs), not "browse my records" pages - no search/filter/sort model
-change, no group-by, no view switcher, no board, no calendar. The *only*
+change, no group-by, no view switcher, no board, no calendar. The _only_
 ask was to make their existing filter chips look and behave like every
 other pill in the app (hover-to-reveal "X", not an always-visible one).
 
@@ -544,7 +557,7 @@ launching a second copy.
      size to confirm it updates live; remove it via its hover "X".
    - Click **Filter** > **Pet type**. Its popover is a checkbox list (not a
      single-choice list) - check one or more pet types; the pill's text
-     lists all of them, and any cage supporting *any* checked type stays
+     lists all of them, and any cage supporting _any_ checked type stays
      visible.
    - Click **Sort** > **Size · Small to large** - the list reorders.
    - Type a cage label fragment into the search box - the list narrows.
@@ -580,7 +593,7 @@ launching a second copy.
 6. Confirm **Rename**, **Activate**/**Deactivate**, and **Delete** still
    work exactly as before.
 7. Scroll to the separate **Fixed price overrides** panel below. Confirm it
-   still only lists *active* pet types, still has its own **Branch**
+   still only lists _active_ pet types, still has its own **Branch**
    selector, and now also has its own **Search** box - type into it and
    confirm it narrows that list only (the panel above it is unaffected).
    Confirm **Save**/**Clear** on a price still work.
