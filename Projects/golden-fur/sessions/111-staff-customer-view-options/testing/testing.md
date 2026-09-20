@@ -36,7 +36,7 @@ for each):
 A prior session (110) had already given Staff Management and Customer
 Management a lighter "Tier 2" pass — search/filter/sort only, no view
 switcher, no board, no group-by — and had already built four reusable
-pieces for the pages that *did* get the full treatment: `DataTable`,
+pieces for the pages that _did_ get the full treatment: `DataTable`,
 `DataList`, `DataBoard`, and `useGroupBy`. This session's job was to wire
 those same four pieces into the two pages that had been deliberately left
 lighter, then fix what broke once a real Board view (8 Role columns) was
@@ -106,8 +106,8 @@ same as every other page in this rollout.
 - `client/src/shared/components/DataBoard/DataBoard.module.css` — two
   fixes:
   1. `.board` gained `min-width: 0`. A CSS grid item's default `min-width:
-     auto` refuses to shrink below its own content's size — with 8 Role
-     columns, that pushed the *whole page* wider instead of the board
+auto` refuses to shrink below its own content's size — with 8 Role
+     columns, that pushed the _whole page_ wider instead of the board
      scrolling sideways within its own box (the `overflow-x: auto` it
      already had).
   2. The column-track floor is now `minmax(var(--column-min-width, 15rem), 1fr)`
@@ -118,7 +118,7 @@ same as every other page in this rollout.
 - `client/src/features/staff/pages/StaffManagementPage/StaffManagementPage.module.css`
   — `.content` sets `--column-min-width: var(--staff-card-min-width)`
   (both fix #2 above), and `.gridItem`/`.boardCard` dropped `justify-items:
-  start`, which had been keeping each `StaffCard` shrink-wrapped to its own
+start`, which had been keeping each `StaffCard` shrink-wrapped to its own
   260px floor instead of stretching to fill a column/cell that was often
   considerably wider — this is what was actually causing names to truncate
   ("Makati Su…") even with visible unused space next to the card.
@@ -145,7 +145,7 @@ same as every other page in this rollout.
   — added `<ResendEmailButton staffId={staffId} accessToken={accessToken} />`
   at the top of the form. **What the button actually does** (answered
   in-session, from `server/src/features/staff/services/resendAccountEmail.service.ts`):
-  it re-sends the *original* account-creation email — the same username and
+  it re-sends the _original_ account-creation email — the same username and
   the same temporary password issued when the account was created,
   decrypted server-side — for when that first email didn't arrive. It never
   issues a new password, and it only works before the staff member's first
