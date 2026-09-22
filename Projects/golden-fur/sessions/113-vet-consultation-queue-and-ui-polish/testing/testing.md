@@ -308,26 +308,26 @@ record was written; not re-run here.
 - New/updated spec files worth highlighting:
   - `CustomerPicker.spec.ts` — new `describe('restrictToCustomerIds (vet-bookings-queue-access)')`
     block, including `'fetches only the restricted customers by id, never
-    the broad list endpoint (Forbidden-error fix)'`.
+the broad list endpoint (Forbidden-error fix)'`.
   - `CustomerBookingFlowPage.spec.ts` (107 lines changed) — new
     `describe('veterinarian bookings queue access (custom change)')` block,
     including `'New Consultation: a locked service category removes the
-    Service Type step entirely, not just auto-advances past it'`.
+Service Type step entirely, not just auto-advances past it'`.
   - `ReceptionistBookingsQueuePage.spec.ts` — new
     `'vet-bookings-queue-access: redirects a Veterinarian away (Consultation
-    Queue is their entry point now)'`.
+Queue is their entry point now)'`.
   - `VeterinaryConsolePage.spec.ts` (106 lines changed, 9 tests total) —
     new `'vet-bookings-queue-access: New Consultation opens the booking
-    builder locked to Veterinary'`,
+builder locked to Veterinary'`,
     `'shared-toolbar-and-tap-to-hold: adding a Status filter tile narrows
-    the queue to just that status'`, and
+the queue to just that status'`, and
     `'shared-toolbar-and-tap-to-hold: switches to Table view, where row
-    actions are a persistent "..." button (tap stays tap)'`.
+actions are a persistent "..." button (tap stays tap)'`.
   - `bookingConfirmation.spec.ts` — the old `'a Veterinary Pending booking
-    is Confirmed...'` test was replaced with `'an unpaid online Veterinary
-    Pending booking is Unconfirmed, same as every other category'` plus a
+is Confirmed...'` test was replaced with `'an unpaid online Veterinary
+Pending booking is Unconfirmed, same as every other category'` plus a
     new `'a walk-in Veterinary Pending booking is Confirmed (customer is
-    present)'` case.
+present)'` case.
   - `bookingGroup.service.spec.ts` — mocked rows in the vet-confirmed-at-
     creation test helper now explicitly carry `booking_source: 'Walk-in'`,
     since Online Veterinary no longer auto-confirms in that path either.
