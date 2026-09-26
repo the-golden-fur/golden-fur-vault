@@ -1,0 +1,595 @@
+{
+  "info": {
+    "name": "Spin wheel promo triggers and pools (session 114)",
+    "description": "Verifies session 114's server-side changes: rewards take a rarity_tier + weight instead of a rarity_percent that had to sum to 100 (requests 3-4); reward pools can be created and a pool in use by an active spin-wheel promo can't be deactivated (5, 7, 11); a promo can be created with promo_type 'spin_wheel' with trigger-condition rules enforced (6, 8, 9); the booking/public promo list excludes spin-wheel promos unless include_spin_wheel=true is passed (10); the customer check-in endpoint records a login and returns the spin-credit summary shape {credits:{total,byPromo}} (12-13); GET .../wheel returns one promo's rewards with computed chance_percent (14); and My Coupons carries each coupon's reward_label now that the reward catalog is staff-only (16). Request 15 (spin) only succeeds if this customer already has an unspun credit for the promo made in request 6 - its test script accepts either outcome and explains how to force a credit via SQL if it fails. Fill in the variables below, then run top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "admin_identifier",
+      "value": "",
+      "description": "an Admin or Superadmin login, e.g. makati.admin1 (seed password: password123)"
+    },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    {
+      "key": "customer_email",
+      "value": "",
+      "description": "a seeded customer login, e.g. customer1@goldenfur.com"
+    },
+    { "key": "customer_password", "value": "" },
+    { "key": "customer_access_token", "value": "" },
+    {
+      "key": "customer_id",
+      "value": "",
+      "description": "set automatically from the customer login response"
+    },
+    { "key": "spin_wheel_reward_id", "value": "" },
+    { "key": "reward_pool_id", "value": "" },
+    { "key": "spin_wheel_promo_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"account_email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('customer_access_token', body.access_token);",
+              "if (body.customer && body.customer.id) pm.collectionVariables.set('customer_id', body.customer.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create a reward with rarity_tier + weight (no % to balance)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"label\": \"Session 114 test reward\",\n  \"discount_type\": \"Flat\",\n  \"value\": 100,\n  \"rarity_tier\": \"Rare\",\n  \"weight\": 25\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/rewards/spin-wheel/rewards",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "spin-wheel", "rewards"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('reward created', () => pm.response.to.have.status(201));",
+              "pm.test('has rarity_tier, not rarity_percent', () => { pm.expect(body.reward.rarity_tier).to.eql('Rare'); pm.expect(body.reward).to.not.have.property('rarity_percent'); });",
+              "pm.test('weight stored', () => pm.expect(Number(body.reward.weight)).to.eql(25));",
+              "if (body.reward && body.reward.id) pm.collectionVariables.set('spin_wheel_reward_id', body.reward.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. REJECTED: rarity_percent is no longer accepted",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"label\": \"Old-shape reward\",\n  \"discount_type\": \"Flat\",\n  \"value\": 100,\n  \"rarity_percent\": 20\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/rewards/spin-wheel/rewards",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "spin-wheel", "rewards"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - rarity_tier/weight are required, rarity_percent is unknown (.strict())', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Create a reward pool containing that reward",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Session 114 test pool\",\n  \"description\": \"Created by the session 114 Postman collection\",\n  \"reward_ids\": [\"{{spin_wheel_reward_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/rewards/reward-pools",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "reward-pools"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('pool created', () => pm.response.to.have.status(201));",
+              "pm.test('member reward has a computed 100% chance (only member)', () => { const r = body.pool.rewards.find(x => x.id === pm.collectionVariables.get('spin_wheel_reward_id')); pm.expect(r.chance_percent).to.eql(100); });",
+              "if (body.pool && body.pool.id) pm.collectionVariables.set('reward_pool_id', body.pool.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Create a spin-wheel promo pointed at that pool (daily login trigger)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Session 114 test spin wheel\",\n  \"promo_type\": \"spin_wheel\",\n  \"spin_wheel\": {\n    \"reward_pool_id\": \"{{reward_pool_id}}\",\n    \"login_trigger\": \"daily_login\",\n    \"pity_threshold\": 3\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('promo created', () => pm.response.to.have.status(201));",
+              "pm.test('promo_type is spin_wheel and has no discount fields', () => { pm.expect(body.promo.promo_type).to.eql('spin_wheel'); pm.expect(body.promo.discount_type).to.be.null; pm.expect(body.promo.value).to.be.null; });",
+              "if (body.promo && body.promo.id) pm.collectionVariables.set('spin_wheel_promo_id', body.promo.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. REJECTED: spin-wheel promo with no trigger condition turned on",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"No trigger spin wheel\",\n  \"promo_type\": \"spin_wheel\",\n  \"spin_wheel\": {\n    \"reward_pool_id\": \"{{reward_pool_id}}\"\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('rejected 400', () => pm.response.to.have.status(400));",
+              "pm.test('names the trigger condition problem', () => { const issues = JSON.stringify(body.details || body); pm.expect(issues).to.match(/trigger condition/i); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. REJECTED: spin-wheel promo can't carry a discount_type",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Spin wheel with a discount (invalid)\",\n  \"promo_type\": \"spin_wheel\",\n  \"discount_type\": \"Percentage\",\n  \"value\": 10,\n  \"spin_wheel\": {\n    \"reward_pool_id\": \"{{reward_pool_id}}\",\n    \"booking_milestone_interval\": 5\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - discount_type is not valid on a spin_wheel promo', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. REJECTED: weekly login streak with an out-of-range day count",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Bad weekly streak\",\n  \"promo_type\": \"spin_wheel\",\n  \"spin_wheel\": {\n    \"reward_pool_id\": \"{{reward_pool_id}}\",\n    \"login_trigger\": \"weekly_login_streak\",\n    \"login_streak_days\": 9\n  }\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected 400 - a weekly streak only allows 1-7 days', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. REJECTED: can't deactivate a pool an active promo still uses",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/rewards/reward-pools/{{reward_pool_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "reward-pools", "{{reward_pool_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('rejected 409', () => pm.response.to.have.status(409));",
+              "pm.test('names the promo using it', () => pm.expect(body.error).to.match(/Session 114 test spin wheel/));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. GET /maintenance/promos (default) - spin-wheel promo is excluded",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos?include_inactive=true",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"],
+          "query": [{ "key": "include_inactive", "value": "true" }]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const found = body.promos.find(p => p.id === pm.collectionVariables.get('spin_wheel_promo_id'));",
+              "pm.test('the spin-wheel promo is NOT in the default (discount-only) list', () => pm.expect(found).to.be.undefined);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. GET /maintenance/promos?include_spin_wheel=true - now included",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/maintenance/promos?include_inactive=true&include_spin_wheel=true",
+          "host": ["{{base_url}}"],
+          "path": ["maintenance", "promos"],
+          "query": [
+            { "key": "include_inactive", "value": "true" },
+            { "key": "include_spin_wheel", "value": "true" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const found = body.promos.find(p => p.id === pm.collectionVariables.get('spin_wheel_promo_id'));",
+              "pm.test('the spin-wheel promo IS in the include_spin_wheel list', () => pm.expect(found).to.not.be.undefined);",
+              "pm.test('carries its spin_wheel_promo_settings, including the pool name', () => { pm.expect(found.spin_wheel_promo_settings.reward_pool_id).to.eql(pm.collectionVariables.get('reward_pool_id')); pm.expect(found.spin_wheel_promo_settings.reward_pools.name).to.eql('Session 114 test pool'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Customer check-in (records today's Manila login day)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/rewards/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('returns a credits summary shape', () => { pm.expect(body.credits).to.have.property('total'); pm.expect(body.credits).to.have.property('byPromo'); });",
+              "pm.test('granted is an array (may be empty if already checked in today, or if this is not the first check-in this Manila day)', () => pm.expect(body.granted).to.be.an('array'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Customer check-in again (idempotent - no second daily_login credit)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/rewards/check-in",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "check-in"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('the daily_login promo from request 13 is not granted twice', () => { const grantedTwice = (body.granted || []).filter(g => g.promoId === pm.collectionVariables.get('spin_wheel_promo_id')); pm.expect(grantedTwice.length).to.eql(0); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. GET /rewards/my-spin-credits - grouped by promo",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/rewards/my-spin-credits",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "my-spin-credits"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('shape is {credits:{total,byPromo}}', () => { pm.expect(body.credits).to.have.property('total'); pm.expect(body.credits.byPromo).to.be.an('array'); });",
+              "pm.test('each byPromo entry names its promo', () => { for (const g of body.credits.byPromo) { pm.expect(g).to.have.property('promoId'); pm.expect(g).to.have.property('promoName'); pm.expect(g).to.have.property('count'); } });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. GET the spin wheel for this promo - computed chances, no config-style % to balance",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/rewards/spin-wheel/promos/{{spin_wheel_promo_id}}/wheel",
+          "host": ["{{base_url}}"],
+          "path": [
+            "rewards",
+            "spin-wheel",
+            "promos",
+            "{{spin_wheel_promo_id}}",
+            "wheel"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('promoName and rarestTier present', () => { pm.expect(body.promoName).to.eql('Session 114 test spin wheel'); pm.expect(body.rarestTier).to.eql('Rare'); });",
+              "pm.test('the only reward has a 100% computed chance', () => { pm.expect(body.rewards.length).to.eql(1); pm.expect(body.rewards[0].chance_percent).to.eql(100); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. Spin this promo's wheel (needs an existing unspun credit)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"promo_id\": \"{{spin_wheel_promo_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/rewards/spin",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "spin"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "if (pm.response.code === 200) {",
+              "  pm.test('spin result names the reward and this promo', () => { pm.expect(body.result.rewardId).to.eql(pm.collectionVariables.get('spin_wheel_reward_id')); });",
+              "} else {",
+              "  pm.test('if there was no credit yet, the server says so (not a raw 500)', () => { pm.response.to.have.status(400); pm.expect(body.error).to.match(/No spin credits available/); });",
+              "  console.warn('No spin credit was available for this promo yet - the daily_login trigger only grants one via record_customer_login(), which needs the DB migrations applied. See testing.md section G for a SQL insert into customer_spin_credits that forces one, using customer_id=' + pm.collectionVariables.get('customer_id') + ' and promo_id=' + pm.collectionVariables.get('spin_wheel_promo_id') + ', then re-run this request.');",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. GET /rewards/my-coupons - includes reward_label",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{customer_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/rewards/my-coupons",
+          "host": ["{{base_url}}"],
+          "path": ["rewards", "my-coupons"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('every coupon carries a reward_label (or null)', () => { for (const c of body.coupons) pm.expect(c).to.have.property('reward_label'); });",
+              "const won = body.coupons.find(c => c.spin_wheel_reward_id === pm.collectionVariables.get('spin_wheel_reward_id'));",
+              "if (won) pm.test('the coupon from request 17 carries the right label', () => pm.expect(won.reward_label).to.eql('Session 114 test reward'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
