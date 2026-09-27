@@ -73,7 +73,7 @@ Stage B:
 - `MiscSaleManagementPage.tsx` rewritten from a bare Admin/Superadmin-only bullet list into the shared page every money-handling role (Cashier included) reaches from their own sidebar, using the same `FilterSortBar` + `ViewSwitcher` + `useGroupBy` + `DataTable`/`DataBoard` toolbar the rest of the app uses (`CatalogAdminPage.tsx`'s pattern). New `miscSaleBrowserFields.ts` defines the filter/sort/group-by rules (payment method, status, date range, customer).
 - "New Misc Sale" now opens as a modal on this page (reusing `MiscellaneousSaleForm`, stripped of its now-redundant heading/card chrome) instead of navigating to the old, unlinked `/staff/billing/misc-sale` route - that page and route are deleted.
 - Edit/Delete stay visible only to Admin/Superadmin inside the page; every viewer gets a "View in Transactions" link.
-- Added a "Miscellaneous Sales" tile to the Cashier's sidebar and to the mirrored Cashier section of the Admin/Superadmin dashboard (`staffDashboard.config.ts`); removed the old tile from Settings > Config (`configTiles.config.ts`) - the "Product Catalog" tile (misc *items*, unchanged) now notes it's also where a cashier's item picker draws from.
+- Added a "Miscellaneous Sales" tile to the Cashier's sidebar and to the mirrored Cashier section of the Admin/Superadmin dashboard (`staffDashboard.config.ts`); removed the old tile from Settings > Config (`configTiles.config.ts`) - the "Product Catalog" tile (misc _items_, unchanged) now notes it's also where a cashier's item picker draws from.
 
 Stage C - **`MiscellaneousSaleForm` is deleted outright**, replaced by a new `client/src/features/billing/components/MiscSaleWizard/` folder:
 
