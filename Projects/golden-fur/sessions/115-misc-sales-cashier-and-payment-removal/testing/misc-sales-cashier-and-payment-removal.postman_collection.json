@@ -1,0 +1,482 @@
+{
+  "info": {
+    "name": "Session 115 - Misc Sales Cashier Wizard + Payment Removal",
+    "description": "Verifies all three stages of session 115. Stage A (PR #208, merged): GCash/Maya now settle a misc sale immediately (Fully Paid, no paymongoCheckoutUrl field) instead of waiting on a PayMongo webhook, and every /billing/paymongo/* route is gone (404). Stage B (PR #210): a Cashier can create/list a misc sale but gets 403 on PATCH/DELETE; an Admin can do all four. Stage C (same PR #210, commit 9f7b086, not yet pushed as of this update): a misc sale is now a multi-item cart, POST /billing/misc-sale/preview live-previews it (items + discount/promo lines) before anything is created, a new discounts.scope_type = 'misc_sale' lets a discount auto-apply to any misc sale (Cash-only, mirrors Senior/PWD rules), and PATCH /billing/misc-sale/:id now only accepts payment fields (no more item/amount edits). Fill in the variables below (a real customer_id and branch_id from your dev DB) before running. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "cashier_identifier", "value": "" },
+    { "key": "cashier_password", "value": "" },
+    { "key": "cashier_access_token", "value": "" },
+    { "key": "admin_identifier", "value": "" },
+    { "key": "admin_password", "value": "" },
+    { "key": "admin_access_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "branch_id", "value": "" },
+    { "key": "misc_sale_id", "value": "" },
+    { "key": "misc_sale_total_amount", "value": "" },
+    { "key": "discount_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Cashier",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{cashier_identifier}}\",\n  \"password\": \"{{cashier_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('cashier_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{admin_identifier}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('login succeeded', () => pm.response.to.have.status(200));",
+              "if (body.access_token) pm.collectionVariables.set('admin_access_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. (Stage C) Admin creates a Miscellaneous-Sale-scoped discount",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_ids\": [\"{{branch_id}}\"],\n  \"name\": \"Session 115 regression - Misc Sale Flat 50\",\n  \"discount_type\": \"Flat\",\n  \"value\": 50,\n  \"scope_type\": \"misc_sale\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts",
+          "host": ["{{base_url}}"],
+          "path": ["discounts"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('discount created', () => pm.response.to.have.status(201));",
+              "pm.test('scope_type is misc_sale, no scope_service_id/scope_package_id/scope_category', () => {",
+              "  pm.expect(body.scope_type).to.eql('misc_sale');",
+              "  pm.expect(body.scope_service_id).to.be.null;",
+              "  pm.expect(body.scope_package_id).to.be.null;",
+              "  pm.expect(body.scope_category).to.be.null;",
+              "});",
+              "if (body.id) pm.collectionVariables.set('discount_id', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. (Stage C) Cashier previews a 2-item cart paid in Cash - the misc_sale discount applies",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"description\": \"Session 115 regression - dog leash\", \"amount\": 250 },\n    { \"description\": \"Session 115 regression - dog bowl\", \"amount\": 100 }\n  ],\n  \"payment_method\": \"Cash\",\n  \"senior_citizen_eligible\": false,\n  \"pwd_eligible\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/preview",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "preview"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('preview succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('both cart lines are present', () => pm.expect(body.itemLines).to.have.lengthOf(2));",
+              "pm.test('subtotal is 350 (250 + 100)', () => pm.expect(body.subtotal).to.eql(350));",
+              "pm.test('the misc_sale discount line applies when paying Cash', () => {",
+              "  pm.expect(body.discountLines.length).to.be.greaterThan(0);",
+              "  pm.expect(body.discountAmount).to.eql(50);",
+              "});",
+              "pm.test('preCreditTotal reflects the discount (350 - 50 = 300)', () => pm.expect(body.preCreditTotal).to.eql(300));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. (Stage C) Same cart previewed with GCash - Cash-only discount does not apply",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"description\": \"Session 115 regression - dog leash\", \"amount\": 250 },\n    { \"description\": \"Session 115 regression - dog bowl\", \"amount\": 100 }\n  ],\n  \"payment_method\": \"GCash\",\n  \"senior_citizen_eligible\": false,\n  \"pwd_eligible\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/preview",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "preview"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('preview succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('no discount lines when paying GCash', () => pm.expect(body.discountLines).to.have.lengthOf(0));",
+              "pm.test('preCreditTotal equals the plain subtotal (350)', () => pm.expect(body.preCreditTotal).to.eql(350));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. (Stage C) Cashier creates the multi-item sale paid in Cash - discount line is actually recorded",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"{{customer_id}}\",\n  \"items\": [\n    { \"description\": \"Session 115 regression - dog leash\", \"amount\": 250 },\n    { \"description\": \"Session 115 regression - dog bowl\", \"amount\": 100 }\n  ],\n  \"payment_method\": \"Cash\",\n  \"cash_tendered\": 300,\n  \"senior_citizen_eligible\": false,\n  \"pwd_eligible\": false,\n  \"credit_to_apply\": 0\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('misc sale created', () => pm.response.to.have.status(201));",
+              "pm.test('settled Fully Paid immediately - no webhook wait', () => pm.expect(body.transaction.payment_status).to.eql('Fully Paid'));",
+              "// >= rather than a fixed number, in case other active misc_sale-scoped",
+              "// discounts/promos already exist in this dev DB besides the one from",
+              "// request 3 - the point of this check is 'a discount applied', not the",
+              "// exact catalog of what's seeded.",
+              "pm.test('the misc_sale discount amount is applied (at least 50)', () => pm.expect(body.transaction.discount_amount).to.be.at.least(50));",
+              "pm.test('at least one line item per cart item plus one discount line (3+)', () => pm.expect(body.lineItems.length).to.be.at.least(3));",
+              "pm.test('no paymongoCheckoutUrl field on the response', () => pm.expect(body.paymongoCheckoutUrl).to.be.undefined);",
+              "if (body.transaction && body.transaction.id) pm.collectionVariables.set('misc_sale_id', body.transaction.id);",
+              "if (body.transaction && body.transaction.total_amount !== undefined) pm.collectionVariables.set('misc_sale_total_amount', body.transaction.total_amount);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Cashier cannot PATCH the sale's payment method - 403",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"GCash\",\n  \"payment_reference\": \"cashier-trying-to-edit\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Cashier is forbidden from editing a misc sale', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Cashier cannot DELETE the sale - 403",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Cashier is forbidden from deleting a misc sale', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. (Stage C) Admin PATCHes only the payment method - succeeds; item/amount fields are rejected",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": \"GCash\",\n  \"payment_reference\": \"gcash-ref-115-admin-edit\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('update succeeded', () => pm.response.to.have.status(200));",
+              "pm.test('payment method updated', () => pm.expect(body.transaction.payment_method).to.eql('GCash'));",
+              "const expectedTotal = pm.collectionVariables.get('misc_sale_total_amount');",
+              "pm.test('total_amount is unchanged by the edit (items can no longer be edited)', () => pm.expect(body.transaction.total_amount).to.eql(expectedTotal));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9b. (Stage C) Admin's attempt to PATCH an item/amount field is rejected - 400",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Trying to edit an item field that no longer exists on this endpoint\",\n  \"amount\": 999\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected - updateMiscSaleValidator no longer accepts item/amount fields', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Admin DELETEs the sale - succeeds",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/misc-sale/{{misc_sale_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "misc-sale", "{{misc_sale_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('delete succeeded', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Cleanup - Admin turns off the test discount's branch availability",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"branch_id\": \"{{branch_id}}\",\n  \"is_available\": false\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/discounts/{{discount_id}}/branch-availability",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{discount_id}}", "branch-availability"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('branch availability turned off', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Cleanup - Admin archives the test discount",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{admin_access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/discounts/{{discount_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["discounts", "{{discount_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('discount archived', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. The PayMongo fee-rate endpoint no longer exists - 404",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{cashier_access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/billing/paymongo/fee-rate",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "paymongo", "fee-rate"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('route removed', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. The PayMongo webhook no longer exists - 404",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": {
+          "raw": "{{base_url}}/billing/paymongo/webhook",
+          "host": ["{{base_url}}"],
+          "path": ["billing", "paymongo", "webhook"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('route removed', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
