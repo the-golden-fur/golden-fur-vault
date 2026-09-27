@@ -11,15 +11,17 @@ branch: not yet created — staged on dev
 
 ## What you asked for
 
-Move the "misc sales" feature out of Admin Settings and give the Cashier role a proper page for it with full search/sort/filter tools, and delete the app's real online-payment pipeline (GCash/Maya stay as payment *labels* only):
+Move the "misc sales" feature out of Admin Settings and give the Cashier role a proper page for it with full search/sort/filter tools, and delete the app's real online-payment pipeline (GCash/Maya stay as payment _labels_ only):
 
 > As a developer, I want misc sales to be moved out of admin settings, to cashier's sidebar as a page
+>
 > - As a cashier, I want CRUD access to misc sales (I can create new sales via a button that opens a form, and view a history of such sales in my transactions page)
 > - As an admin/superadmin, I want CRUD access to both misc sales and misc items, where I can create new misc items cashiers can choose from
 >
 > Always include the shared search, sort, filter, group by and view options
 >
 > Also remove all traces of online payment
+>
 > - We're switching to just having gcash and paymaya as payment methods, not actual online payment processes
 
 ## What this part of the app does today
@@ -60,7 +62,7 @@ We'll do this as two ordered stages in the same branch. Stage A (remove online p
 5. **Remove the "Customer portal vs. Scan QR at counter" choice from the cashier's payment form.** _Which file:_ `client/src/features/billing/components/PaymentMethodForm/PaymentMethodForm.tsx` — _Why:_ this radio-button choice only existed to pick which PayMongo flow to use. With no PayMongo, GCash/Maya just need the same "type a reference number" field Card/Bank Transfer already show.
 6. **Remove the fee-notice banners and the fee-rate endpoint.** _Which files:_ delete `client/src/features/billing/components/PayMongoServiceFeeNotice/`, `client/src/features/booking/components/PayMongoFeeNotice/`, `getPaymongoFeeRate()` in `client/src/features/billing/api/billing.api.ts`, and the `GET /billing/paymongo/fee-rate` route/controller — _Why:_ these warned customers/cashiers about "an online processing fee," which no longer applies since nothing is processed online.
 7. **Remove the admin "online payments" on/off switch.** _Which file:_ `client/src/features/booking/pages/PolicyConfigurationPage/PolicyConfigurationPage.tsx`, plus the `online_payments_enabled` setting wherever it's read on the server (`server/src/features/booking/services/staffPicker.service.ts`) — _Why:_ this toggle only made sense when online payments were a real, sometimes-off feature. There's nothing left to toggle.
-8. **Drop the now-unused database columns.** _New file:_ `supabase/migrations/<next-number>_custom_remove_online_payment_columns.sql`, dropping `transactions.webhook_confirmed_at`, `transactions.initiated_by`, and `policy_configurations.online_payments_enabled` — _Why:_ these columns only ever recorded facts about the PayMongo webhook flow (when it confirmed a payment, who "initiated" a payment). Checked: no seed file and no other database function reads or writes them, so dropping them is safe. **Note:** the similar-sounding `payment_choice` column is *not* touched — it's used by every booking payment regardless of method and has nothing to do with PayMongo specifically.
+8. **Drop the now-unused database columns.** _New file:_ `supabase/migrations/<next-number>_custom_remove_online_payment_columns.sql`, dropping `transactions.webhook_confirmed_at`, `transactions.initiated_by`, and `policy_configurations.online_payments_enabled` — _Why:_ these columns only ever recorded facts about the PayMongo webhook flow (when it confirmed a payment, who "initiated" a payment). Checked: no seed file and no other database function reads or writes them, so dropping them is safe. **Note:** the similar-sounding `payment_choice` column is _not_ touched — it's used by every booking payment regardless of method and has nothing to do with PayMongo specifically.
 9. **Retire the PayMongo skill/agent docs.** _Which files:_ delete `.agent/skills/paymongo-webhook-handling.md`, `.agent/agents/payment-billing-agent.md`, and their generated copies under `.claude/`, `.codex/`, `.gemini/`; remove their entries from `AGENTS.md`'s index — _Why:_ these are AI-assistant instruction files describing how to work with the PayMongo webhook. Once that code is gone, the instructions would be actively misleading if left behind.
 10. **Clean up deployment config that still mentions PayMongo.** _Which files:_ `render.yaml` (drop the 5 `PAYMONGO_*` environment variable declarations) and `docs/deployment.md` (drop the matching documentation rows) — _Why:_ these were missed by an earlier cleanup that only touched `server/.env.example`; they're the actual settings Render (the hosting service) would apply on deploy, so leaving stale PayMongo secrets declared there is confusing and pointless.
 
@@ -74,12 +76,12 @@ We'll do this as two ordered stages in the same branch. Stage A (remove online p
     - Show Edit/Delete buttons on each row **only** for Admin/Superadmin — Cashiers see their sales listed (read-only) plus the "New Misc Sale" button, matching the CRUD split the server already enforces (Cashier can create/view; only Admin/Superadmin can edit/delete).
 12. **Delete the now-redundant standalone creation page.** _Which files:_ delete `client/src/features/billing/pages/MiscellaneousSalePage/` (the whole folder) and its route entry in `client/src/features/billing/billing.routes.tsx` — _Why:_ once "New Misc Sale" opens as a popup on the list page (step 11), this separate, currently-unlinked page has no more reason to exist.
 13. **Add "Miscellaneous Sales" to the Cashier's sidebar.** _Which file:_ `client/src/features/staff/config/staffDashboard.config.ts` — _Why:_ this is the one file that controls every role's sidebar. Add a new tile pointing at `/staff/admin/misc-sales` in two spots in this file: the Cashier role's own tile list, and the matching "Cashier" section shown inside the Admin/Superadmin dashboard (the file currently lists these twice by hand rather than sharing one list, so both copies need the new tile).
-14. **Remove "Miscellaneous Sales" from Admin Settings.** _Which file:_ `client/src/pages/SettingsPage/configTiles.config.ts` — _Why:_ this is the literal ask — it no longer belongs in Settings once it's a sidebar page in its own right. The "Product Catalog" tile (misc *items*) stays in Settings exactly as it is today.
+14. **Remove "Miscellaneous Sales" from Admin Settings.** _Which file:_ `client/src/pages/SettingsPage/configTiles.config.ts` — _Why:_ this is the literal ask — it no longer belongs in Settings once it's a sidebar page in its own right. The "Product Catalog" tile (misc _items_) stays in Settings exactly as it is today.
 15. **Add a cross-reference link back to Transactions.** _Which file:_ `client/src/features/billing/pages/MiscSaleManagementPage/MiscSaleManagementPage.tsx` — _Why:_ each row gets a small "View in Transactions" menu option linking to `/staff/reports/transaction-history`, so a cashier bouncing between the two pages doesn't have to re-search by hand.
 
 ## Words you might not know
 
-- **Migration** — a small, numbered file under `supabase/migrations/` that changes the shape of the database (adds/removes a table or column). Migrations run in order and are never edited after the fact — a change is always a *new* migration file.
+- **Migration** — a small, numbered file under `supabase/migrations/` that changes the shape of the database (adds/removes a table or column). Migrations run in order and are never edited after the fact — a change is always a _new_ migration file.
 - **RLS (row-level security)** — a database-level rule (separate from anything the app's own code checks) that limits which rows a given logged-in user is even allowed to see or change. Golden Fur uses this as a second layer of protection behind the app's own role checks.
 - **Enum** — a fixed list of allowed values for a column (e.g. `payment_method` can only ever be `'Cash'`, `'GCash'`, `'Maya'`, `'Card'`, `'Bank Transfer'`, `'Grabmart'`, or `'Pickaroo'` — nothing else).
 - **Webhook** — an HTTP request one system sends to another, automatically, when something happens on its end — here, PayMongo notifying our server "this payment went through."
