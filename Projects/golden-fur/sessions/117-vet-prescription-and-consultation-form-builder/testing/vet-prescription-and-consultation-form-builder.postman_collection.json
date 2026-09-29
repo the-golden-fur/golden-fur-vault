@@ -1,0 +1,925 @@
+{
+  "info": {
+    "name": "Vet Prescription Builder + Consultation Form Builder (#117)",
+    "description": "Covers the #117 changes, updated for the design's later evolution (see testing.md's 'Scope note 2'): (1) owner-scoped consultation-form-template CRUD, including the 'a select field needs at least one option' validation AND the new is_default 'exactly one default per vet' clearing behavior; (2) the trimmed medication-catalog create/update payload (name/type/price only - no dose/frequency, dropped by migration 20260929233); (3) the new owner-scoped prescription-template CRUD (GET/POST /veterinary/prescription-templates, PATCH/DELETE /veterinary/prescription-templates/:id); (4) the widened PATCH /veterinary/consultations/:id (medications gain medicine_type/frequency/duration, plus the form_responses array - which is now where vitals/diagnosis-equivalent data lives, since the old fixed vitals/diagnosis fields were removed client-side); (5) the two new staff-facing 'every patient' list endpoints (GET /veterinary/prescriptions kept; GET /veterinary/consultation-results REMOVED this pass, now 404s same as the already-removed GET /veterinary/procedure-catalog); (6) the two new customer-facing, ownership-checked pet-history endpoints (GET /pets/:id/prescriptions, GET /pets/:id/consultation-results - unaffected by this pass, still live), including the 403 a non-owning customer gets.\n\nFill in every blank variable before running. `vet_booking_id` must be an already checked-in (status 'In Progress') or walk-in Veterinary booking made TODAY, so it shows up in the consultation queue's auto-vivify step - `owner_customer_identifier`/`owner_customer_password` must be the customer who owns that booking's pet. Run requests in order, top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "vet_identifier", "value": "" },
+    { "key": "vet_password", "value": "" },
+    { "key": "receptionist_identifier", "value": "" },
+    { "key": "receptionist_password", "value": "" },
+    { "key": "owner_customer_identifier", "value": "" },
+    { "key": "owner_customer_password", "value": "" },
+    { "key": "other_customer_identifier", "value": "" },
+    { "key": "other_customer_password", "value": "" },
+    { "key": "vet_token", "value": "" },
+    { "key": "receptionist_token", "value": "" },
+    { "key": "owner_customer_token", "value": "" },
+    { "key": "other_customer_token", "value": "" },
+    { "key": "vet_booking_id", "value": "" },
+    { "key": "consultation_id", "value": "" },
+    { "key": "pet_id", "value": "" },
+    { "key": "template_id", "value": "" },
+    { "key": "default_template_id", "value": "" },
+    { "key": "medication_catalog_id", "value": "" },
+    { "key": "prescription_template_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Login as Veterinarian",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{vet_identifier}}\",\n  \"password\": \"{{vet_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('vet login succeeded', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('vet_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Login as Receptionist",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{receptionist_identifier}}\",\n  \"password\": \"{{receptionist_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/staff/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "staff", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('receptionist login succeeded', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('receptionist_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login as owning Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{owner_customer_identifier}}\",\n  \"password\": \"{{owner_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('owner customer login succeeded', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('owner_customer_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Login as a different (non-owning) Customer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{other_customer_identifier}}\",\n  \"password\": \"{{other_customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/customers/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "customers", "login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('other customer login succeeded', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "if (body.access_token) pm.collectionVariables.set('other_customer_token', body.access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. POST medication-catalog: trimmed payload (name/type/price only, no dose/frequency)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Amoxicillin\",\n  \"default_medicine_type\": \"Oral\",\n  \"default_price\": 150\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/medication-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "medication-catalog"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('medication created, no dose/frequency fields on the response (columns dropped by 20260929233)', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.medication.name).to.eql('Amoxicillin');",
+              "  pm.expect(body.medication.default_medicine_type).to.eql('Oral');",
+              "  pm.expect(body.medication).to.not.have.property('default_dose');",
+              "  pm.expect(body.medication).to.not.have.property('default_frequency');",
+              "  pm.collectionVariables.set('medication_catalog_id', body.medication.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. POST medication-catalog: sending a legacy default_dose field is rejected (400 - unknown key)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Meloxicam\",\n  \"default_dose\": \"0.1mg/kg\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/medication-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "medication-catalog"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected - default_dose is no longer part of the medication-catalog shape', () => {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. PATCH medication-catalog/:id: update type/price only",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"default_price\": 175\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/medication-catalog/{{medication_catalog_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "medication-catalog",
+            "{{medication_catalog_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('price updated', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().medication.default_price).to.eql(175);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. POST prescription-templates: 'Standard Post-Surgery Recovery' (pulls the medication above)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Standard Post-Surgery Recovery\",\n  \"items\": [\n    {\n      \"medication_catalog_id\": \"{{medication_catalog_id}}\",\n      \"name\": \"Amoxicillin\",\n      \"medicine_type\": \"Oral\",\n      \"dose\": \"250mg\",\n      \"frequency\": \"Twice daily\",\n      \"duration\": \"7 days\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescription-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "prescription-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('prescription template created with one item', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.template.name).to.eql('Standard Post-Surgery Recovery');",
+              "  pm.expect(body.template.items).to.have.lengthOf(1);",
+              "  pm.expect(body.template.items[0].frequency).to.eql('Twice daily');",
+              "  pm.collectionVariables.set('prescription_template_id', body.template.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. POST prescription-templates: no items is rejected (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Empty template\",\n  \"items\": []\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescription-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "prescription-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected - a prescription template needs at least one item', () => {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. GET prescription-templates: the new template is listed (owner-scoped)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescription-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "prescription-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('template appears in this vet\\'s own list', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const match = body.templates.find((t) => t.id === pm.collectionVariables.get('prescription_template_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. PATCH prescription-templates/:id: rename",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Standard Post-Surgery Recovery (Updated)\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescription-templates/{{prescription_template_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "prescription-templates",
+            "{{prescription_template_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('name updated', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().template.name).to.eql('Standard Post-Surgery Recovery (Updated)');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. POST consultation-form-templates: a 'select' field with no options is rejected (400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Broken template\",\n  \"fields\": [\n    { \"id\": \"f1\", \"label\": \"Overall condition\", \"type\": \"select\", \"options\": [] }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-form-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('rejected with 400 - a select field needs at least one option', () => {",
+              "  pm.response.to.have.status(400);",
+              "  const body = pm.response.json();",
+              "  const messages = JSON.stringify(body.details ?? body);",
+              "  pm.expect(messages).to.match(/at least one option/i);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. POST consultation-form-templates: 'Dental Check' (text + select fields, is_default omitted) - succeeds",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Dental Check\",\n  \"fields\": [\n    { \"id\": \"tartar\", \"label\": \"Tartar level\", \"type\": \"text\" },\n    { \"id\": \"condition\", \"label\": \"Overall condition\", \"type\": \"select\", \"options\": [\"Good\", \"Fair\", \"Poor\"], \"required\": true }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-form-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('template created with both fields, is_default defaults to false', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.template.name).to.eql('Dental Check');",
+              "  pm.expect(body.template.fields).to.have.lengthOf(2);",
+              "  pm.expect(body.template.is_default).to.eql(false);",
+              "  pm.collectionVariables.set('template_id', body.template.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. POST consultation-form-templates: 'General Consultation' with is_default true - succeeds",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"General Consultation\",\n  \"is_default\": true,\n  \"fields\": [\n    { \"id\": \"temperature\", \"label\": \"Temperature\", \"type\": \"number\" },\n    { \"id\": \"weight\", \"label\": \"Weight (kg)\", \"type\": \"number\" },\n    { \"id\": \"heart-rate\", \"label\": \"Heart Rate\", \"type\": \"number\" },\n    { \"id\": \"respiratory-rate\", \"label\": \"Respiratory Rate\", \"type\": \"number\" },\n    { \"id\": \"diagnosis\", \"label\": \"Diagnosis\", \"type\": \"textarea\" }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-form-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('created as the default template', () => {",
+              "  pm.response.to.have.status(201);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.template.is_default).to.eql(true);",
+              "  pm.collectionVariables.set('default_template_id', body.template.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15. PATCH consultation-form-templates/:id: setting Dental Check as default clears General Consultation's default (clearOtherDefaults)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_default\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates/{{template_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "consultation-form-templates",
+            "{{template_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Dental Check is now the default', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().template.is_default).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. GET consultation-form-templates: exactly one default across the list (General Consultation's is_default was cleared)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-form-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('exactly one is_default = true row, and it is Dental Check', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const templates = pm.response.json().templates;",
+              "  const defaults = templates.filter((t) => t.is_default);",
+              "  pm.expect(defaults).to.have.lengthOf(1);",
+              "  pm.expect(defaults[0].id).to.eql(pm.collectionVariables.get('template_id'));",
+              "  const generalConsultation = templates.find((t) => t.id === pm.collectionVariables.get('default_template_id'));",
+              "  pm.expect(generalConsultation.is_default).to.eql(false);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. GET the retired procedure catalog route - confirms it's actually gone, not just hidden client-side",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/procedure-catalog",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "procedure-catalog"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('route no longer exists (404, not routed)', () => {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. GET the now-removed staff-facing consultation-results route - confirms it's actually gone (same treatment as procedure-catalog above)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-results",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-results"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('route no longer exists (404) - the standalone Consultation Results page/route/controller/service were removed this pass; results are now read from a consultation row\\'s own form_responses via a Consultation Queue row option instead', () => {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19. GET consultation queue (Vet) - locates today's checked-in vet_booking_id's consultation",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/queue",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "queue"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('the target booking has an auto-vivified consultation', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const consultations = pm.response.json().consultations;",
+              "  const match = consultations.find((c) => c.booking_id === pm.collectionVariables.get('vet_booking_id'));",
+              "  pm.expect(match, 'no consultation found for vet_booking_id - is it checked in today?').to.not.be.undefined;",
+              "  pm.collectionVariables.set('consultation_id', match.id);",
+              "  pm.collectionVariables.set('pet_id', match.pet_id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20. PATCH consultation -> Ongoing: widened medication (medicine_type/frequency/duration)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Ongoing\",\n  \"medications\": [\n    {\n      \"name\": \"Amoxicillin\",\n      \"dose\": \"250mg\",\n      \"medicine_type\": \"Oral\",\n      \"frequency\": \"Twice daily\",\n      \"duration\": \"7 days\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Ongoing, medicine_type/frequency/duration saved on the medication', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const consultation = pm.response.json().consultation;",
+              "  pm.expect(consultation.status).to.eql('Ongoing');",
+              "  const med = consultation.medications[0];",
+              "  pm.expect(med.medicine_type).to.eql('Oral');",
+              "  pm.expect(med.frequency).to.eql('Twice daily');",
+              "  pm.expect(med.duration).to.eql('7 days');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21. PATCH consultation -> Completed: amount added, plus form_responses (vitals/diagnosis now live here, not as their own columns)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{vet_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"Completed\",\n  \"professional_fee\": 500,\n  \"medications\": [\n    {\n      \"name\": \"Amoxicillin\",\n      \"dose\": \"250mg\",\n      \"medicine_type\": \"Oral\",\n      \"frequency\": \"Twice daily\",\n      \"duration\": \"7 days\",\n      \"amount\": 150\n    }\n  ],\n  \"form_responses\": [\n    {\n      \"template_id\": \"{{default_template_id}}\",\n      \"template_name\": \"General Consultation\",\n      \"filled_at\": \"2026-09-29T00:00:00.000Z\",\n      \"fields\": [\n        { \"field_id\": \"temperature\", \"label\": \"Temperature\", \"type\": \"number\", \"value\": 38.5 },\n        { \"field_id\": \"weight\", \"label\": \"Weight (kg)\", \"type\": \"number\", \"value\": 12.4 },\n        { \"field_id\": \"diagnosis\", \"label\": \"Diagnosis\", \"type\": \"textarea\", \"value\": \"Dental tartar buildup\" }\n      ]\n    },\n    {\n      \"template_id\": \"{{template_id}}\",\n      \"template_name\": \"Dental Check\",\n      \"filled_at\": \"2026-09-29T00:00:00.000Z\",\n      \"fields\": [\n        { \"field_id\": \"tartar\", \"label\": \"Tartar level\", \"type\": \"text\", \"value\": \"Moderate\" },\n        { \"field_id\": \"condition\", \"label\": \"Overall condition\", \"type\": \"select\", \"value\": \"Fair\" }\n      ]\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultations/{{consultation_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultations", "{{consultation_id}}"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Completed, no procedure line item, both form_responses entries persisted verbatim', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const consultation = pm.response.json().consultation;",
+              "  pm.expect(consultation.status).to.eql('Completed');",
+              "  pm.expect(consultation.form_responses).to.have.lengthOf(2);",
+              "  const general = consultation.form_responses.find((r) => r.template_name === 'General Consultation');",
+              "  const dental = consultation.form_responses.find((r) => r.template_name === 'Dental Check');",
+              "  pm.expect(general.fields.find((f) => f.field_id === 'diagnosis').value).to.eql('Dental tartar buildup');",
+              "  pm.expect(dental.fields.find((f) => f.field_id === 'condition').value).to.eql('Fair');",
+              "});",
+              "pm.test('Reminder: verify in Supabase Studio - consultation_line_items for this consultation_id has exactly 2 rows (professional_fee + medication), no procedure row; and consultations.temperature/weight/diagnosis stayed NULL, since the client never sends them any more', () => {",
+              "  pm.expect(true).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22. GET /veterinary/prescriptions (staff, every patient) - the just-completed prescription appears",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescriptions",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "prescriptions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('the completed consultation is in the every-patient prescriptions list', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const consultations = pm.response.json().consultations;",
+              "  const match = consultations.find((c) => c.id === pm.collectionVariables.get('consultation_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.medications[0].medicine_type).to.eql('Oral');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23. GET /pets/:id/prescriptions as the owning Customer - trimmed view, no vitals (unaffected by this pass, re-verified)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{owner_customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/prescriptions",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "prescriptions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('owner sees their pet\\'s prescription history, trimmed to medications only', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const entries = pm.response.json().prescriptions;",
+              "  const match = entries.find((e) => e.consultation_id === pm.collectionVariables.get('consultation_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.medications[0].name).to.eql('Amoxicillin');",
+              "  pm.expect(match).to.not.have.property('diagnosis');",
+              "  pm.expect(match).to.not.have.property('professional_fee');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24. GET /pets/:id/consultation-results as the owning Customer (unaffected by this pass, re-verified)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{owner_customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/consultation-results",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "consultation-results"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('owner sees their pet\\'s consultation-results history, now including both attached results', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const entries = pm.response.json().results;",
+              "  const match = entries.find((e) => e.consultation_id === pm.collectionVariables.get('consultation_id'));",
+              "  pm.expect(match).to.not.be.undefined;",
+              "  pm.expect(match.form_responses).to.have.lengthOf(2);",
+              "  const dental = match.form_responses.find((r) => r.template_name === 'Dental Check');",
+              "  pm.expect(dental.fields.find((f) => f.field_id === 'condition').value).to.eql('Fair');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25. GET /pets/:id/prescriptions as a NON-owning Customer - rejected (403)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{other_customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pets/{{pet_id}}/prescriptions",
+          "host": ["{{base_url}}"],
+          "path": ["pets", "{{pet_id}}", "prescriptions"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('ownership check rejects a customer who does not own this pet', () => {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26. DELETE prescription-templates/:id",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/prescription-templates/{{prescription_template_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "prescription-templates",
+            "{{prescription_template_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('prescription template deleted', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27. DELETE consultation-form-templates/:id (Dental Check, the current default)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates/{{template_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "consultation-form-templates",
+            "{{template_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('template deleted', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28. GET consultation-form-templates: the deleted template is gone (archived, not just hidden)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/consultation-form-templates",
+          "host": ["{{base_url}}"],
+          "path": ["veterinary", "consultation-form-templates"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('deleted template no longer appears in the list', () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  const match = body.templates.find((t) => t.id === pm.collectionVariables.get('template_id'));",
+              "  pm.expect(match).to.be.undefined;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29. DELETE medication-catalog/:id (cleanup)",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Authorization", "value": "Bearer {{vet_token}}" }],
+        "url": {
+          "raw": "{{base_url}}/veterinary/medication-catalog/{{medication_catalog_id}}",
+          "host": ["{{base_url}}"],
+          "path": [
+            "veterinary",
+            "medication-catalog",
+            "{{medication_catalog_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('medication deleted (cleanup)', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
