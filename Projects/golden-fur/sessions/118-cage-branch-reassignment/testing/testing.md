@@ -8,7 +8,7 @@ Branch: `feat/cage-branch-reassignment`
 > are available at, via ... button > configure
 
 Scope note: clarified with the user before implementing that this means
-reassigning a cage to a different *single* branch (not making one cage
+reassigning a cage to a different _single_ branch (not making one cage
 available at multiple branches simultaneously, which would have meant
 following the existing Services/Packages/Promos "branch availability"
 join-table pattern instead), and that only the Superadmin role can do the
@@ -41,7 +41,7 @@ Express-layer query filter and the client form not offering a branch field.
 - `server/src/features/hotel/services/cageStatus.service.ts` - `updateCage`
   accepts `newBranchId` and, when given, includes `branch_id` in the
   Supabase update payload. The existing `.eq('branch_id', branchId)` (the
-  cage's *current* branch) still locates the row, so a Superadmin can only
+  cage's _current_ branch) still locates the row, so a Superadmin can only
   move a cage already visible in their own branch's list, not reach into
   another branch's inventory directly.
 

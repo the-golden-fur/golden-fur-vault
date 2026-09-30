@@ -29,7 +29,7 @@ that opens a popup letting you change the cage's **label** (e.g.
 Every cage belongs to exactly one **branch** (Golden Fur currently has two:
 Makati and Southwoods) - that's baked into the cage's own record in the
 database (a column called `branch_id`). The Cages page only ever shows you
-*your own* branch's cages - this is true for every staff role, including
+_your own_ branch's cages - this is true for every staff role, including
 Superadmin (the highest-privilege role, who can normally do anything at any
 branch). There is currently no button or field anywhere that changes which
 branch a cage belongs to - once created, a cage is stuck at that branch.
