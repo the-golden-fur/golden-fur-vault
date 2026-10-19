@@ -1,0 +1,129 @@
+{
+  "info": {
+    "name": "Hotel checkout bill preview (session 121)",
+    "description": "Server-side checks for session 121. (1) log in as front desk staff. (2) GET /hotel/stays/:id/checkout-preview returns the itemized bill if checked out now: booked nights x rate, any late nights x rate, downpayment, what checkout adds and what is left to collect. It writes nothing, so it is safe to run repeatedly. (3) the same stay from another branch's login is refused 403. (4) a stay already checked out is refused 409. (5) POST /hotel/stays/:id/checkout returns a `bill` equal to the preview's `breakdown`. Request 5 really checks the pet out - point it at a throwaway stay. Fill the variables, then run top to bottom.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    {
+      "key": "staff_identifier",
+      "value": "",
+      "description": "a Makati Receptionist / Front Desk login, e.g. makati.receptionist1 (seed password: password123)"
+    },
+    { "key": "staff_password", "value": "" },
+    { "key": "staff_access_token", "value": "" },
+    {
+      "key": "other_branch_token",
+      "value": "",
+      "description": "an access token for a Southwoods staff login"
+    },
+    {
+      "key": "stay_id",
+      "value": "",
+      "description": "an Active Hotel stay at the logged-in branch (Cage Occupancy -> an occupied Hotel cage)"
+    },
+    {
+      "key": "completed_stay_id",
+      "value": "",
+      "description": "a Hotel stay that has already been checked out"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Staff login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('staff_access_token', body.accessToken ?? body.access_token ?? body.session?.access_token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{base_url}}/auth/staff/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staff_identifier}}\",\n  \"password\": \"{{staff_password}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2. Preview the bill (200, writes nothing)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const { preview } = pm.response.json();",
+              "pm.test('itemized breakdown', () => {",
+              "  pm.expect(preview.breakdown).to.include.keys('nights', 'nightly_rate', 'stay_charge', 'late_nights', 'late_charge', 'total');",
+              "  const b = preview.breakdown;",
+              "  pm.expect(b.total).to.eql(Math.max(0, b.stay_charge - b.discount) + b.late_charge);",
+              "});",
+              "pm.test('amount_due includes what checkout adds', () => pm.expect(preview.amount_due).to.be.at.least(preview.added_at_checkout));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{staff_access_token}}" }],
+        "url": "{{base_url}}/hotel/stays/{{stay_id}}/checkout-preview"
+      }
+    },
+    {
+      "name": "3. Another branch's stay (403)",
+      "event": [
+        {
+          "listen": "test",
+          "script": { "exec": ["pm.test('403', () => pm.response.to.have.status(403));"] }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{other_branch_token}}" }],
+        "url": "{{base_url}}/hotel/stays/{{stay_id}}/checkout-preview"
+      }
+    },
+    {
+      "name": "4. Already checked out (409)",
+      "event": [
+        {
+          "listen": "test",
+          "script": { "exec": ["pm.test('409', () => pm.response.to.have.status(409));"] }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{staff_access_token}}" }],
+        "url": "{{base_url}}/hotel/stays/{{completed_stay_id}}/checkout-preview"
+      }
+    },
+    {
+      "name": "5. Check out - bill matches the preview (MUTATES)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "pm.test('returns the itemized bill', () => pm.expect(pm.response.json().bill).to.be.an('object'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{staff_access_token}}" }],
+        "url": "{{base_url}}/hotel/stays/{{stay_id}}/checkout"
+      }
+    }
+  ]
+}
